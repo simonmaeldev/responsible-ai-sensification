@@ -279,9 +279,17 @@ input[type="number"]:focus {
 .visuals {
   flex: 1;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 16px;
   padding: 16px;
+  overflow: hidden;
+}
+
+/* Left visual: waveform */
+.visuals-left {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
 }
 
@@ -291,16 +299,101 @@ input[type="number"]:focus {
   background: #000;
   border-radius: 8px;
   display: block;
+  min-height: 0;
 }
 
-#image-placeholder {
-  height: 180px;
-  border: 2px dashed var(--border);
+/* Right visual: cluster viz + text output */
+.visuals-right {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: hidden;
+}
+
+#cluster-viz-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
   border-radius: 8px;
+  overflow: hidden;
+  background: var(--surface);
+  flex: 1;
+  min-height: 0;
+}
+
+#cv-token-label {
+  text-align: center;
+  font-size: 1.1rem;
+  font-weight: bold;
+  padding: 6px 0;
+  color: var(--accent);
+  letter-spacing: 0.05em;
+}
+
+#cv-color-strip {
+  display: flex;
+  height: 36px;
+  width: 100%;
+  flex-shrink: 0;
+}
+
+#cv-color-strip > div {
+  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-muted);
-  font-size: 13px;
+  overflow: hidden;
+  cursor: default;
+  padding: 0 3px;
+}
+
+#cv-color-strip > div > span {
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.95), 0 0 6px rgba(0,0,0,0.8);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  display: block;
+}
+
+#cluster-canvas {
+  flex: 1;
+  width: 100%;
+  display: block;
+  transition: background-color 0.3s ease;
+}
+
+#cv-labels {
+  padding: 4px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex-shrink: 0;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+#cv-cluster-label, #cv-feature-label {
+  font-size: 0.75rem;
+  color: rgba(255,255,255,0.9);
+  text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#cv-text-output {
+  height: 90px;
+  overflow-y: auto;
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 0.8rem;
+  color: #ccc;
+  line-height: 1.4;
+  border: 1px solid rgba(255,255,255,0.05);
   flex-shrink: 0;
 }

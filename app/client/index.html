@@ -96,10 +96,23 @@
 
       <!-- Right panel: visualizations -->
       <section class="visuals">
-        <canvas id="waveform" width="600" height="300"></canvas>
+        <div class="visuals-left">
+          <canvas id="waveform" width="600" height="300"></canvas>
+        </div>
 
-        <div id="image-placeholder">
-          <span>Todo: image generation</span>
+        <div class="visuals-right">
+          <div id="cluster-viz-panel">
+            <div id="cv-token-label">—</div>
+            <div id="cv-color-strip"></div>
+            <div id="cv-labels">
+              <span id="cv-cluster-label">cluster: —</span>
+              <span id="cv-feature-label">feature: —</span>
+            </div>
+            <canvas id="cluster-canvas"></canvas>
+          </div>
+          <div id="cv-text-output">
+            <div id="cv-text-content"></div>
+          </div>
         </div>
       </section>
     </main>

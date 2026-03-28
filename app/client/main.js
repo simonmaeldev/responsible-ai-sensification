@@ -153,6 +153,10 @@ let catalogue = {};        // modelId -> { layers: [...], widths: [...] }
 let strategyDescs = {};    // value -> description
 let modeDescs = {};        // value -> description
 
+// Cluster viz state
+let cvPalette = [];       // [{cluster_id, name, color}] ordered by PCA
+let cvFullText = "";      // accumulated generated text
+
 // ── Local storage ──────────────────────────────────────────────────────────
 const STORAGE_KEY = "sae_ui_params";
 
@@ -340,6 +344,11 @@ function handleMessage(msg) {
       setStatus(msg.stage);
       break;
 
+    case "cluster_palette":
+      cvPalette = msg.palette || [];
+      renderColorStrip();
+      break;
+
     case "token":
       tokenCount++;
       setStatus(`Tokens: ${tokenCount}`);
@@ -349,26 +358,146 @@ function handleMessage(msg) {
       }
       drawNotes(msg.notes ?? []);
       engine.playNotes(msg.notes ?? [], modeSel.value, parseInt(bpmIn.value));
+      renderClusterViz(msg);
       break;
 
     case "done":
       setStatus(`Done (${tokenCount} tokens) — loop or send a new prompt`);
+      resetClusterViz();
       break;
 
     case "silent":
       engine.stopAll();
       setStatus("Silent");
+      resetClusterViz();
       break;
 
     case "stopped":
       engine.stopAll();
       setIdle();
+      resetClusterViz();
       break;
 
     case "error":
       setStatus(`Error: ${msg.message}`);
       setIdle();
       break;
+  }
+}
+
+// ── Cluster Viz ─────────────────────────────────────────────────────────────
+function renderColorStrip() {
+  const strip = document.getElementById("cv-color-strip");
+  if (!strip) return;
+  strip.innerHTML = "";
+  for (const item of cvPalette) {
+    const div = document.createElement("div");
+    div.style.backgroundColor = item.color;
+    div.title = item.name;
+    const span = document.createElement("span");
+    span.textContent = item.name;
+    div.appendChild(span);
+    strip.appendChild(div);
+  }
+}
+
+function renderClusterViz(msg) {
+  const tokenLabel = document.getElementById("cv-token-label");
+  if (tokenLabel) tokenLabel.textContent = msg.token || "—";
+
+  const notes = msg.notes || [];
+  const enrichedNotes = notes.filter(n => n.cluster_color);
+  if (enrichedNotes.length === 0) return;
+
+  // Sum activations per cluster to find dominant cluster
+  const clusterTotals = {};
+  for (const note of enrichedNotes) {
+    const cid = note.cluster;
+    if (cid !== null && cid !== undefined) {
+      clusterTotals[cid] = (clusterTotals[cid] || 0) + note.amplitude;
+    }
+  }
+
+  let dominantClusterId = null, maxTotal = -Infinity;
+  for (const [cid, total] of Object.entries(clusterTotals)) {
+    if (total > maxTotal) { maxTotal = total; dominantClusterId = cid; }
+  }
+  const dominantEntry = cvPalette.find(p => String(p.cluster_id) === String(dominantClusterId));
+
+  // Background color = dominant cluster's color
+  const clusterCanvas = document.getElementById("cluster-canvas");
+  if (clusterCanvas) {
+    clusterCanvas.style.backgroundColor = dominantEntry ? dominantEntry.color : "#333333";
+  }
+
+  // Labels: dominant cluster name + top-amplitude feature within dominant cluster
+  const inDominant = enrichedNotes.filter(n => String(n.cluster) === String(dominantClusterId));
+  const topFeature = inDominant.length
+    ? inDominant.reduce((a, b) => a.amplitude > b.amplitude ? a : b)
+    : null;
+
+  const clusterLabel = document.getElementById("cv-cluster-label");
+  const featureLabel = document.getElementById("cv-feature-label");
+  if (clusterLabel) clusterLabel.textContent = `cluster: ${dominantEntry?.name || "—"}`;
+  if (featureLabel) featureLabel.textContent = `feature: ${topFeature?.feature_description || "—"}`;
+
+  // Draw sorted bar chart
+  if (clusterCanvas) drawClusterBars(clusterCanvas, enrichedNotes);
+
+  // Append token to full text output
+  cvFullText += msg.token || "";
+  const textContent = document.getElementById("cv-text-content");
+  if (textContent) textContent.textContent = cvFullText;
+  const textBox = document.getElementById("cv-text-output");
+  if (textBox) textBox.scrollTop = textBox.scrollHeight;
+}
+
+function drawClusterBars(canvas, notes) {
+  // Sync canvas pixel size to its CSS size for sharp rendering
+  const W = canvas.offsetWidth || canvas.width;
+  const H = canvas.offsetHeight || canvas.height;
+  if (canvas.width !== W || canvas.height !== H) {
+    canvas.width = W;
+    canvas.height = H;
+  }
+
+  const canvasCtx = canvas.getContext("2d");
+  canvasCtx.clearRect(0, 0, W, H);
+
+  if (!notes.length) return;
+
+  const sorted = [...notes].sort((a, b) => a.amplitude - b.amplitude);
+  const maxAmp = Math.max(...sorted.map(n => n.amplitude), 1);
+  const barW = Math.max(2, Math.floor(W / sorted.length));
+
+  for (let i = 0; i < sorted.length; i++) {
+    const note = sorted[i];
+    const barH = (note.amplitude / maxAmp) * H;
+    const x = i * barW;
+    const y = H - barH;
+    canvasCtx.fillStyle = note.cluster_color || "#888888";
+    canvasCtx.fillRect(x, y, barW, barH);
+    canvasCtx.strokeStyle = "#000000";
+    canvasCtx.lineWidth = 1;
+    canvasCtx.strokeRect(x, y, barW, barH);
+  }
+}
+
+function resetClusterViz() {
+  cvFullText = "";
+  const textContent = document.getElementById("cv-text-content");
+  if (textContent) textContent.textContent = "";
+  const tokenLabel = document.getElementById("cv-token-label");
+  if (tokenLabel) tokenLabel.textContent = "—";
+  const clusterLabel = document.getElementById("cv-cluster-label");
+  if (clusterLabel) clusterLabel.textContent = "cluster: —";
+  const featureLabel = document.getElementById("cv-feature-label");
+  if (featureLabel) featureLabel.textContent = "feature: —";
+  const clusterCanvas = document.getElementById("cluster-canvas");
+  if (clusterCanvas) {
+    clusterCanvas.style.backgroundColor = "";
+    const canvasCtx = clusterCanvas.getContext("2d");
+    canvasCtx.clearRect(0, 0, clusterCanvas.width, clusterCanvas.height);
   }
 }
 

@@ -18,6 +18,9 @@ _model_cache: dict[tuple, dict] = {}
 # Cluster map cache: (model_id, layer, width, clusters) -> cluster_map dict
 _cluster_cache: dict[tuple, dict] = {}
 
+# Enriched cluster map cache: (model_id, layer, width) -> {cluster_map, palette}
+_enriched_cluster_cache: dict[tuple, dict] = {}
+
 # One shared session (single-user for now)
 _session = PipelineSession()
 
@@ -84,6 +87,41 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
                 "neuronpedia": neuronpedia,
             }
 
+        # Build enriched cluster map (names + colors) — cached after first run
+        enriched_key = (params.model, params.layer, params.width)
+        if enriched_key not in _enriched_cluster_cache:
+            await _send(ws, {"type": "loading", "stage": "Naming clusters..."})
+
+            def _build_enriched():
+                from app.server.pipeline.cluster_naming import build_enriched_cluster_map
+                from sentence_transformers import SentenceTransformer
+                import torch
+                embed_device = "cuda" if torch.cuda.is_available() else "cpu"
+                _embed_model = SentenceTransformer("all-MiniLM-L6-v2", device=embed_device)
+                np_model_id = params.model.split("/")[-1].replace("-pt", "")
+                return build_enriched_cluster_map(
+                    np_model_id,
+                    params.layer,
+                    params.width,
+                    neuronpedia,
+                    _embed_model,
+                )
+
+            enriched_data = await asyncio.to_thread(_build_enriched)
+            _enriched_cluster_cache[enriched_key] = enriched_data
+            print(
+                f"[pipeline] Enriched cluster map ready: {len(enriched_data.get('cluster_map', {}))} entries.",
+                file=sys.stderr, flush=True,
+            )
+        else:
+            enriched_data = _enriched_cluster_cache[enriched_key]
+            print("[pipeline] Enriched cluster map from cache.", file=sys.stderr, flush=True)
+
+        enriched_map = enriched_data.get("cluster_map", {})
+        palette = enriched_data.get("palette", [])
+
+        await _send(ws, {"type": "cluster_palette", "palette": palette})
+
         await _send(ws, {"type": "loading", "stage": "Running generation..."})
 
         from app.server.pipeline.extract import inspect_live
@@ -143,6 +181,20 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
                             notes = apply_cluster(active_features, cluster_map)
                         else:
                             notes = apply_identity(active_features)
+
+                        # Enrich notes with cluster visualization metadata
+                        for note, feat in zip(notes, active_features):
+                            idx = feat["index"]
+                            if idx in enriched_map:
+                                entry = enriched_map[idx]
+                                note["cluster_name"] = entry["cluster_name"]
+                                note["cluster_color"] = entry["cluster_color"]
+                            else:
+                                note["cluster_name"] = ""
+                                note["cluster_color"] = "#888888"
+                            note["feature_index"] = idx
+                            note["feature_description"] = feat.get("description") or ""
+
                         event = {
                             "type": "token",
                             "token": token_analysis.token,
