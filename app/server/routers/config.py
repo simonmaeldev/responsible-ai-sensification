@@ -14,6 +14,11 @@ MODEL_CATALOGUE = {
     "google/gemma-3-4b-pt": {"layers": [22], "widths": ["65k"]},
 }
 
+SAE_REPO_MAP = {
+    "google/gemma-3-1b-pt": "google/gemma-scope-2-1b-pt",
+    "google/gemma-3-4b-pt": "google/gemma-scope-2-4b-pt",
+}
+
 STRATEGY_DESCRIPTIONS = {
     "identity": ("Identity", "Maps each active SAE feature directly to a frequency proportional to its index. Fast, no clustering."),
     "cluster": ("Cluster", "Groups features by semantic similarity (k-means on Neuronpedia embeddings). Each cluster becomes a distinct instrument colour."),

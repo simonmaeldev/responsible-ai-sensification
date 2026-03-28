@@ -62,7 +62,10 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
 
             def _load_sae():
                 from app.server.pipeline.extract import load_sae
-                return load_sae(layer=params.layer, width=params.width, l0=params.l0)
+                from app.server.routers.config import SAE_REPO_MAP
+                sae_repo_id = SAE_REPO_MAP.get(params.model, "google/gemma-scope-2-1b-pt")
+                return load_sae(layer=params.layer, width=params.width, l0=params.l0,
+                                sae_repo_id=sae_repo_id)
 
             sae = await asyncio.to_thread(_load_sae)
             print("[pipeline] SAE loaded.", file=sys.stderr, flush=True)
@@ -208,6 +211,12 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
                 await asyncio.to_thread(_generate)
                 print(f"[pipeline] Generation complete: {token_count} tokens.", file=sys.stderr, flush=True)
                 logger.info("Generation complete: %d tokens", token_count)
+            except Exception as exc:
+                logger.exception("Generation error (producer)")
+                print(f"[pipeline] Generation error: {exc}", file=sys.stderr, flush=True)
+                asyncio.run_coroutine_threadsafe(
+                    queue.put({"type": "error", "message": str(exc)}), event_loop
+                ).result()
             finally:
                 await queue.put(None)  # always signal done, even on error
 

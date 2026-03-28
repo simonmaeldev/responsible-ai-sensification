@@ -160,11 +160,12 @@ class JumpReluSAE(nn.Module):
 
 
 def load_sae(
-    layer=22, width="65k", l0="medium", category="resid_post", device=device
+    layer=22, width="65k", l0="medium", category="resid_post", device=device,
+    sae_repo_id: str = "google/gemma-scope-2-1b-pt",
 ) -> JumpReluSAE:
     path = f"{category}/layer_{layer}_width_{width}_l0_{l0}/params.safetensors"
     print(f"[load_sae] Locating SAE weights from HuggingFace: {path}", file=sys.stderr, flush=True)
-    local_path = hf_hub_download(repo_id="google/gemma-scope-2-1b-pt", filename=path)
+    local_path = hf_hub_download(repo_id=sae_repo_id, filename=path)
     print(f"[load_sae] SAE weights file: {local_path}", file=sys.stderr, flush=True)
     tensors = load_file(local_path)
     print(f"[load_sae] SAE tensors loaded. Moving to device={device}...", file=sys.stderr, flush=True)
@@ -183,6 +184,23 @@ def load_sae(
 # ---------------------------------------------------------------------------
 # Generation-time inspection
 # ---------------------------------------------------------------------------
+
+
+def _get_decoder_layers(model):
+    """Return the nn.ModuleList of decoder layers for a CausalLM model.
+
+    Gemma-3 1b uses Gemma2ForCausalLM → model.model.layers
+    Gemma-3 4b uses Gemma3ForCausalLM → model.model.language_model.layers
+    """
+    inner = model.model  # unwrap the CausalLM shell
+    if hasattr(inner, "layers"):
+        return inner.layers
+    if hasattr(inner, "language_model") and hasattr(inner.language_model, "layers"):
+        return inner.language_model.layers
+    raise AttributeError(
+        f"Cannot locate decoder layers in {type(inner).__name__}. "
+        "Expected .layers or .language_model.layers."
+    )
 
 
 def inspect_live(
@@ -213,7 +231,7 @@ def inspect_live(
         def hook_fn(_module, _input, output):
             captured.append(output[0].detach())
 
-        hook = model.model.layers[layer].register_forward_hook(hook_fn)
+        hook = _get_decoder_layers(model)[layer].register_forward_hook(hook_fn)
         outputs = model(input_ids)
         hook.remove()
         if step == 0:
