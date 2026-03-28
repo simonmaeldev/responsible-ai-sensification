@@ -285,23 +285,6 @@ input[type="number"]:focus {
   overflow: hidden;
 }
 
-/* Left visual: waveform */
-.visuals-left {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-#waveform {
-  width: 100%;
-  flex: 1;
-  background: #000;
-  border-radius: 8px;
-  display: block;
-  min-height: 0;
-}
-
 /* Right visual: cluster viz + text output */
 .visuals-right {
   flex: 1;

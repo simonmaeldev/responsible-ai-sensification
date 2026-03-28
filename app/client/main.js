@@ -176,9 +176,6 @@ const btnStop         = document.getElementById("btn-stop");
 const statusEl        = document.getElementById("status");
 const statusText      = document.getElementById("status-text");
 const loopCountEl     = document.getElementById("loop-count-display");
-const canvas          = document.getElementById("waveform");
-const ctx             = canvas.getContext("2d");
-
 const modelSel        = document.getElementById("model");
 const layerSel        = document.getElementById("layer");
 const widthSel        = document.getElementById("width");
@@ -356,7 +353,6 @@ function handleMessage(msg) {
         loopCountEl.textContent = `Loop: ${msg.loop_count}`;
         loopCountEl.classList.remove("hidden");
       }
-      drawNotes(msg.notes ?? []);
       engine.playNotes(msg.notes ?? [], modeSel.value, parseInt(bpmIn.value));
       renderClusterViz(msg);
       break;
@@ -498,47 +494,6 @@ function resetClusterViz() {
     clusterCanvas.style.backgroundColor = "";
     const canvasCtx = clusterCanvas.getContext("2d");
     canvasCtx.clearRect(0, 0, clusterCanvas.width, clusterCanvas.height);
-  }
-}
-
-// ── Canvas rendering ───────────────────────────────────────────────────────
-const FREQ_MIN = 20;
-const FREQ_MAX = 20000;
-
-const CLUSTER_COLORS = [
-  "#00d4aa", "#ff6b6b", "#ffd93d", "#6bcb77",
-  "#4d96ff", "#ff922b", "#cc5de8", "#f06595",
-];
-
-function drawNotes(notes) {
-  const W = canvas.offsetWidth;
-  const H = canvas.offsetHeight;
-  if (canvas.width !== W || canvas.height !== H) {
-    canvas.width = W;
-    canvas.height = H;
-  }
-
-  ctx.fillStyle = "#000";
-  ctx.fillRect(0, 0, W, H);
-
-  if (!notes.length) return;
-
-  const maxAmp = Math.max(...notes.map(n => n.amplitude ?? 0), 1);
-
-  for (const note of notes) {
-    const freq = note.freq ?? 440;
-    const amp  = (note.amplitude ?? 0) / maxAmp;
-    const cluster = note.cluster ?? null;
-
-    const logMin = Math.log10(FREQ_MIN);
-    const logMax = Math.log10(FREQ_MAX);
-    const x = Math.round(((Math.log10(Math.max(freq, FREQ_MIN)) - logMin) / (logMax - logMin)) * W);
-
-    const barH = Math.max(2, Math.round(amp * H));
-    const color = cluster !== null ? CLUSTER_COLORS[cluster % CLUSTER_COLORS.length] : "#00d4aa";
-
-    ctx.fillStyle = color;
-    ctx.fillRect(x, H - barH, 2, barH);
   }
 }
 

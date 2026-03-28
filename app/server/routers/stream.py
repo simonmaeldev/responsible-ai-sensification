@@ -190,9 +190,11 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
                             idx = feat["index"]
                             if idx in enriched_map:
                                 entry = enriched_map[idx]
+                                note["cluster"] = entry["cluster_id"]   # align with enriched map for viz consistency
                                 note["cluster_name"] = entry["cluster_name"]
                                 note["cluster_color"] = entry["cluster_color"]
                             else:
+                                note["cluster"] = None                  # exclude from cluster totals
                                 note["cluster_name"] = ""
                                 note["cluster_color"] = "#888888"
                             note["feature_index"] = idx
