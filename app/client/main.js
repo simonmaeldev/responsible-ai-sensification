@@ -696,6 +696,7 @@ function startPipeline() {
   pendingBuffer = [];
   isPaused = false;
   isDone = false;
+  resetClusterViz();
   engine.resume();
   engine.setVolume(parseFloat(volumeIn.value));
   setRunning();
