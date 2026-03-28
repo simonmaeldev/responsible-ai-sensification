@@ -359,6 +359,7 @@ function handleMessage(msg) {
       tokenHistory.push(msg);
       if (isPaused) {
         pendingBuffer.push(msg);
+        btnNext.disabled = false;
         break;
       }
       tokenCount++;
@@ -386,8 +387,10 @@ function handleMessage(msg) {
 
     case "stopped":
       engine.stopAll();
-      setIdle();
-      resetClusterViz();
+      if (!isRunning) {
+        setIdle();
+        resetClusterViz();
+      }
       break;
 
     case "error":
@@ -667,6 +670,18 @@ function navigateNext() {
   engine.stopAll();
   engine.playNotes(event.notes ?? [], modeSel.value, parseInt(bpmIn.value));
   renderClusterVizStatic(event);
+
+  // Append text span if this token was never live-rendered (arrived while paused)
+  const textContent = document.getElementById("cv-text-content");
+  if (textContent && !textContent.querySelector(`span[data-idx="${historyIndex}"]`)) {
+    const span = document.createElement("span");
+    span.dataset.idx = historyIndex;
+    span.textContent = event.token || "";
+    textContent.appendChild(span);
+    const textBox = document.getElementById("cv-text-output");
+    if (textBox) textBox.scrollTop = textBox.scrollHeight;
+  }
+
   highlightToken(historyIndex);
   btnNext.disabled = historyIndex >= tokenHistory.length - 1;
   btnPrev.disabled = false;
