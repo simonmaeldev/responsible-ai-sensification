@@ -8,12 +8,15 @@
 </head>
 <body>
   <div id="app">
-    <!-- Top bar: prompt + start/stop -->
+    <!-- Top bar: prompt + transport controls -->
     <header class="top-bar">
       <input id="prompt" type="text" placeholder="Enter prompt…" />
       <button id="btn-send" class="btn-send" disabled title="Restart generation with current prompt">↺</button>
-      <button id="btn-start" class="btn-start">Start</button>
-      <button id="btn-stop" class="btn-stop" disabled>Stop</button>
+      <button id="btn-prev"  class="btn-transport btn-prev"  disabled title="Previous token">⏮</button>
+      <button id="btn-play"  class="btn-transport btn-play"  title="Play">▶</button>
+      <button id="btn-pause" class="btn-transport btn-pause" disabled title="Pause">⏸</button>
+      <button id="btn-stop"  class="btn-transport btn-stop"  disabled title="Stop">⏹</button>
+      <button id="btn-next"  class="btn-transport btn-next"  disabled title="Next token">⏭</button>
     </header>
 
     <main class="main-layout">

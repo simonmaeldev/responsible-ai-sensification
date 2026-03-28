@@ -153,9 +153,15 @@ let catalogue = {};        // modelId -> { layers: [...], widths: [...] }
 let strategyDescs = {};    // value -> description
 let modeDescs = {};        // value -> description
 
+// Transport / history state
+let isPaused = false;
+let tokenHistory = [];   // all token events received since last start
+let historyIndex = -1;   // index into tokenHistory currently shown; -1 = none
+let pendingBuffer = [];  // tokens received while paused, not yet played
+let isDone = false;      // generation finished (but session not stopped)
+
 // Cluster viz state
 let cvPalette = [];       // [{cluster_id, name, color}] ordered by PCA
-let cvFullText = "";      // accumulated generated text
 
 // ── Local storage ──────────────────────────────────────────────────────────
 const STORAGE_KEY = "sae_ui_params";
@@ -171,8 +177,11 @@ function loadSavedParams() {
 // ── DOM refs ───────────────────────────────────────────────────────────────
 const prompt          = document.getElementById("prompt");
 const btnSend         = document.getElementById("btn-send");
-const btnStart        = document.getElementById("btn-start");
+const btnPrev         = document.getElementById("btn-prev");
+const btnPlay         = document.getElementById("btn-play");
+const btnPause        = document.getElementById("btn-pause");
 const btnStop         = document.getElementById("btn-stop");
+const btnNext         = document.getElementById("btn-next");
 const statusEl        = document.getElementById("status");
 const statusText      = document.getElementById("status-text");
 const loopCountEl     = document.getElementById("loop-count-display");
@@ -347,7 +356,13 @@ function handleMessage(msg) {
       break;
 
     case "token":
+      tokenHistory.push(msg);
+      if (isPaused) {
+        pendingBuffer.push(msg);
+        break;
+      }
       tokenCount++;
+      historyIndex = tokenHistory.length - 1;
       setStatus(`Tokens: ${tokenCount}`);
       if (msg.loop_count !== undefined) {
         loopCountEl.textContent = `Loop: ${msg.loop_count}`;
@@ -355,17 +370,18 @@ function handleMessage(msg) {
       }
       engine.playNotes(msg.notes ?? [], modeSel.value, parseInt(bpmIn.value));
       renderClusterViz(msg);
+      highlightToken(historyIndex);
       break;
 
     case "done":
       setStatus(`Done (${tokenCount} tokens) — loop or send a new prompt`);
-      resetClusterViz();
+      if (historyIndex === -1) resetClusterViz();
+      setDone();
       break;
 
     case "silent":
       engine.stopAll();
       setStatus("Silent");
-      resetClusterViz();
       break;
 
     case "stopped":
@@ -440,12 +456,70 @@ function renderClusterViz(msg) {
   // Draw sorted bar chart
   if (clusterCanvas) drawClusterBars(clusterCanvas, enrichedNotes);
 
-  // Append token to full text output
-  cvFullText += msg.token || "";
+  // Append token span to full text output
   const textContent = document.getElementById("cv-text-content");
-  if (textContent) textContent.textContent = cvFullText;
-  const textBox = document.getElementById("cv-text-output");
-  if (textBox) textBox.scrollTop = textBox.scrollHeight;
+  if (textContent) {
+    const span = document.createElement("span");
+    span.dataset.idx = tokenHistory.length - 1;
+    span.textContent = msg.token || "";
+    textContent.appendChild(span);
+    const textBox = document.getElementById("cv-text-output");
+    if (textBox) textBox.scrollTop = textBox.scrollHeight;
+  }
+}
+
+// Same as renderClusterViz but does NOT append to the text output (for navigation)
+function renderClusterVizStatic(msg) {
+  const tokenLabel = document.getElementById("cv-token-label");
+  if (tokenLabel) tokenLabel.textContent = msg.token || "—";
+
+  const notes = msg.notes || [];
+  const enrichedNotes = notes.filter(n => n.cluster_color);
+  if (enrichedNotes.length === 0) return;
+
+  const clusterTotals = {};
+  for (const note of enrichedNotes) {
+    const cid = note.cluster;
+    if (cid !== null && cid !== undefined) {
+      clusterTotals[cid] = (clusterTotals[cid] || 0) + note.amplitude;
+    }
+  }
+
+  let dominantClusterId = null, maxTotal = -Infinity;
+  for (const [cid, total] of Object.entries(clusterTotals)) {
+    if (total > maxTotal) { maxTotal = total; dominantClusterId = cid; }
+  }
+  const dominantEntry = cvPalette.find(p => String(p.cluster_id) === String(dominantClusterId));
+
+  const clusterCanvas = document.getElementById("cluster-canvas");
+  if (clusterCanvas) {
+    clusterCanvas.style.backgroundColor = dominantEntry ? dominantEntry.color : "#333333";
+  }
+
+  const inDominant = enrichedNotes.filter(n => String(n.cluster) === String(dominantClusterId));
+  const topFeature = inDominant.length
+    ? inDominant.reduce((a, b) => a.amplitude > b.amplitude ? a : b)
+    : null;
+
+  const clusterLabel = document.getElementById("cv-cluster-label");
+  const featureLabel = document.getElementById("cv-feature-label");
+  if (clusterLabel) clusterLabel.textContent = `cluster: ${dominantEntry?.name || "—"}`;
+  if (featureLabel) featureLabel.textContent = `feature: ${topFeature?.feature_description || "—"}`;
+
+  if (clusterCanvas) drawClusterBars(clusterCanvas, enrichedNotes);
+}
+
+function highlightToken(idx) {
+  const textContent = document.getElementById("cv-text-content");
+  if (!textContent) return;
+  for (const span of textContent.querySelectorAll("span.token-active")) {
+    span.classList.remove("token-active");
+  }
+  const target = textContent.querySelector(`span[data-idx="${idx}"]`);
+  if (target) {
+    target.classList.add("token-active");
+    target.scrollIntoView({ block: "nearest" });
+  }
 }
 
 function drawClusterBars(canvas, notes) {
@@ -480,9 +554,8 @@ function drawClusterBars(canvas, notes) {
 }
 
 function resetClusterViz() {
-  cvFullText = "";
   const textContent = document.getElementById("cv-text-content");
-  if (textContent) textContent.textContent = "";
+  if (textContent) textContent.innerHTML = "";
   const tokenLabel = document.getElementById("cv-token-label");
   if (tokenLabel) tokenLabel.textContent = "—";
   const clusterLabel = document.getElementById("cv-cluster-label");
@@ -503,39 +576,132 @@ function setStatus(msg) {
 }
 
 function setIdle() {
-  isRunning = false;
-  btnStart.disabled = false;
+  isRunning = false; isPaused = false; isDone = false;
+  btnPlay.disabled  = false;
+  btnPause.disabled = true;
   btnStop.disabled  = true;
+  btnPrev.disabled  = true;
+  btnNext.disabled  = true;
   btnSend.disabled  = true;
 }
 
 function setRunning() {
-  isRunning = true;
+  isRunning = true; isPaused = false; isDone = false;
   tokenCount = 0;
   loopCountEl.classList.add("hidden");
   loopCountEl.textContent = "Loop: 0";
-  btnStart.disabled = true;
+  btnPlay.disabled  = true;
+  btnPause.disabled = false;
   btnStop.disabled  = false;
+  btnPrev.disabled  = true;
+  btnNext.disabled  = true;
   btnSend.disabled  = false;
+}
+
+function setPaused() {
+  isPaused = true;
+  btnPlay.disabled  = false;
+  btnPause.disabled = true;
+  btnStop.disabled  = false;
+  btnPrev.disabled  = historyIndex <= 0;
+  btnNext.disabled  = historyIndex >= tokenHistory.length - 1;
+  btnSend.disabled  = false;
+}
+
+function setDone() {
+  isRunning = false; isDone = true;
+  btnPlay.disabled  = false;
+  btnPause.disabled = true;
+  btnStop.disabled  = true;
+  btnPrev.disabled  = historyIndex <= 0;
+  btnNext.disabled  = historyIndex >= tokenHistory.length - 1;
+  btnSend.disabled  = false;
+}
+
+// ── Transport actions ───────────────────────────────────────────────────────
+function pausePipeline() {
+  if (!isRunning || isPaused) return;
+  engine.stopAll();
+  setStatus("Paused");
+  setPaused();
+}
+
+async function resumePipeline() {
+  if (!isPaused) return;
+  isPaused = false;
+  setRunning();
+  setStatus(`Tokens: ${tokenCount}`);
+  const buf = pendingBuffer.splice(0);
+  for (const event of buf) {
+    if (isPaused) break;
+    historyIndex = tokenHistory.indexOf(event);
+    engine.playNotes(event.notes ?? [], modeSel.value, parseInt(bpmIn.value));
+    renderClusterVizStatic(event);
+    highlightToken(historyIndex);
+    tokenCount++;
+    setStatus(`Tokens: ${tokenCount}`);
+    if (modeSel.value === "timed") {
+      await new Promise(r => setTimeout(r, 60000 / parseInt(bpmIn.value)));
+    }
+  }
+  if (!isPaused && isDone && pendingBuffer.length === 0) setDone();
+}
+
+function navigatePrev() {
+  if (historyIndex <= 0) return;
+  historyIndex--;
+  const event = tokenHistory[historyIndex];
+  engine.stopAll();
+  engine.playNotes(event.notes ?? [], modeSel.value, parseInt(bpmIn.value));
+  renderClusterVizStatic(event);
+  highlightToken(historyIndex);
+  btnPrev.disabled = historyIndex <= 0;
+  btnNext.disabled = false;
+  setStatus(`Token ${historyIndex + 1} / ${tokenHistory.length}`);
+}
+
+function navigateNext() {
+  if (historyIndex >= tokenHistory.length - 1) return;
+  historyIndex++;
+  const event = tokenHistory[historyIndex];
+  engine.stopAll();
+  engine.playNotes(event.notes ?? [], modeSel.value, parseInt(bpmIn.value));
+  renderClusterVizStatic(event);
+  highlightToken(historyIndex);
+  btnNext.disabled = historyIndex >= tokenHistory.length - 1;
+  btnPrev.disabled = false;
+  setStatus(`Token ${historyIndex + 1} / ${tokenHistory.length}`);
 }
 
 // ── Control wiring ─────────────────────────────────────────────────────────
 function startPipeline() {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  tokenHistory = [];
+  historyIndex = -1;
+  pendingBuffer = [];
+  isPaused = false;
+  isDone = false;
   engine.resume();
   engine.setVolume(parseFloat(volumeIn.value));
   setRunning();
   ws.send(JSON.stringify({ action: "start", params: collectParams() }));
 }
 
-btnStart.addEventListener("click", startPipeline);
-btnSend.addEventListener("click", startPipeline);
-
+btnPlay.addEventListener("click", () => {
+  if (isPaused) { resumePipeline(); }
+  else { startPipeline(); }
+});
+btnPause.addEventListener("click", pausePipeline);
 btnStop.addEventListener("click", () => {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
   engine.stopAll();
+  isPaused = false;
+  pendingBuffer = [];
   ws.send(JSON.stringify({ action: "stop" }));
 });
+btnPrev.addEventListener("click", navigatePrev);
+btnNext.addEventListener("click", navigateNext);
+btnSend.addEventListener("click", startPipeline);
 
 function sendParamUpdate(partial) {
   if (!isRunning || !ws || ws.readyState !== WebSocket.OPEN) return;

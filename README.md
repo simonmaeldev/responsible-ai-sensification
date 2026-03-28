@@ -22,7 +22,7 @@ http://localhost:8080
 ./scripts/stop.sh
 ```
 
-The browser UI is the primary interface. Set a prompt, choose model/strategy/layer/width/clusters/mode/BPM, then click **Start**. Parameters can be tweaked mid-generation without restarting.
+The browser UI is the primary interface. Set a prompt, choose model/strategy/layer/width/clusters/mode/BPM, then click **Play (▶)**. Use **Pause (⏸)** to freeze playback and step through tokens with **⏮ / ⏭**. Parameters can be tweaked mid-generation without restarting.
 
 ### Parameters
 

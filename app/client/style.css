@@ -13,6 +13,8 @@
   --accent: #00d4aa;
   --green: #2ecc71;
   --red: #e74c3c;
+  --yellow: #f39c12;
+  --blue: #3498db;
   --active-bg: #00d4aa22;
 }
 
@@ -75,14 +77,37 @@ button:disabled {
   cursor: not-allowed;
 }
 
-.btn-start {
+.btn-transport {
+  padding: 8px 10px;
+  font-size: 16px;
+}
+
+.btn-play {
   background: var(--green);
+  color: #fff;
+}
+
+.btn-pause {
+  background: var(--yellow);
   color: #fff;
 }
 
 .btn-stop {
   background: var(--red);
   color: #fff;
+}
+
+.btn-prev,
+.btn-next {
+  background: var(--border);
+  color: var(--text);
+}
+
+.token-active {
+  background: var(--accent);
+  color: #000;
+  border-radius: 2px;
+  padding: 0 1px;
 }
 
 .btn-send {
