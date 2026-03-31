@@ -1,2 +1,7 @@
 #!/usr/bin/env bash
-fuser -k 8080/tcp 2>/dev/null && echo "Stopped" || echo "Not running"
+PIDS=$(lsof -ti :8080)
+if [ -n "$PIDS" ]; then
+    kill $PIDS && echo "Stopped"
+else
+    echo "Not running"
+fi
