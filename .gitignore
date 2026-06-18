@@ -215,3 +215,6 @@ runs/
 # GPT trash stuff
 neuronpedia_cache/
 #specs/
+
+# Local reference material from external snapshots
+references/
