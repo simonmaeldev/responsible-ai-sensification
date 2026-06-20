@@ -8,14 +8,19 @@ from app.server.pipeline.semantic_tonality import (
     TonalityDescriptionSet,
     TonalityEmbeddingCache,
     TonalityEmbeddingEntry,
+    apply_tonality_pitch_bias,
     build_active_feature_signal,
     build_tonality_embedding_cache,
+    frequency_to_midi,
     load_tonality_descriptions,
     load_tonality_embedding_cache,
+    match_active_features_and_prompt_to_tonalities,
     match_active_features_to_tonalities,
     match_text_to_tonalities,
+    midi_to_frequency,
     rank_tonalities,
     save_tonality_embedding_cache,
+    tonality_result_to_payload,
 )
 
 
@@ -169,3 +174,90 @@ def test_match_active_features_to_tonalities_ranks_weighted_signal():
 
     assert result.feature_count == 2
     assert result.matches[0].name == "mournful tension"
+
+
+def test_prompt_influence_can_shift_active_feature_tonality():
+    result = match_active_features_and_prompt_to_tonalities(
+        [{"description": "bright feature", "activation": 1.0}],
+        _simple_cache(),
+        prompt_embedding=[0.0, 1.0],
+        prompt_influence=0.8,
+        top_k=2,
+        embedder=FakeEmbedder(),
+    )
+
+    assert result.feature_count == 1
+    assert result.matches[0].name == "mournful tension"
+    assert result.prompt_influence == pytest.approx(0.8)
+
+
+def test_prompt_only_tonality_when_no_feature_descriptions():
+    result = match_active_features_and_prompt_to_tonalities(
+        [{"description": "", "activation": 10.0}],
+        _simple_cache(),
+        prompt_embedding=[1.0, 0.0],
+        prompt_influence=1.0,
+        top_k=2,
+        embedder=FakeEmbedder(),
+    )
+
+    assert result.feature_count == 0
+    assert result.matches[0].name == "luminous resolve"
+
+
+def test_tonality_payload_is_json_ready():
+    result = match_active_features_to_tonalities(
+        [{"description": "bright feature", "activation": 2.0}],
+        _simple_cache(),
+        top_k=1,
+        embedder=FakeEmbedder(),
+    )
+
+    payload = tonality_result_to_payload(result, pitch_bias=0.5)
+
+    assert payload["feature_count"] == 1
+    assert payload["pitch_bias"] == 0.5
+    assert payload["matches"][0]["name"] == "luminous resolve"
+    assert payload["matches"][0]["intervals"] == [0, 4, 7]
+
+
+def test_tonality_pitch_bias_moves_frequency_toward_intervals():
+    raw_freq = midi_to_frequency(61)
+    result = match_active_features_to_tonalities(
+        [{"description": "bright feature", "activation": 2.0}],
+        _simple_cache(),
+        top_k=1,
+        embedder=FakeEmbedder(),
+    )
+
+    biased = apply_tonality_pitch_bias(
+        [{"freq": raw_freq, "amplitude": 1.0, "feature_index": 42}],
+        result,
+        pitch_bias=1.0,
+        root_midi=60,
+    )
+
+    assert frequency_to_midi(biased[0]["freq"]) == pytest.approx(60)
+    assert biased[0]["raw_freq"] == pytest.approx(raw_freq)
+    assert biased[0]["tonality_name"] == "luminous resolve"
+    assert biased[0]["tonality_intervals"] == [0, 4, 7]
+
+
+def test_partial_tonality_pitch_bias_keeps_raw_and_target_metadata():
+    raw_freq = midi_to_frequency(61)
+    result = match_active_features_to_tonalities(
+        [{"description": "bright feature", "activation": 2.0}],
+        _simple_cache(),
+        top_k=1,
+        embedder=FakeEmbedder(),
+    )
+
+    biased = apply_tonality_pitch_bias(
+        [{"freq": raw_freq, "amplitude": 1.0, "feature_index": 42}],
+        result,
+        pitch_bias=0.5,
+        root_midi=60,
+    )
+
+    assert frequency_to_midi(biased[0]["freq"]) == pytest.approx(60.5)
+    assert biased[0]["tonality_target_midi"] == pytest.approx(60)

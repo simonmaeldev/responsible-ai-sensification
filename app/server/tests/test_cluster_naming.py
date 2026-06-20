@@ -8,6 +8,7 @@ import pytest
 from app.server.pipeline.cluster_naming import (
     COLORBREWER_PAIRED_12,
     _build_cluster_prompt,
+    _local_cluster_name,
     assign_cluster_colors,
     build_enriched_cluster_map,
     name_clusters,
@@ -97,16 +98,37 @@ def test_name_clusters_fallback_on_empty_output():
 
 
 def test_name_clusters_fallback_on_api_error():
-    """Fallback to cluster_N when the API call raises."""
+    """Fallback to local description-based names when the API call raises."""
     cluster_map = {0: {"cluster_id": 0, "instrument": "piano"}}
-    explanations = {0: "foo"}
+    explanations = {0: "recursive syntax", 1: "unused"}
 
     with patch("anthropic.Anthropic") as MockClient:
         instance = MockClient.return_value
         instance.messages.create.side_effect = RuntimeError("network error")
         result = name_clusters(cluster_map, explanations)
 
-    assert result[0] == "cluster_0"
+    assert result[0] == "recursive syntax"
+
+
+def test_name_clusters_fallback_when_client_cannot_start():
+    """No Anthropic key should still produce usable local cluster names."""
+    cluster_map = {
+        0: {"cluster_id": 0, "instrument": "piano"},
+        1: {"cluster_id": 0, "instrument": "piano"},
+    }
+    explanations = {0: "justice legal courts", 1: "rights legal claims"}
+
+    with patch("anthropic.Anthropic", side_effect=RuntimeError("missing key")):
+        result = name_clusters(cluster_map, explanations)
+
+    assert result[0] == "legal justice"
+
+
+def test_local_cluster_name_uses_meaningful_tokens():
+    assert _local_cluster_name(
+        ["The model tracks legal rights", "legal courts and legal claims"],
+        2,
+    ) == "legal rights"
 
 
 # ── assign_cluster_colors ─────────────────────────────────────────────────────

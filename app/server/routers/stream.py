@@ -21,12 +21,41 @@ _cluster_cache: dict[tuple, dict] = {}
 # Enriched cluster map cache: (model_id, layer, width) -> {cluster_map, palette}
 _enriched_cluster_cache: dict[tuple, dict] = {}
 
+# Semantic tonality runtime cache: embed_model -> {cache, embedder}
+_tonality_runtime_cache: dict[str, dict] = {}
+
 # One shared session (single-user for now)
 _session = PipelineSession()
 
 
 async def _send(ws: WebSocket, msg: dict) -> None:
     await ws.send_text(json.dumps(msg))
+
+
+def _get_tonality_runtime() -> dict:
+    """Load the shared MiniLM tonality cache/embedder once per process."""
+    from app.server.pipeline.semantic_tonality import (
+        DEFAULT_EMBED_MODEL,
+        build_tonality_embedding_cache,
+        load_tonality_descriptions,
+    )
+    from sentence_transformers import SentenceTransformer
+    import torch
+
+    if DEFAULT_EMBED_MODEL in _tonality_runtime_cache:
+        return _tonality_runtime_cache[DEFAULT_EMBED_MODEL]
+
+    embed_device = "cuda" if torch.cuda.is_available() else "cpu"
+    embedder = SentenceTransformer(DEFAULT_EMBED_MODEL, device=embed_device)
+    tonality_set = load_tonality_descriptions()
+    tonality_cache = build_tonality_embedding_cache(
+        tonality_set,
+        embed_model=DEFAULT_EMBED_MODEL,
+        embedder=embedder,
+    )
+    runtime = {"cache": tonality_cache, "embedder": embedder}
+    _tonality_runtime_cache[DEFAULT_EMBED_MODEL] = runtime
+    return runtime
 
 
 async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
@@ -125,9 +154,32 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
 
         await _send(ws, {"type": "cluster_palette", "palette": palette})
 
+        tonality_runtime: dict | None = None
+        prompt_embedding = None
+        if params.tonality_enabled:
+            await _send(ws, {"type": "loading", "stage": "Loading semantic tonalities..."})
+            tonality_runtime = await asyncio.to_thread(_get_tonality_runtime)
+
+            if params.prompt.strip():
+                def _embed_prompt():
+                    from app.server.pipeline.semantic_tonality import embed_text
+
+                    return embed_text(
+                        params.prompt,
+                        embed_model=tonality_runtime["cache"].embed_model,
+                        embedder=tonality_runtime["embedder"],
+                    )
+
+                prompt_embedding = await asyncio.to_thread(_embed_prompt)
+
         await _send(ws, {"type": "loading", "stage": "Running generation..."})
 
         from app.server.pipeline.extract import inspect_live
+        from app.server.pipeline.semantic_tonality import (
+            apply_tonality_pitch_bias,
+            match_active_features_and_prompt_to_tonalities,
+            tonality_result_to_payload,
+        )
         from app.server.pipeline.transform import apply_identity, apply_cluster, build_cluster_map
 
         cluster_map: dict = {}
@@ -200,6 +252,26 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
                             note["feature_index"] = idx
                             note["feature_description"] = feat.get("description") or ""
 
+                        tonality_payload = None
+                        if params.tonality_enabled and tonality_runtime is not None:
+                            tonality_result = match_active_features_and_prompt_to_tonalities(
+                                active_features,
+                                tonality_runtime["cache"],
+                                prompt_embedding=prompt_embedding,
+                                prompt_influence=params.prompt_influence,
+                                top_k=3,
+                                embedder=tonality_runtime["embedder"],
+                            )
+                            notes = apply_tonality_pitch_bias(
+                                notes,
+                                tonality_result,
+                                pitch_bias=params.tonality_pitch_bias,
+                            )
+                            tonality_payload = tonality_result_to_payload(
+                                tonality_result,
+                                pitch_bias=params.tonality_pitch_bias,
+                            )
+
                         event = {
                             "type": "token",
                             "token": token_analysis.token,
@@ -207,6 +279,8 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
                             "elapsed_ms": elapsed_ms,
                             "notes": notes,
                         }
+                        if tonality_payload is not None:
+                            event["tonality"] = tonality_payload
                         logger.debug("Token %d generated in %dms: %r", token_count, elapsed_ms, token_analysis.token)
                         asyncio.run_coroutine_threadsafe(queue.put(event), event_loop).result()
 

@@ -3,6 +3,7 @@ import dataclasses
 
 from fastapi import APIRouter
 
+from app.server.pipeline.semantic_tonality import load_tonality_descriptions
 from app.server.session import PipelineParams
 
 router = APIRouter(prefix="/api/config")
@@ -47,5 +48,18 @@ def get_model_options() -> dict:
         "modes": [
             {"value": k, "label": v[0], "description": v[1]}
             for k, v in MODE_DESCRIPTIONS.items()
+        ],
+    }
+
+
+@router.get("/tonalities")
+def get_tonalities() -> dict:
+    tonality_set = load_tonality_descriptions()
+    return {
+        "name": tonality_set.name,
+        "description": tonality_set.description,
+        "tonalities": [
+            dataclasses.asdict(tonality)
+            for tonality in tonality_set.tonalities
         ],
     }

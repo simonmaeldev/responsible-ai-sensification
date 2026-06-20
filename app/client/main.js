@@ -5,6 +5,8 @@ class WebAudioEngine {
   constructor() {
     this._audioCtx   = null;
     this._masterGain = null;
+    this._analyser   = null;
+    this._waveData   = null;
     this._activeNodes = [];
   }
 
@@ -12,8 +14,12 @@ class WebAudioEngine {
     if (!this._audioCtx) {
       this._audioCtx   = new AudioContext();
       this._masterGain = this._audioCtx.createGain();
+      this._analyser   = this._audioCtx.createAnalyser();
+      this._analyser.fftSize = 1024;
+      this._waveData = new Float32Array(this._analyser.fftSize);
       this._masterGain.gain.value = 1.0;
-      this._masterGain.connect(this._audioCtx.destination);
+      this._masterGain.connect(this._analyser);
+      this._analyser.connect(this._audioCtx.destination);
     }
     this._audioCtx.resume();
   }
@@ -142,6 +148,12 @@ class WebAudioEngine {
   setVolume(v) {
     if (this._masterGain) this._masterGain.gain.value = v;
   }
+
+  getWaveform() {
+    if (!this._analyser || !this._waveData) return null;
+    this._analyser.getFloatTimeDomainData(this._waveData);
+    return this._waveData;
+  }
 }
 
 // ── State ──────────────────────────────────────────────────────────────────
@@ -152,6 +164,8 @@ let tokenCount = 0;
 let catalogue = {};        // modelId -> { layers: [...], widths: [...] }
 let strategyDescs = {};    // value -> description
 let modeDescs = {};        // value -> description
+let tonalityCatalogue = []; // default artist tonalities from server
+let lastRenderedNotes = [];
 
 // Transport / history state
 let isPaused = false;
@@ -199,6 +213,18 @@ const bpmGroup        = document.getElementById("bpm-group");
 const bpmIn           = document.getElementById("bpm");
 const loopCb          = document.getElementById("loop");
 const volumeIn        = document.getElementById("volume");
+const tonalityEnabledCb = document.getElementById("tonality-enabled");
+const tonalityControls = document.getElementById("tonality-controls");
+const promptInfluenceIn = document.getElementById("prompt-influence");
+const promptInfluenceValue = document.getElementById("prompt-influence-value");
+const tonalityPitchBiasIn = document.getElementById("tonality-pitch-bias");
+const tonalityPitchBiasValue = document.getElementById("tonality-pitch-bias-value");
+const tonalityState = document.getElementById("tonality-state");
+const tonalityPrimary = document.getElementById("tonality-primary");
+const tonalityDescription = document.getElementById("tonality-description");
+const tonalityBars = document.getElementById("tonality-bars");
+const tonalityIntervals = document.getElementById("tonality-intervals");
+const waveCanvas = document.getElementById("wave-canvas");
 
 // ── Load options + defaults ─────────────────────────────────────────────────
 async function loadOptions() {
@@ -251,6 +277,15 @@ async function loadOptions() {
     console.warn("Could not load defaults", e);
   }
 
+  try {
+    const res = await fetch("/api/config/tonalities");
+    const data = await res.json();
+    tonalityCatalogue = data.tonalities ?? [];
+    renderTonalityIdle();
+  } catch (e) {
+    console.warn("Could not load tonalities", e);
+  }
+
   const saved = loadSavedParams();
   if (saved) applyParams(saved);
 }
@@ -294,10 +329,15 @@ function applyParams(p) {
   if (p.mode       !== undefined) { modeSel.value = p.mode; updateModeHelp(); }
   if (p.bpm        !== undefined) bpmIn.value        = p.bpm;
   if (p.loop       !== undefined) loopCb.checked     = p.loop;
+  if (p.tonality_enabled !== undefined) tonalityEnabledCb.checked = Boolean(p.tonality_enabled);
+  if (p.prompt_influence !== undefined) promptInfluenceIn.value = p.prompt_influence;
+  if (p.tonality_pitch_bias !== undefined) tonalityPitchBiasIn.value = p.tonality_pitch_bias;
 
   // Sync conditional visibility
   if (p.strategy !== undefined) syncClustersVisibility();
   if (p.mode     !== undefined) syncBpmVisibility();
+  syncTonalityControls();
+  updateTonalityControlValues();
 }
 
 // ── Collect current params ─────────────────────────────────────────────────
@@ -313,6 +353,9 @@ function collectParams() {
     mode:       modeSel.value,
     bpm:        parseInt(bpmIn.value),
     loop:       loopCb.checked,
+    tonality_enabled: tonalityEnabledCb.checked,
+    prompt_influence: parseFloat(promptInfluenceIn.value),
+    tonality_pitch_bias: parseFloat(tonalityPitchBiasIn.value),
   };
 }
 
@@ -323,6 +366,15 @@ function syncClustersVisibility() {
 
 function syncBpmVisibility() {
   bpmGroup.classList.toggle("hidden", modeSel.value !== "timed");
+}
+
+function syncTonalityControls() {
+  tonalityControls.classList.toggle("hidden", !tonalityEnabledCb.checked);
+}
+
+function updateTonalityControlValues() {
+  promptInfluenceValue.textContent = `${Math.round(parseFloat(promptInfluenceIn.value) * 100)}%`;
+  tonalityPitchBiasValue.textContent = `${Math.round(parseFloat(tonalityPitchBiasIn.value) * 100)}%`;
 }
 
 // ── WebSocket ──────────────────────────────────────────────────────────────
@@ -371,6 +423,7 @@ function handleMessage(msg) {
       }
       engine.playNotes(msg.notes ?? [], modeSel.value, parseInt(bpmIn.value));
       renderClusterViz(msg);
+      renderTonalityPanel(msg);
       highlightToken(historyIndex);
       break;
 
@@ -512,6 +565,128 @@ function renderClusterVizStatic(msg) {
   if (clusterCanvas) drawClusterBars(clusterCanvas, enrichedNotes);
 }
 
+function renderTonalityIdle() {
+  if (tonalityState) tonalityState.textContent = tonalityCatalogue.length ? "ready" : "idle";
+  if (tonalityPrimary) tonalityPrimary.textContent = "—";
+  if (tonalityDescription) tonalityDescription.textContent = "—";
+  if (tonalityBars) {
+    tonalityBars.innerHTML = "";
+    for (const entry of tonalityCatalogue.slice(0, 4)) {
+      const row = document.createElement("div");
+      row.className = "tonality-match is-muted";
+      const name = document.createElement("span");
+      name.textContent = entry.name;
+      const score = document.createElement("span");
+      score.textContent = "0.00";
+      row.append(name, score);
+      tonalityBars.appendChild(row);
+    }
+  }
+  if (tonalityIntervals) tonalityIntervals.innerHTML = "";
+}
+
+function renderTonalityPanel(msg) {
+  lastRenderedNotes = msg.notes ?? [];
+  const payload = msg.tonality;
+  const matches = payload?.matches ?? [];
+
+  if (!matches.length) {
+    if (tonalityState) tonalityState.textContent = payload ? "silent" : "off";
+    if (tonalityPrimary) tonalityPrimary.textContent = "—";
+    if (tonalityDescription) tonalityDescription.textContent = "—";
+    if (tonalityBars) tonalityBars.innerHTML = "";
+    if (tonalityIntervals) tonalityIntervals.innerHTML = "";
+    return;
+  }
+
+  const primary = matches[0];
+  if (tonalityState) {
+    const promptPct = Math.round((payload.prompt_influence ?? 0) * 100);
+    const pitchPct = Math.round((payload.pitch_bias ?? 0) * 100);
+    tonalityState.textContent = `P${promptPct} / T${pitchPct}`;
+  }
+  if (tonalityPrimary) tonalityPrimary.textContent = primary.name;
+  if (tonalityDescription) tonalityDescription.textContent = primary.description || "—";
+
+  if (tonalityBars) {
+    tonalityBars.innerHTML = "";
+    for (const match of matches) {
+      const row = document.createElement("div");
+      row.className = "tonality-match";
+
+      const normalized = Math.max(0.02, Math.min(1, (match.score + 1) / 2));
+      const fill = document.createElement("div");
+      fill.className = "tonality-match-fill";
+      fill.style.width = `${Math.round(normalized * 100)}%`;
+
+      const name = document.createElement("span");
+      name.textContent = match.name;
+
+      const score = document.createElement("span");
+      score.textContent = match.score.toFixed(2);
+
+      row.append(fill, name, score);
+      tonalityBars.appendChild(row);
+    }
+  }
+
+  if (tonalityIntervals) {
+    tonalityIntervals.innerHTML = "";
+    for (const interval of primary.intervals ?? []) {
+      const chip = document.createElement("span");
+      chip.textContent = Number.isInteger(interval) ? `${interval}` : `${Number(interval).toFixed(2)}`;
+      tonalityIntervals.appendChild(chip);
+    }
+  }
+}
+
+function drawWaveformFrame() {
+  if (waveCanvas) {
+    const W = waveCanvas.offsetWidth || waveCanvas.width || 320;
+    const H = waveCanvas.offsetHeight || waveCanvas.height || 120;
+    if (waveCanvas.width !== W || waveCanvas.height !== H) {
+      waveCanvas.width = W;
+      waveCanvas.height = H;
+    }
+
+    const ctx = waveCanvas.getContext("2d");
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = "#101314";
+    ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = "rgba(255,255,255,0.08)";
+    ctx.lineWidth = 1;
+    for (let y = H / 4; y < H; y += H / 4) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(W, y);
+      ctx.stroke();
+    }
+
+    const data = engine.getWaveform();
+    ctx.beginPath();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = data ? "#2cc5a7" : "rgba(213,139,91,0.65)";
+    if (data) {
+      for (let x = 0; x < W; x++) {
+        const sample = data[Math.floor((x / W) * data.length)] || 0;
+        const y = (H / 2) + (sample * H * 0.42);
+        if (x === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+    } else {
+      const noteEnergy = Math.min(1, lastRenderedNotes.length / 32);
+      for (let x = 0; x < W; x++) {
+        const phase = (x / W) * Math.PI * 4;
+        const y = (H / 2) + Math.sin(phase) * noteEnergy * H * 0.18;
+        if (x === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+    }
+    ctx.stroke();
+  }
+  requestAnimationFrame(drawWaveformFrame);
+}
+
 function highlightToken(idx) {
   const textContent = document.getElementById("cv-text-content");
   if (!textContent) return;
@@ -571,6 +746,8 @@ function resetClusterViz() {
     const canvasCtx = clusterCanvas.getContext("2d");
     canvasCtx.clearRect(0, 0, clusterCanvas.width, clusterCanvas.height);
   }
+  lastRenderedNotes = [];
+  renderTonalityIdle();
 }
 
 // ── UI helpers ─────────────────────────────────────────────────────────────
@@ -640,6 +817,7 @@ async function resumePipeline() {
     historyIndex = tokenHistory.indexOf(event);
     engine.playNotes(event.notes ?? [], modeSel.value, parseInt(bpmIn.value));
     renderClusterVizStatic(event);
+    renderTonalityPanel(event);
     highlightToken(historyIndex);
     tokenCount++;
     setStatus(`Tokens: ${tokenCount}`);
@@ -657,6 +835,7 @@ function navigatePrev() {
   engine.stopAll();
   engine.playNotes(event.notes ?? [], modeSel.value, parseInt(bpmIn.value));
   renderClusterVizStatic(event);
+  renderTonalityPanel(event);
   highlightToken(historyIndex);
   btnPrev.disabled = historyIndex <= 0;
   btnNext.disabled = false;
@@ -670,6 +849,7 @@ function navigateNext() {
   engine.stopAll();
   engine.playNotes(event.notes ?? [], modeSel.value, parseInt(bpmIn.value));
   renderClusterVizStatic(event);
+  renderTonalityPanel(event);
 
   // Append text span if this token was never live-rendered (arrived while paused)
   const textContent = document.getElementById("cv-text-content");
@@ -757,6 +937,25 @@ loopCb.addEventListener("change", () => { sendParamUpdate({ loop: loopCb.checked
 
 volumeIn.addEventListener("input", () => engine.setVolume(parseFloat(volumeIn.value)));
 
+tonalityEnabledCb.addEventListener("change", () => {
+  syncTonalityControls();
+  sendParamUpdate({ tonality_enabled: tonalityEnabledCb.checked });
+  saveParams();
+});
+
+promptInfluenceIn.addEventListener("input", () => {
+  updateTonalityControlValues();
+  sendParamUpdate({ prompt_influence: parseFloat(promptInfluenceIn.value) });
+  saveParams();
+});
+
+tonalityPitchBiasIn.addEventListener("input", () => {
+  updateTonalityControlValues();
+  sendParamUpdate({ tonality_pitch_bias: parseFloat(tonalityPitchBiasIn.value) });
+  saveParams();
+});
+
 // ── Init ───────────────────────────────────────────────────────────────────
 loadOptions();
 connectWS();
+drawWaveformFrame();

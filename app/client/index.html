@@ -91,6 +91,31 @@
           <input id="volume" type="range" min="0" max="1" step="0.01" value="0.7" />
         </section>
 
+        <section class="control-group">
+          <label class="checkbox-label">
+            <input id="tonality-enabled" type="checkbox" checked />
+            Semantic tonality
+          </label>
+        </section>
+
+        <div id="tonality-controls">
+          <section class="control-group">
+            <label class="range-label">
+              <span>Prompt blend</span>
+              <span id="prompt-influence-value">20%</span>
+            </label>
+            <input id="prompt-influence" type="range" min="0" max="1" step="0.01" value="0.2" />
+          </section>
+
+          <section class="control-group">
+            <label class="range-label">
+              <span>Pitch pull</span>
+              <span id="tonality-pitch-bias-value">55%</span>
+            </label>
+            <input id="tonality-pitch-bias" type="range" min="0" max="1" step="0.01" value="0.55" />
+          </section>
+        </div>
+
         <div id="status" class="status">
           <span id="status-text">Ready</span>
           <span id="loop-count-display" class="loop-counter hidden">Loop: 0</span>
@@ -100,14 +125,30 @@
       <!-- Right panel: visualizations -->
       <section class="visuals">
         <div class="visuals-right">
-          <div id="cluster-viz-panel">
-            <div id="cv-token-label">—</div>
-            <div id="cv-color-strip"></div>
-            <div id="cv-labels">
-              <span id="cv-cluster-label">cluster: —</span>
-              <span id="cv-feature-label">feature: —</span>
+          <div class="live-panels">
+            <div id="cluster-viz-panel">
+              <div id="cv-token-label">—</div>
+              <div id="cv-color-strip"></div>
+              <div id="cv-labels">
+                <span id="cv-cluster-label">cluster: —</span>
+                <span id="cv-feature-label">feature: —</span>
+              </div>
+              <canvas id="cluster-canvas"></canvas>
             </div>
-            <canvas id="cluster-canvas"></canvas>
+
+            <div id="tonality-panel">
+              <div class="tonality-header">
+                <span>Semantic Tonality</span>
+                <span id="tonality-state">idle</span>
+              </div>
+              <div id="tonality-primary">—</div>
+              <div id="tonality-description">—</div>
+              <div id="tonality-bars"></div>
+              <div id="tonality-intervals"></div>
+              <div class="wave-panel">
+                <canvas id="wave-canvas"></canvas>
+              </div>
+            </div>
           </div>
           <div id="cv-text-output">
             <div id="cv-text-content"></div>

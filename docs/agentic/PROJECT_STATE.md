@@ -14,11 +14,12 @@ git branch --show-current
 
 ## Current Mode
 
-Implementation has started on the semantic-tonality audio direction.
+Implementation is active on the paper-driven semantic-tonality GUI direction.
 
-The first scoped implementation is a local MiniLM-based foundation for embedding
-verbal tonality descriptions in the same semantic space as active SAE feature
-descriptions. This does not yet alter live audio playback.
+The current interface now exposes a local MiniLM-based semantic-tonality layer:
+verbal tonality descriptions and active SAE feature descriptions share the same
+embedding space, prompt semantics can be blended into the token signal, and note
+frequencies can be softly pulled toward the active tonality's custom intervals.
 
 Agent workflow clarification: use Codex for planning, implementation, review, and
 remote-machine coordination. Do not assume Anthropic/Claude tooling for agentic
@@ -34,6 +35,11 @@ project work.
 - Added `app/server/pipeline/semantic_tonality.py` and
   `app/server/pipeline/tonality_data/default_tonalities.json` as the first
   local, Anthropic-free semantic tonality foundation.
+- Wired semantic tonality into the browser stream with token-level payloads,
+  prompt blend, pitch pull, a live tonality panel, and an analyser-backed
+  waveform canvas.
+- Added local description-based cluster-name fallback when Anthropic cluster
+  naming is unavailable.
 
 ## Local Reference Material
 
@@ -57,18 +63,19 @@ Avoid reverting to the older archive interface.
 
 - Where the user will place the term paper.
 - Whether paper passages should become prompts, annotations, comparison units, or all three.
-- How to wire semantic tonality matches into live audio: pitch, timbre, envelope,
-  density, filter/brightness, or a combination.
+- Whether semantic tonality should next control timbre, envelope, density,
+  filter/brightness, or external DAW/OSC/MIDI output in addition to pitch.
 - What the first user-facing workflow should be after paper ingestion.
-- Whether to remove or replace existing app-level Anthropic cluster-naming code
-  before live audio testing.
+- Whether paper passages should become selectable prompt presets or stay outside
+  the app as reference context.
 
 ## Handoff Notes
 
 Before coding next:
 
-1. Decide the first audio consumer for semantic tonality matches.
-2. Wire `match_active_features_to_tonalities` into the stream only after choosing
-   what it should control.
-3. Keep the Anthropic cluster-naming fallback separate from semantic-tonality work.
+1. Use the new tonality controls in the browser to test artist-facing mappings.
+2. Decide whether the next paper idea should be session replay/export, feature
+   detail inspection, or semantic color/image mapping.
+3. Keep generated caches, papers, references, runs, and screenshots untracked
+   unless the user explicitly asks to save them in Git.
 4. Keep each implementation step small and verifiable.

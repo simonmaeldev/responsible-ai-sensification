@@ -16,6 +16,9 @@ class PipelineParams:
     loop: bool = False
     mode: str = "timed"          # "timed" | "sustain"
     bpm: int = 120
+    tonality_enabled: bool = True
+    prompt_influence: float = 0.2
+    tonality_pitch_bias: float = 0.55
 
     def update(self, **kwargs) -> None:
         """Merge a dict of partial params into this instance."""
@@ -23,8 +26,15 @@ class PipelineParams:
             if not hasattr(self, key) or value is None:
                 continue
             current = getattr(self, key)
-            if type(current) is int:
+            if type(current) is bool:
+                if isinstance(value, str):
+                    value = value.lower() in {"1", "true", "yes", "on"}
+                else:
+                    value = bool(value)
+            elif type(current) is int:
                 value = int(value)
+            elif type(current) is float:
+                value = float(value)
             setattr(self, key, value)
 
 

@@ -3,6 +3,7 @@ import json
 import logging
 import re
 import sys
+from collections import Counter
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -24,6 +25,60 @@ COLORBREWER_PAIRED_12 = [
     "#6a3d9a",  # dark purple    ~275°
     "#cab2d6",  # light purple   ~288°
 ]
+
+
+_LOCAL_NAME_STOPWORDS = {
+    "a",
+    "an",
+    "and",
+    "are",
+    "as",
+    "by",
+    "for",
+    "from",
+    "in",
+    "into",
+    "is",
+    "it",
+    "its",
+    "llm",
+    "model",
+    "of",
+    "on",
+    "or",
+    "that",
+    "the",
+    "this",
+    "to",
+    "track",
+    "tracks",
+    "with",
+    "feature",
+    "features",
+    "token",
+    "tokens",
+}
+
+
+def _local_cluster_name(feature_descriptions: list[str], cluster_id: int) -> str:
+    """Create a deterministic local cluster name from feature descriptions."""
+    first_seen: dict[str, int] = {}
+    words: list[str] = []
+    for description in feature_descriptions:
+        for word in re.findall(r"[a-zA-Z][a-zA-Z0-9_-]*", description.lower()):
+            if len(word) < 3 or word in _LOCAL_NAME_STOPWORDS:
+                continue
+            if word not in first_seen:
+                first_seen[word] = len(first_seen)
+            words.append(word)
+
+    if not words:
+        return f"cluster_{cluster_id}"
+
+    counts = Counter(words)
+    ranked = sorted(counts, key=lambda word: (-counts[word], first_seen[word]))
+    return " ".join(ranked[:2])
+
 
 def _build_cluster_prompt(feature_descriptions: list[str]) -> str:
     """Build the few-shot prompt used in tests (kept for test compatibility)."""
@@ -58,9 +113,13 @@ def name_clusters(
     Samples up to _MAX_FEATURES_FOR_NAMING descriptions per cluster to keep
     prompt size and cost low.  Returns {cluster_id: "name_string"}.
     """
-    import anthropic
+    try:
+        import anthropic
 
-    client = anthropic.Anthropic()  # reads ANTHROPIC_API_KEY from env
+        client = anthropic.Anthropic()  # reads ANTHROPIC_API_KEY from env
+    except Exception as exc:
+        logger.warning("Claude cluster naming unavailable, using local fallback: %s", exc)
+        client = None
 
     # Group feature indices by cluster_id
     clusters: dict[int, list[int]] = {}
@@ -79,6 +138,16 @@ def name_clusters(
 
         if not descriptions:
             cluster_names[cluster_id] = f"cluster_{cluster_id}"
+            continue
+
+        if client is None:
+            name = _local_cluster_name(descriptions, cluster_id)
+            cluster_names[cluster_id] = name
+            print(
+                f"[cluster_naming] Cluster {cluster_id} local fallback → '{name}'",
+                file=sys.stderr,
+                flush=True,
+            )
             continue
 
         lines = "\n".join(f"- {d}" for d in descriptions)
@@ -112,7 +181,7 @@ def name_clusters(
             name = " ".join(words[:2]).lower() if words else f"cluster_{cluster_id}"
         except Exception as exc:
             logger.warning("Claude naming failed for cluster %d: %s", cluster_id, exc)
-            name = f"cluster_{cluster_id}"
+            name = _local_cluster_name(descriptions, cluster_id)
 
         cluster_names[cluster_id] = name
         print(
