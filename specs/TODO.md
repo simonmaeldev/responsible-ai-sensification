@@ -7,6 +7,10 @@ Each item below is a self-contained feature for this branch, to be implemented i
 - Live waveform: the browser audio graph now connects through a Web Audio API
   `AnalyserNode`, and the new GUI waveform canvas renders
   `getFloatTimeDomainData()` in real time.
+- Live performance tonal lenses: editable verbal tonality descriptions and
+  intervals can be changed from the GUI before or during generation; raw versus
+  interpreted pitch blend is exposed; token payloads include run-level tonality
+  memory and active-feature evidence.
 
 ## 1. Image generation placeholder → actual image
 The bottom-right panel is currently a static placeholder.

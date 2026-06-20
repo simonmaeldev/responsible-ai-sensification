@@ -109,10 +109,23 @@
 
           <section class="control-group">
             <label class="range-label">
-              <span>Pitch pull</span>
+              <span>Raw / interpreted</span>
               <span id="tonality-pitch-bias-value">55%</span>
             </label>
             <input id="tonality-pitch-bias" type="range" min="0" max="1" step="0.01" value="0.55" />
+            <div class="mini-actions">
+              <button id="btn-raw-sound" type="button">Raw</button>
+              <button id="btn-interpreted-sound" type="button">Interpreted</button>
+            </div>
+          </section>
+
+          <section class="control-group">
+            <label class="control-label-row">
+              Performance lenses
+              <button id="btn-add-lens" class="mini-icon-btn" type="button" title="Add lens">+</button>
+              <button id="btn-reset-lenses" class="mini-icon-btn" type="button" title="Reset lenses">↺</button>
+            </label>
+            <div id="tonality-lens-list"></div>
           </section>
         </div>
 
@@ -145,6 +158,8 @@
               <div id="tonality-description">—</div>
               <div id="tonality-bars"></div>
               <div id="tonality-intervals"></div>
+              <div id="tonality-memory"></div>
+              <div id="tonality-evidence"></div>
               <div class="wave-panel">
                 <canvas id="wave-canvas"></canvas>
               </div>

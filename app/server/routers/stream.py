@@ -34,27 +34,54 @@ async def _send(ws: WebSocket, msg: dict) -> None:
 
 def _get_tonality_runtime() -> dict:
     """Load the shared MiniLM tonality cache/embedder once per process."""
-    from app.server.pipeline.semantic_tonality import (
-        DEFAULT_EMBED_MODEL,
-        build_tonality_embedding_cache,
-        load_tonality_descriptions,
-    )
+    from app.server.pipeline.semantic_tonality import DEFAULT_EMBED_MODEL
     from sentence_transformers import SentenceTransformer
     import torch
 
-    if DEFAULT_EMBED_MODEL in _tonality_runtime_cache:
-        return _tonality_runtime_cache[DEFAULT_EMBED_MODEL]
+    embedder_key = f"{DEFAULT_EMBED_MODEL}:embedder"
+    if embedder_key in _tonality_runtime_cache:
+        return _tonality_runtime_cache[embedder_key]
 
     embed_device = "cuda" if torch.cuda.is_available() else "cpu"
     embedder = SentenceTransformer(DEFAULT_EMBED_MODEL, device=embed_device)
-    tonality_set = load_tonality_descriptions()
+    runtime = {"embedder": embedder}
+    _tonality_runtime_cache[embedder_key] = runtime
+    return runtime
+
+
+def _get_tonality_cache_runtime(raw_lenses: list[dict] | None = None) -> dict:
+    """Return an embedded tonality cache for the current live lens set."""
+    import hashlib
+
+    from app.server.pipeline.semantic_tonality import (
+        DEFAULT_EMBED_MODEL,
+        build_tonality_embedding_cache,
+        coerce_tonality_lenses,
+        load_tonality_descriptions,
+    )
+
+    lenses = raw_lenses or []
+    lens_hash = "default"
+    if lenses:
+        payload = json.dumps(lenses, ensure_ascii=True, sort_keys=True, default=str)
+        lens_hash = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+    cache_key = f"{DEFAULT_EMBED_MODEL}:cache:{lens_hash}"
+    if cache_key in _tonality_runtime_cache:
+        return _tonality_runtime_cache[cache_key]
+
+    embed_runtime = _get_tonality_runtime()
+    tonality_set = coerce_tonality_lenses(lenses) if lenses else load_tonality_descriptions()
     tonality_cache = build_tonality_embedding_cache(
         tonality_set,
         embed_model=DEFAULT_EMBED_MODEL,
-        embedder=embedder,
+        embedder=embed_runtime["embedder"],
     )
-    runtime = {"cache": tonality_cache, "embedder": embedder}
-    _tonality_runtime_cache[DEFAULT_EMBED_MODEL] = runtime
+    runtime = {
+        "cache": tonality_cache,
+        "embedder": embed_runtime["embedder"],
+        "lens_count": len(tonality_cache.tonalities),
+    }
+    _tonality_runtime_cache[cache_key] = runtime
     return runtime
 
 
@@ -158,7 +185,7 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
         prompt_embedding = None
         if params.tonality_enabled:
             await _send(ws, {"type": "loading", "stage": "Loading semantic tonalities..."})
-            tonality_runtime = await asyncio.to_thread(_get_tonality_runtime)
+            tonality_runtime = await asyncio.to_thread(_get_tonality_cache_runtime, params.tonality_lenses)
 
             if params.prompt.strip():
                 def _embed_prompt():
@@ -176,7 +203,9 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
 
         from app.server.pipeline.extract import inspect_live
         from app.server.pipeline.semantic_tonality import (
+            TonalityMemory,
             apply_tonality_pitch_bias,
+            build_tonality_evidence,
             match_active_features_and_prompt_to_tonalities,
             tonality_result_to_payload,
         )
@@ -216,13 +245,14 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
         queue: asyncio.Queue = asyncio.Queue()
         collected: list[dict] = []
         event_loop = asyncio.get_running_loop()
+        tonality_memory = TonalityMemory()
 
         async def _producer():
             try:
                 token_count = 0
 
                 def _generate():
-                    nonlocal token_count
+                    nonlocal prompt_embedding, token_count
                     print(f"[pipeline] Generation starting (max_tokens={params.max_tokens})...", file=sys.stderr, flush=True)
                     logger.info("Starting generation: max_tokens=%d", params.max_tokens)
                     for token_analysis, elapsed_ms in inspect_live(
@@ -253,14 +283,23 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
                             note["feature_description"] = feat.get("description") or ""
 
                         tonality_payload = None
-                        if params.tonality_enabled and tonality_runtime is not None:
+                        if params.tonality_enabled:
+                            current_tonality_runtime = _get_tonality_cache_runtime(params.tonality_lenses)
+                            if prompt_embedding is None and params.prompt.strip():
+                                from app.server.pipeline.semantic_tonality import embed_text
+
+                                prompt_embedding = embed_text(
+                                    params.prompt,
+                                    embed_model=current_tonality_runtime["cache"].embed_model,
+                                    embedder=current_tonality_runtime["embedder"],
+                                )
                             tonality_result = match_active_features_and_prompt_to_tonalities(
                                 active_features,
-                                tonality_runtime["cache"],
+                                current_tonality_runtime["cache"],
                                 prompt_embedding=prompt_embedding,
                                 prompt_influence=params.prompt_influence,
                                 top_k=3,
-                                embedder=tonality_runtime["embedder"],
+                                embedder=current_tonality_runtime["embedder"],
                             )
                             notes = apply_tonality_pitch_bias(
                                 notes,
@@ -271,6 +310,10 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
                                 tonality_result,
                                 pitch_bias=params.tonality_pitch_bias,
                             )
+                            tonality_payload["lens_count"] = current_tonality_runtime["lens_count"]
+                            tonality_payload["lens_set"] = current_tonality_runtime["cache"].name
+                            tonality_payload["memory"] = tonality_memory.update(tonality_result)
+                            tonality_payload["evidence"] = build_tonality_evidence(active_features, notes)
 
                         event = {
                             "type": "token",

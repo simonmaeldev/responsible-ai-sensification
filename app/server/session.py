@@ -19,6 +19,7 @@ class PipelineParams:
     tonality_enabled: bool = True
     prompt_influence: float = 0.2
     tonality_pitch_bias: float = 0.55
+    tonality_lenses: list[dict] = field(default_factory=list)
 
     def update(self, **kwargs) -> None:
         """Merge a dict of partial params into this instance."""

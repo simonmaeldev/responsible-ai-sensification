@@ -23,3 +23,18 @@ def test_pipeline_params_update_ignores_unknown_keys():
     params.update(unknown="x")
 
     assert not hasattr(params, "unknown")
+
+
+def test_pipeline_params_update_accepts_live_tonality_lenses():
+    params = PipelineParams()
+    lenses = [
+        {
+            "name": "live lens",
+            "description": "bright pressure",
+            "intervals": [0, 2, 7],
+        }
+    ]
+
+    params.update(tonality_lenses=lenses)
+
+    assert params.tonality_lenses == lenses

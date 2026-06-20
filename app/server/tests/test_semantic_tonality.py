@@ -5,12 +5,15 @@ import pytest
 
 from app.server.pipeline.semantic_tonality import (
     DEFAULT_EMBED_MODEL,
+    TonalityMemory,
     TonalityDescriptionSet,
     TonalityEmbeddingCache,
     TonalityEmbeddingEntry,
     apply_tonality_pitch_bias,
     build_active_feature_signal,
+    build_tonality_evidence,
     build_tonality_embedding_cache,
+    coerce_tonality_lenses,
     frequency_to_midi,
     load_tonality_descriptions,
     load_tonality_embedding_cache,
@@ -261,3 +264,62 @@ def test_partial_tonality_pitch_bias_keeps_raw_and_target_metadata():
 
     assert frequency_to_midi(biased[0]["freq"]) == pytest.approx(60.5)
     assert biased[0]["tonality_target_midi"] == pytest.approx(60)
+
+
+def test_coerce_tonality_lenses_accepts_live_editor_payload():
+    tonality_set = coerce_tonality_lenses([
+        {
+            "name": "bureaucratic pressure",
+            "description": "cold procedural legal administrative pressure",
+            "intervals": "0, 1, 6, 10",
+        },
+        {"name": "", "description": "ignored"},
+    ])
+
+    assert tonality_set.name == "live_performance_lenses"
+    assert len(tonality_set.tonalities) == 1
+    assert tonality_set.tonalities[0].intervals == [0.0, 1.0, 6.0, 10.0]
+
+
+def test_tonality_memory_accumulates_run_level_signal():
+    memory = TonalityMemory()
+    bright = match_active_features_to_tonalities(
+        [{"description": "bright feature", "activation": 2.0}],
+        _simple_cache(),
+        top_k=2,
+        embedder=FakeEmbedder(),
+    )
+    dark = match_active_features_to_tonalities(
+        [{"description": "dark feature", "activation": 8.0}],
+        _simple_cache(),
+        top_k=2,
+        embedder=FakeEmbedder(),
+    )
+
+    memory.update(bright)
+    payload = memory.update(dark, top_k=2)
+
+    assert payload["token_count"] == 2
+    assert payload["matches"][0]["name"] == "mournful tension"
+    assert payload["matches"][0]["score"] > payload["matches"][1]["score"]
+
+
+def test_build_tonality_evidence_sorts_features_by_activation():
+    evidence = build_tonality_evidence(
+        [
+            {"index": 1, "activation": 0.2, "description": "small feature"},
+            {"index": 2, "activation": 3.5, "description": "large feature"},
+        ],
+        [
+            {"feature_index": 1, "freq": 440.0, "raw_freq": 430.0, "cluster_name": "one"},
+            {"feature_index": 2, "freq": 660.0, "raw_freq": 640.0, "cluster_name": "two"},
+        ],
+        limit=1,
+    )
+
+    assert evidence[0]["feature_index"] == 2
+    assert evidence[0]["description"] == "large feature"
+    assert evidence[0]["cluster_name"] == "two"
+    assert evidence[0]["pitch_shift_semitones"] == pytest.approx(
+        frequency_to_midi(660.0) - frequency_to_midi(640.0)
+    )

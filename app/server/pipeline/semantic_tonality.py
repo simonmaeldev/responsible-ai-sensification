@@ -12,7 +12,7 @@ import argparse
 import hashlib
 import json
 import math
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -82,9 +82,57 @@ class ActiveFeatureTonalityResult:
     prompt_influence: float = 0.0
 
 
+@dataclass
+class TonalityMemory:
+    """Run-level semantic tonality accumulator.
+
+    Token-level matches remain the live signal. This memory gives replay/loop
+    modes a slower summary of where the activation stream has tended overall.
+    """
+
+    scores: dict[str, float] = field(default_factory=dict)
+    weights: dict[str, float] = field(default_factory=dict)
+    entries: dict[str, TonalityMatch] = field(default_factory=dict)
+    token_count: int = 0
+
+    def update(self, result: ActiveFeatureTonalityResult, *, top_k: int = 3) -> dict[str, Any]:
+        self.token_count += 1
+        weight = max(float(result.total_activation or 0.0), 1.0)
+        for match in result.matches:
+            normalized = _score_to_unit(match.score)
+            self.scores[match.name] = self.scores.get(match.name, 0.0) + (normalized * weight)
+            self.weights[match.name] = self.weights.get(match.name, 0.0) + weight
+            self.entries[match.name] = match
+        return self.payload(top_k=top_k)
+
+    def payload(self, *, top_k: int = 3) -> dict[str, Any]:
+        ranked: list[dict[str, Any]] = []
+        for name, score_total in self.scores.items():
+            weight = max(self.weights.get(name, 0.0), 1e-9)
+            entry = self.entries[name]
+            ranked.append(
+                {
+                    "name": name,
+                    "score": score_total / weight,
+                    "description": entry.description,
+                    "intervals": entry.intervals,
+                }
+            )
+        ranked.sort(key=lambda item: item["score"], reverse=True)
+        return {
+            "token_count": self.token_count,
+            "matches": ranked[: min(top_k, len(ranked))],
+        }
+
+
 def _coerce_intervals(raw: Any) -> list[float] | None:
     if raw is None:
         return None
+    if isinstance(raw, str):
+        stripped = raw.strip()
+        if not stripped:
+            return None
+        raw = [part.strip() for part in stripped.replace(";", ",").split(",") if part.strip()]
     if not isinstance(raw, list):
         raise ValueError("Tonality intervals must be a list of numbers")
     return [float(item) for item in raw]
@@ -140,6 +188,36 @@ def load_tonality_descriptions(path: str | Path | None = None) -> TonalityDescri
     target = Path(path) if path is not None else DEFAULT_TONALITY_PATH
     with open(target) as f:
         return _coerce_description_set(json.load(f))
+
+
+def coerce_tonality_lenses(raw_lenses: list[dict[str, Any]]) -> TonalityDescriptionSet:
+    """Coerce live GUI lens-editor payloads into a description set."""
+    tonalities = []
+    seen: set[str] = set()
+    for raw in raw_lenses:
+        name = str(raw.get("name") or "").strip()
+        description = str(raw.get("description") or "").strip()
+        if not name or not description or name in seen:
+            continue
+        seen.add(name)
+        tonalities.append(
+            {
+                "name": name,
+                "description": description,
+                "intervals": raw.get("intervals"),
+            }
+        )
+
+    if not tonalities:
+        return load_tonality_descriptions()
+
+    return _coerce_description_set(
+        {
+            "name": "live_performance_lenses",
+            "description": "Artist-edited live performance tonality lenses.",
+            "tonalities": tonalities,
+        }
+    )
 
 
 def _description_set_hash(tonality_set: TonalityDescriptionSet) -> str:
@@ -280,6 +358,10 @@ def rank_tonalities(
 
 def _clamp_unit(value: float) -> float:
     return max(0.0, min(1.0, float(value)))
+
+
+def _score_to_unit(score: float) -> float:
+    return max(0.0, min(1.0, (float(score) + 1.0) / 2.0))
 
 
 def _blend_embeddings(
@@ -567,6 +649,48 @@ def apply_tonality_pitch_bias(
         biased_notes.append(biased_note)
 
     return biased_notes
+
+
+def build_tonality_evidence(
+    active_features: list[Any],
+    notes: list[dict[str, Any]],
+    *,
+    limit: int = 5,
+) -> list[dict[str, Any]]:
+    """Return compact feature evidence for why the current sound is happening."""
+    note_by_feature = {
+        int(note["feature_index"]): note
+        for note in notes
+        if note.get("feature_index") is not None
+    }
+
+    rows: list[dict[str, Any]] = []
+    for feature in active_features:
+        feature_index = int(_feature_value(feature, "index", -1))
+        if feature_index < 0:
+            continue
+        activation = float(_feature_value(feature, "activation", 0.0) or 0.0)
+        note = note_by_feature.get(feature_index, {})
+        raw_freq = note.get("raw_freq", note.get("freq"))
+        shifted_freq = note.get("freq")
+        pitch_shift = 0.0
+        if raw_freq and shifted_freq:
+            pitch_shift = frequency_to_midi(float(shifted_freq)) - frequency_to_midi(float(raw_freq))
+        rows.append(
+            {
+                "feature_index": feature_index,
+                "activation": activation,
+                "description": str(_feature_value(feature, "description", "") or ""),
+                "cluster_name": note.get("cluster_name") or "",
+                "cluster_color": note.get("cluster_color") or "#888888",
+                "raw_freq": raw_freq,
+                "freq": shifted_freq,
+                "pitch_shift_semitones": pitch_shift,
+            }
+        )
+
+    rows.sort(key=lambda item: item["activation"], reverse=True)
+    return rows[: max(0, limit)]
 
 
 def main() -> None:

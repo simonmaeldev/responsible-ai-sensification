@@ -40,6 +40,10 @@ project work.
   waveform canvas.
 - Added local description-based cluster-name fallback when Anthropic cluster
   naming is unavailable.
+- Added live performance tonality lenses: editable lens descriptions/intervals
+  can be changed before or during a run, raw/interpreted blend is exposed as a
+  performance control, and each token can report run-level tonality memory plus
+  top active-feature evidence for the current sound.
 
 ## Local Reference Material
 
@@ -73,9 +77,10 @@ Avoid reverting to the older archive interface.
 
 Before coding next:
 
-1. Use the new tonality controls in the browser to test artist-facing mappings.
-2. Decide whether the next paper idea should be session replay/export, feature
-   detail inspection, or semantic color/image mapping.
+1. Use the live lens editor and raw/interpreted blend in the browser to test
+   artist-facing mappings during actual generation.
+2. Decide whether the next paper idea should be session replay/export, deeper
+   feature detail inspection, semantic color/image mapping, or OSC/MIDI output.
 3. Keep generated caches, papers, references, runs, and screenshots untracked
    unless the user explicitly asks to save them in Git.
 4. Keep each implementation step small and verifiable.

@@ -165,7 +165,9 @@ let catalogue = {};        // modelId -> { layers: [...], widths: [...] }
 let strategyDescs = {};    // value -> description
 let modeDescs = {};        // value -> description
 let tonalityCatalogue = []; // default artist tonalities from server
+let defaultTonalityCatalogue = [];
 let lastRenderedNotes = [];
+let lensUpdateTimer = null;
 
 // Transport / history state
 let isPaused = false;
@@ -219,11 +221,18 @@ const promptInfluenceIn = document.getElementById("prompt-influence");
 const promptInfluenceValue = document.getElementById("prompt-influence-value");
 const tonalityPitchBiasIn = document.getElementById("tonality-pitch-bias");
 const tonalityPitchBiasValue = document.getElementById("tonality-pitch-bias-value");
+const btnRawSound = document.getElementById("btn-raw-sound");
+const btnInterpretedSound = document.getElementById("btn-interpreted-sound");
+const btnAddLens = document.getElementById("btn-add-lens");
+const btnResetLenses = document.getElementById("btn-reset-lenses");
+const tonalityLensList = document.getElementById("tonality-lens-list");
 const tonalityState = document.getElementById("tonality-state");
 const tonalityPrimary = document.getElementById("tonality-primary");
 const tonalityDescription = document.getElementById("tonality-description");
 const tonalityBars = document.getElementById("tonality-bars");
 const tonalityIntervals = document.getElementById("tonality-intervals");
+const tonalityMemory = document.getElementById("tonality-memory");
+const tonalityEvidence = document.getElementById("tonality-evidence");
 const waveCanvas = document.getElementById("wave-canvas");
 
 // ── Load options + defaults ─────────────────────────────────────────────────
@@ -281,6 +290,8 @@ async function loadOptions() {
     const res = await fetch("/api/config/tonalities");
     const data = await res.json();
     tonalityCatalogue = data.tonalities ?? [];
+    defaultTonalityCatalogue = tonalityCatalogue.map(entry => ({ ...entry }));
+    renderLensEditor();
     renderTonalityIdle();
   } catch (e) {
     console.warn("Could not load tonalities", e);
@@ -310,6 +321,104 @@ function populateLayerWidth(modelId) {
   });
 }
 
+function intervalsToText(intervals) {
+  if (Array.isArray(intervals)) return intervals.join(", ");
+  return intervals ?? "";
+}
+
+function parseIntervals(text) {
+  return String(text || "")
+    .replace(/;/g, ",")
+    .split(",")
+    .map(part => parseFloat(part.trim()))
+    .filter(value => Number.isFinite(value));
+}
+
+function normalizedLens(entry) {
+  return {
+    name: String(entry.name || "").trim(),
+    description: String(entry.description || "").trim(),
+    intervals: Array.isArray(entry.intervals)
+      ? entry.intervals.map(value => Number(value)).filter(value => Number.isFinite(value))
+      : parseIntervals(entry.intervals),
+  };
+}
+
+function collectTonalityLenses() {
+  return tonalityCatalogue
+    .map(normalizedLens)
+    .filter(entry => entry.name && entry.description);
+}
+
+function renderLensEditor() {
+  if (!tonalityLensList) return;
+  tonalityLensList.innerHTML = "";
+
+  tonalityCatalogue.forEach((entry, index) => {
+    const lens = normalizedLens(entry);
+    const item = document.createElement("div");
+    item.className = "lens-editor-item";
+
+    const top = document.createElement("div");
+    top.className = "lens-editor-top";
+
+    const name = document.createElement("input");
+    name.type = "text";
+    name.value = lens.name;
+    name.placeholder = "lens name";
+    name.title = "Lens name";
+    name.addEventListener("input", () => {
+      tonalityCatalogue[index].name = name.value;
+      scheduleLensUpdate();
+    });
+
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "mini-icon-btn";
+    remove.textContent = "×";
+    remove.title = "Remove lens";
+    remove.addEventListener("click", () => {
+      tonalityCatalogue.splice(index, 1);
+      renderLensEditor();
+      scheduleLensUpdate(0);
+    });
+
+    const description = document.createElement("textarea");
+    description.value = lens.description;
+    description.rows = 2;
+    description.placeholder = "verbal description";
+    description.title = "Verbal description";
+    description.addEventListener("input", () => {
+      tonalityCatalogue[index].description = description.value;
+      scheduleLensUpdate();
+    });
+
+    const intervals = document.createElement("input");
+    intervals.type = "text";
+    intervals.value = intervalsToText(lens.intervals);
+    intervals.placeholder = "0, 2, 4, 7";
+    intervals.title = "Intervals";
+    intervals.addEventListener("input", () => {
+      tonalityCatalogue[index].intervals = intervals.value;
+      scheduleLensUpdate();
+    });
+
+    top.append(name, remove);
+    item.append(top, description, intervals);
+    tonalityLensList.appendChild(item);
+  });
+}
+
+function scheduleLensUpdate(delayMs = 300) {
+  saveParams();
+  if (lensUpdateTimer) clearTimeout(lensUpdateTimer);
+  lensUpdateTimer = setTimeout(() => {
+    const lenses = collectTonalityLenses();
+    sendParamUpdate({ tonality_lenses: lenses });
+    if (!isRunning) renderTonalityIdle();
+  }, delayMs);
+}
+
 function updateStrategyHelp() {
   strategyHelp.dataset.tooltip = strategyDescs[strategySel.value] ?? "";
 }
@@ -332,6 +441,11 @@ function applyParams(p) {
   if (p.tonality_enabled !== undefined) tonalityEnabledCb.checked = Boolean(p.tonality_enabled);
   if (p.prompt_influence !== undefined) promptInfluenceIn.value = p.prompt_influence;
   if (p.tonality_pitch_bias !== undefined) tonalityPitchBiasIn.value = p.tonality_pitch_bias;
+  if (Array.isArray(p.tonality_lenses) && p.tonality_lenses.length) {
+    tonalityCatalogue = p.tonality_lenses.map(normalizedLens);
+    renderLensEditor();
+    renderTonalityIdle();
+  }
 
   // Sync conditional visibility
   if (p.strategy !== undefined) syncClustersVisibility();
@@ -356,6 +470,7 @@ function collectParams() {
     tonality_enabled: tonalityEnabledCb.checked,
     prompt_influence: parseFloat(promptInfluenceIn.value),
     tonality_pitch_bias: parseFloat(tonalityPitchBiasIn.value),
+    tonality_lenses: collectTonalityLenses(),
   };
 }
 
@@ -375,6 +490,13 @@ function syncTonalityControls() {
 function updateTonalityControlValues() {
   promptInfluenceValue.textContent = `${Math.round(parseFloat(promptInfluenceIn.value) * 100)}%`;
   tonalityPitchBiasValue.textContent = `${Math.round(parseFloat(tonalityPitchBiasIn.value) * 100)}%`;
+}
+
+function setInterpretationBlend(value) {
+  tonalityPitchBiasIn.value = String(value);
+  updateTonalityControlValues();
+  sendParamUpdate({ tonality_pitch_bias: parseFloat(tonalityPitchBiasIn.value) });
+  saveParams();
 }
 
 // ── WebSocket ──────────────────────────────────────────────────────────────
@@ -583,6 +705,22 @@ function renderTonalityIdle() {
     }
   }
   if (tonalityIntervals) tonalityIntervals.innerHTML = "";
+  renderIdleReadout(tonalityMemory, "Run memory · 0");
+  renderIdleReadout(tonalityEvidence, "Why this sound");
+}
+
+function renderIdleReadout(target, label) {
+  if (!target) return;
+  target.innerHTML = "";
+  const header = document.createElement("div");
+  header.className = "tonality-subhead";
+  header.textContent = label;
+  const row = document.createElement("div");
+  row.className = "memory-row is-empty";
+  const dash = document.createElement("span");
+  dash.textContent = "—";
+  row.appendChild(dash);
+  target.append(header, row);
 }
 
 function renderTonalityPanel(msg) {
@@ -596,6 +734,8 @@ function renderTonalityPanel(msg) {
     if (tonalityDescription) tonalityDescription.textContent = "—";
     if (tonalityBars) tonalityBars.innerHTML = "";
     if (tonalityIntervals) tonalityIntervals.innerHTML = "";
+    renderIdleReadout(tonalityMemory, "Run memory · 0");
+    renderIdleReadout(tonalityEvidence, "Why this sound");
     return;
   }
 
@@ -637,6 +777,59 @@ function renderTonalityPanel(msg) {
       chip.textContent = Number.isInteger(interval) ? `${interval}` : `${Number(interval).toFixed(2)}`;
       tonalityIntervals.appendChild(chip);
     }
+  }
+
+  renderTonalityMemory(payload.memory);
+  renderTonalityEvidence(payload.evidence ?? []);
+}
+
+function renderTonalityMemory(memory) {
+  if (!tonalityMemory) return;
+  tonalityMemory.innerHTML = "";
+  const matches = memory?.matches ?? [];
+  if (!matches.length) return;
+
+  const header = document.createElement("div");
+  header.className = "tonality-subhead";
+  header.textContent = `Run memory · ${memory.token_count ?? 0}`;
+  tonalityMemory.appendChild(header);
+
+  for (const match of matches.slice(0, 2)) {
+    const row = document.createElement("div");
+    row.className = "memory-row";
+    const label = document.createElement("span");
+    label.textContent = match.name;
+    const score = document.createElement("span");
+    score.textContent = match.score.toFixed(2);
+    row.append(label, score);
+    tonalityMemory.appendChild(row);
+  }
+}
+
+function renderTonalityEvidence(evidence) {
+  if (!tonalityEvidence) return;
+  tonalityEvidence.innerHTML = "";
+  if (!evidence.length) return;
+
+  const header = document.createElement("div");
+  header.className = "tonality-subhead";
+  header.textContent = "Why this sound";
+  tonalityEvidence.appendChild(header);
+
+  for (const item of evidence.slice(0, 3)) {
+    const row = document.createElement("div");
+    row.className = "evidence-row";
+    row.style.borderLeftColor = item.cluster_color || "#888888";
+
+    const description = document.createElement("span");
+    description.textContent = item.description || `feature ${item.feature_index}`;
+
+    const meta = document.createElement("span");
+    const shift = item.pitch_shift_semitones ?? 0;
+    meta.textContent = `${Number(item.activation || 0).toFixed(2)} · ${shift >= 0 ? "+" : ""}${Number(shift).toFixed(1)} st`;
+
+    row.append(description, meta);
+    tonalityEvidence.appendChild(row);
   }
 }
 
@@ -953,6 +1146,25 @@ tonalityPitchBiasIn.addEventListener("input", () => {
   updateTonalityControlValues();
   sendParamUpdate({ tonality_pitch_bias: parseFloat(tonalityPitchBiasIn.value) });
   saveParams();
+});
+
+btnRawSound.addEventListener("click", () => setInterpretationBlend(0));
+btnInterpretedSound.addEventListener("click", () => setInterpretationBlend(1));
+
+btnAddLens.addEventListener("click", () => {
+  tonalityCatalogue.push({
+    name: "new lens",
+    description: "type a sonic-interpretive description",
+    intervals: [0, 2, 7],
+  });
+  renderLensEditor();
+  scheduleLensUpdate(0);
+});
+
+btnResetLenses.addEventListener("click", () => {
+  tonalityCatalogue = defaultTonalityCatalogue.map(entry => ({ ...entry }));
+  renderLensEditor();
+  scheduleLensUpdate(0);
 });
 
 // ── Init ───────────────────────────────────────────────────────────────────
