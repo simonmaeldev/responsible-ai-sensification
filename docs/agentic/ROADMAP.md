@@ -1,67 +1,100 @@
 # Roadmap
 
-This is a planning scaffold, not an implementation commitment. Update it after the term paper is added.
+This is a planning scaffold, not an implementation commitment. It should stay
+aligned with `docs/agentic/PROJECT_STATE.md` and `specs/TODO.md`.
 
 ## Phase 0: Workflow Setup
 
 Status: complete
 
-- Create root `AGENTS.md`.
-- Create durable workflow docs under `docs/agentic/`.
-- Keep local old-reference material ignored.
-- Do not code new ideas yet.
+- Created root `AGENTS.md`.
+- Created durable workflow docs under `docs/agentic/`.
+- Kept local old-reference material ignored in `references/`.
+- Standardized the active workflow around Codex, not Anthropic/Claude tooling.
 
-## Phase 1: Paper Intake
+## Phase 1: Paper Intake And Interface Direction
 
-Status: waiting
+Status: complete for current report
 
-Goal: turn the user's term paper into usable project context.
+- Read `references/Rai_Report.pdf`.
+- Extracted implementable ideas from the report:
+  - semantic feature clustering and live activation sensification;
+  - verbal tonality descriptions embedded in the same space as SAE features;
+  - prompt weighting during output;
+  - custom intervals and unconventional tuning systems;
+  - sound-wave visualization;
+  - pause/replay interaction;
+  - future image/color mappings.
+- Chose the current app direction as a paper-driven live performance interface
+  rather than a static explanatory dashboard.
 
-Potential tasks:
+## Phase 2: Semantic Tonality Foundation
 
-- Identify where the paper lives in the repo.
-- Decide whether it should be tracked by Git.
-- Extract or summarize its key claims, sections, and interface implications.
-- Add a paper-context note under `docs/agentic/` or `specs/`.
+Status: complete
 
-## Phase 2: Interface Story
+Goal: support local, Anthropic-free verbal tonality matching in the same MiniLM
+semantic space as active SAE feature descriptions.
 
-Status: waiting
+Implemented:
 
-Goal: decide what the new interface should help the user demonstrate.
+- `app/server/pipeline/semantic_tonality.py`
+- `app/server/pipeline/tonality_data/default_tonalities.json`
+- Tests for cache building, ranking, active-feature matching, prompt blending,
+  interval pitch bias, live lens coercion, run memory, and feature evidence.
 
-Potential questions:
+## Phase 3: Paper-Driven Browser GUI
 
-- What should a viewer understand after using the interface?
-- Should the paper drive prompts, explanations, annotations, or evaluation?
-- Which current UI panels should remain central?
-- Which old ideas from `references/` should be ported, if any?
+Status: complete
 
-## Phase 3: First Implementation Spec
+Goal: make the report ideas visible in the new browser interface.
 
-Status: waiting
+Implemented:
 
-Goal: write one focused spec before coding.
+- Token-level semantic tonality payloads in the WebSocket stream.
+- Prompt blend and pitch pull controls.
+- Live semantic tonality panel with ranked matches and intervals.
+- Web Audio `AnalyserNode` waveform canvas.
+- Anthropic-free local fallback for cluster names.
+- Config endpoint for default tonalities.
 
-Spec should include:
+## Phase 4: Live Performance Tonality Lenses
 
-- User-facing outcome.
-- Files likely to change.
-- Data inputs and outputs.
-- Non-goals.
-- Verification plan.
+Status: complete
 
-## Phase 4: Implementation And Verification
+Goal: let the user shape the instrument live without directly overriding the
+model's internal activation dynamics.
 
-Status: waiting
+Implemented:
 
-Goal: implement the spec in small steps.
+- Editable performance lenses in the GUI: name, verbal description, intervals.
+- Lens updates can be sent while generation is running and affect subsequent
+  token mappings.
+- Raw/interpreted pitch blend controls.
+- Run-level tonality memory.
+- "Why this sound" active-feature evidence panel.
 
-Expected pattern:
+## Phase 5: Next Candidate Features
 
-- Explore relevant files.
-- Implement one scoped change.
-- Run focused tests or smoke checks.
-- Update docs/state if behavior changes.
-- Ask before committing.
+Status: open
 
+Good next steps:
+
+- Session history and replay/export, so live runs become reproducible research
+  artifacts.
+- Deeper feature detail inspection, including cluster/instrument attribution and
+  the strongest feature descriptions behind each token.
+- Semantic color/image mapping based on the same lens logic as tonalities.
+- Neuronpedia/model loading progress, so performance setup has clearer feedback.
+- OSC/MIDI or DAW output, if the priority becomes live performance with external
+  audio gear.
+
+## Verification Pattern
+
+For implementation phases:
+
+- Server behavior: run `uv run pytest` on the PC project environment.
+- Browser behavior: run the app on the PC, capture a screenshot from the laptop,
+  and stop the server afterward.
+- Git hygiene: commit completed feature slices on `nicolas-attempts`; keep
+  generated caches, papers, references, runs, and screenshots out of Git unless
+  explicitly requested.
