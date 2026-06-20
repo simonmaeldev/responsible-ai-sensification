@@ -1,0 +1,46 @@
+{
+  "name": "default_artist_tonalities",
+  "description": "Small editable starter set for semantic audio mappings. These are not fixed musical keys; they are verbal tonalities that can share the MiniLM embedding space with SAE feature descriptions.",
+  "tonalities": [
+    {
+      "name": "luminous resolve",
+      "description": "bright open stable consonant clear hopeful arrival gentle major-like release",
+      "intervals": [0, 2, 4, 7, 9]
+    },
+    {
+      "name": "mournful tension",
+      "description": "sad longing dark minor unresolved lament fragile suspended grief",
+      "intervals": [0, 2, 3, 7, 10]
+    },
+    {
+      "name": "metallic anxiety",
+      "description": "sharp brittle nervous unstable metallic pressure alarm friction dissonance",
+      "intervals": [0, 1, 6, 10]
+    },
+    {
+      "name": "warm earth",
+      "description": "warm grounded organic soft wooden slow intimate calm body breath",
+      "intervals": [0, 3, 5, 7, 10]
+    },
+    {
+      "name": "restless motion",
+      "description": "moving kinetic propulsive changing mechanical energetic transition acceleration",
+      "intervals": [0, 2, 5, 7, 11]
+    },
+    {
+      "name": "spectral distance",
+      "description": "distant ghostly hollow airy spacious cold transparent fading memory",
+      "intervals": [0, 5, 6, 11]
+    },
+    {
+      "name": "playful lightness",
+      "description": "playful curious quick small sparkling childlike humorous flexible bright",
+      "intervals": [0, 2, 4, 5, 7, 9]
+    },
+    {
+      "name": "heavy rupture",
+      "description": "heavy violent broken dense distorted rupture collapse impact weight danger",
+      "intervals": [0, 1, 5, 6, 8]
+    }
+  ]
+}

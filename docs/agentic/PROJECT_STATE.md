@@ -1,6 +1,6 @@
 # Project State
 
-Last updated: 2026-06-17
+Last updated: 2026-06-20
 
 ## Branch
 
@@ -14,9 +14,11 @@ git branch --show-current
 
 ## Current Mode
 
-No coding of new project ideas yet.
+Implementation has started on the semantic-tonality audio direction.
 
-The user plans to add their own term paper soon. Wait for that paper before implementing new interface ideas, because it should become the main design context.
+The first scoped implementation is a local MiniLM-based foundation for embedding
+verbal tonality descriptions in the same semantic space as active SAE feature
+descriptions. This does not yet alter live audio playback.
 
 Agent workflow clarification: use Codex for planning, implementation, review, and
 remote-machine coordination. Do not assume Anthropic/Claude tooling for agentic
@@ -29,6 +31,9 @@ project work.
 - Added `references/` to `.gitignore`.
 - Inspected local PDF: `/home/apaixonada/Downloads/Mila Community Agentic Coding Best Practices (1).pdf`.
 - Set up this agentic workflow documentation.
+- Added `app/server/pipeline/semantic_tonality.py` and
+  `app/server/pipeline/tonality_data/default_tonalities.json` as the first
+  local, Anthropic-free semantic tonality foundation.
 
 ## Local Reference Material
 
@@ -52,7 +57,8 @@ Avoid reverting to the older archive interface.
 
 - Where the user will place the term paper.
 - Whether paper passages should become prompts, annotations, comparison units, or all three.
-- Whether to port the old tonality/pitch-bias idea into the new interface.
+- How to wire semantic tonality matches into live audio: pitch, timbre, envelope,
+  density, filter/brightness, or a combination.
 - What the first user-facing workflow should be after paper ingestion.
 - Whether to remove or replace existing app-level Anthropic cluster-naming code
   before live audio testing.
@@ -61,7 +67,8 @@ Avoid reverting to the older archive interface.
 
 Before coding next:
 
-1. Read the term paper or paper-derived notes once the user adds them.
-2. Ask clarifying questions about the desired first workflow.
-3. Write or update a focused spec before implementation.
+1. Decide the first audio consumer for semantic tonality matches.
+2. Wire `match_active_features_to_tonalities` into the stream only after choosing
+   what it should control.
+3. Keep the Anthropic cluster-naming fallback separate from semantic-tonality work.
 4. Keep each implementation step small and verifiable.
