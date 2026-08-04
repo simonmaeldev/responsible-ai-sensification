@@ -17,8 +17,9 @@ priority takes precedence over the older numeric ordering.
 
 - **Ubuntu GPU PC (complete):** optional, live-configurable `/rai/v1` OSC
   emission is implemented and verified against a local UDP receiver.
-- **Windows laptop (next):** implement the Max for Live/ossia receiver in a
-  separate task and clone/branch.
+- **Windows laptop (in progress):** receiver source, state engine, preview synth,
+  ossia namespace, and local loopback fixture are implemented; the Live-hosted
+  `.amxd`, OSCQuery, and audible checks remain.
 - **Integration:** test both computers over the LAN after each side works alone.
 - Do not treat Git worktrees as a cross-computer synchronization mechanism.
 

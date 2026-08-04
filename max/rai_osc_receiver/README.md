@@ -59,6 +59,20 @@ Master gain affects only the preview synth.
 
 ## Network Test
 
-For the later two-machine test, enter the Windows laptop's current LAN IPv4 in
-the Ubuntu browser's OSC destination and use UDP port 9000. UDP is connectionless:
-`listening` and `receiving` are accurate states; there is no handshake.
+Before loading the model, isolate the LAN transport with the production Ubuntu
+sender and a deterministic fixture. With the receiver open in Max for Live, run
+this from the repository root on the Ubuntu GPU PC:
+
+```bash
+uv run python -m scripts.send_osc_test --host <current-windows-ipv4> --port 9000
+```
+
+The receiver should show two token frames, two notes in the final frame, the
+live controls changing to BPM 96 and sustain mode, and the lifecycle ending in
+stop. The final-frequency sentinel is `445.125` Hz; its raw source value in the
+fixture is `440.0` Hz.
+
+After that passes, enter the Windows laptop's current LAN IPv4 in the Ubuntu
+browser's OSC destination and use UDP port 9000 for the real app test. UDP is
+connectionless: `listening` and `receiving` are accurate states; there is no
+handshake.

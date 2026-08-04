@@ -97,3 +97,44 @@ with the spec, stop and explain the exact conflict instead of silently changing 
 OSC contract. Finish with changed files, verification results, and the exact
 remaining Windows-laptop receiver task.
 ```
+
+## Windows Laptop: Finish Receiver And Two-Machine Check
+
+Use this after pulling the synchronized emitter, receiver, and LAN fixture from
+`nicolas-attempts`. It intentionally defers the larger semantic mapping matrix.
+
+```text
+Execution machine: Windows laptop.
+Remote runtime source: Ubuntu GPU PC.
+In scope: finish Phase 5B local Max for Live verification, then exercise the
+Phase 5C UDP path. Do not expand the OSC contract or semantic mapping system.
+
+Pull the latest nicolas-attempts and read AGENTS.md,
+docs/agentic/PROJECT_STATE.md, docs/agentic/WORKFLOW.md,
+docs/agentic/ROADMAP.md, specs/ableton-osc-bridge.md,
+specs/ableton-osc-receiver.md, and max/rai_osc_receiver/README.md completely.
+Confirm commands and edits run on the Windows laptop.
+
+1. Open max/rai_osc_receiver/RAI OSC Receiver.maxpat through Live's Edit in Max
+   workflow and save a Max-generated RAI OSC Receiver.amxd. Do not create or
+   rename an .amxd by hand.
+2. Keep or freeze the JavaScript, voice, panel, and ossia dependencies correctly.
+3. In the Live-hosted Max environment, rerun the Windows loopback fixture,
+   query http://127.0.0.1:5679/, and verify the preview is audible and bounded.
+4. Recheck the Windows LAN IPv4 and active firewall profile. Do not create or
+   modify a firewall rule without reporting the exact proposed rule and getting
+   approval.
+5. Keep the receiver open on UDP 9000 and ask the user to run this on Ubuntu:
+   uv run python -m scripts.send_osc_test --host <current-windows-ipv4> --port 9000
+6. Verify both token frames, two notes in the final frame, final frequency
+   445.125 Hz, BPM 96, sustain mode, control changes, done, silent, and stop.
+7. Only after the fixture passes, test the real Ubuntu browser emitter using the
+   same Windows IP and UDP port. Confirm live raw/interpreted blend and tonality
+   lens edits change subsequent received frequencies.
+8. Keep local loopback, LAN reception, and audible Ableton results as separate
+   claims. UDP sending alone is not proof of reception.
+
+Update PROJECT_STATE.md and ROADMAP.md only with observed results. Do not commit,
+push, switch branches, create worktrees, or edit outside the repository unless
+explicitly asked. Finish with exact verification evidence and remaining gaps.
+```

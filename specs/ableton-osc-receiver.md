@@ -163,6 +163,11 @@ The presentation view shows:
   proposed rule and receiving approval.
 - The Ubuntu browser should receive an explicit Windows IPv4 address and UDP
   port only during the Phase 5C two-machine test.
+- Before model inference, run the production-backed Ubuntu fixture with
+  `uv run python -m scripts.send_osc_test --host <current-windows-ipv4> --port 9000`.
+  This fixture exercises start, all controls, timed and sustain token frames,
+  bounded final-frequency notes, tonality, done, silent, and stop without
+  loading Gemma or the SAE.
 
 ## Acceptance Criteria
 

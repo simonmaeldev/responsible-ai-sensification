@@ -122,6 +122,8 @@ Still required before Phase 5B is complete:
 
 Status: pending after Phase 5B
 
+- Added a configurable, model-free Ubuntu LAN fixture backed by the production
+  OSC sender, so UDP/firewall reception can be checked before model inference.
 - Configure explicit LAN addresses and firewall rules.
 - Decide the master clock and quantization policy.
 - Confirm that live UI lens/blend changes are audible in Ableton on subsequent

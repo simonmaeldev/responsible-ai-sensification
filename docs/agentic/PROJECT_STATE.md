@@ -1,6 +1,6 @@
 # Project State
 
-Last updated: 2026-08-03
+Last updated: 2026-08-04
 
 ## Branch
 
@@ -107,6 +107,15 @@ OSC/OSCQuery moves live performance data.
   not expose the ossia namespace. The Live-hosted Max editor must perform the
   final OSCQuery and audio checks; no Ableton audio or two-machine LAN pass is
   claimed yet.
+- Reviewed the synchronized Windows receiver against the production Ubuntu
+  emitter. The exact OSC address, argument order/type, lifecycle, live-control,
+  final-frequency, and note-cap expectations match; the receiver state test and
+  textual patch checks also pass on the Ubuntu clone.
+- Added `scripts/send_osc_test.py`, a configurable model-free LAN fixture that
+  uses the production `OscRunOutput`. A real loopback receiver test confirms two
+  token frames, bounded notes, live control changes, done, silent, and stop in
+  order. No Windows address is hardcoded, and the current full server suite
+  passes with 51 tests.
 
 ## Local Reference Material
 
@@ -142,20 +151,23 @@ Avoid reverting to the older archive interface.
 
 Before coding next:
 
-1. On the Windows laptop, open `max/rai_osc_receiver/RAI OSC Receiver.maxpat`
+1. On the Windows laptop, pull the latest `nicolas-attempts`, then open
+   `max/rai_osc_receiver/RAI OSC Receiver.maxpat`
    through Live's **Edit in Max** workflow, save the Max-generated
    `RAI OSC Receiver.amxd`, and keep its JavaScript/voice dependencies beside it
    or freeze the device.
 2. In the Live-hosted editor, confirm the ossia namespace at
    `http://127.0.0.1:5679/`, rerun the loopback fixture, verify all published
    states, and perform the first audible bounded-preview check.
-3. Only after that local host check passes, run the Phase 5C two-machine LAN
-   check using Windows IPv4 `192.168.1.208` and UDP 9000, and confirm live
-   lens/blend edits affect subsequent Ableton notes.
-4. Recheck the Windows LAN address before Phase 5C because DHCP can change it.
+3. Only after that local host check passes, recheck the current Windows IPv4 and
+   run the model-free Ubuntu fixture:
+   `uv run python -m scripts.send_osc_test --host <current-windows-ipv4> --port 9000`.
+4. After the fixture appears in the receiver, run the real Phase 5C app check
+   on UDP 9000 and confirm live lens/blend edits affect subsequent Ableton notes.
+5. Recheck the Windows LAN address before Phase 5C because DHCP can change it.
    Create no firewall rule unless the existing Ableton rule proves insufficient
    and the user approves an exact proposed rule.
-5. Decide the master-clock policy during Phase 5C; do not add Link or
+6. Decide the master-clock policy during Phase 5C; do not add Link or
    quantization in Phase 5B.
-6. Keep generated caches, papers, references, runs, and screenshots untracked
+7. Keep generated caches, papers, references, runs, and screenshots untracked
    unless the user explicitly asks to save them in Git.
