@@ -75,7 +75,7 @@ Implemented:
 
 ## Phase 5: Ableton Live Bridge
 
-Status: Phase 5A complete; Phases 5B and 5C pending
+Status: Phase 5A complete; Phase 5B in progress; Phase 5C pending
 
 Goal: let UI-edited, post-tonality SAE musical events produced on the Ubuntu GPU
 PC affect Ableton Live on the Windows laptop in real time.
@@ -95,11 +95,28 @@ Status: complete
 
 ### Phase 5B: Windows Max for Live/ossia receiver
 
-Status: pending on the Windows laptop
+Status: in progress on the Windows laptop
 
-- Build the Max for Live receiver on the Windows laptop through Codex there.
-- Receive the Phase 5A OSC contract and map it to Ableton instruments/effects.
-- Use ossia/OSCQuery for structured parameters and later feedback to the app.
+Completed locally:
+
+- Added a focused Windows receiver spec.
+- Added textual Max source for native UDP 9000 reception, exhaustive OSC v1
+  parsing, run/sequence token-frame grouping, bounded 16-voice preview audio,
+  diagnostics, and typed ossia/OSCQuery configuration/status parameters.
+- Preserved raw final frequency, activation, feature, cluster, instrument, and
+  tonality metadata for later Ableton mappings.
+- Added a Windows loopback OSC fixture and deterministic state-engine test.
+- Verified textual patches, all 14 contract addresses, live controls, unknown
+  and malformed input tolerance, frequency `445.125` at the Max voice-message
+  boundary, done/silent/stop behavior, and real UDP traffic into Max Runtime.
+
+Still required before Phase 5B is complete:
+
+- Open and save the source as a Max-generated `.amxd` through Live's
+  **Edit in Max** workflow.
+- Verify the local OSCQuery namespace in the Live-hosted Max environment.
+- Hear and meter the bounded preview synth in Ableton Live.
+- Phase 5B does not include Ubuntu-to-Windows LAN validation.
 
 ### Phase 5C: Two-machine performance integration
 
