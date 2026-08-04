@@ -13,6 +13,8 @@ remote OSC source.
 
 ## Source Files
 
+- `RAI OSC Receiver.amxd`: Max-generated Live device; keep the files below beside
+  it when moving the receiver between clones or machines.
 - `RAI OSC Receiver.maxpat`: editable receiver and Max for Live source.
 - `rai_osc_receiver.js`: OSC validation, token-frame grouping, diagnostics, and
   voice allocation.

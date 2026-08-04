@@ -109,13 +109,20 @@ Completed locally:
 - Verified textual patches, all 14 contract addresses, live controls, unknown
   and malformed input tolerance, frequency `445.125` at the Max voice-message
   boundary, done/silent/stop behavior, and real UDP traffic into Max Runtime.
+- Saved the source through Live's **Edit in Max** workflow as the Max-generated
+  `RAI OSC Receiver.amxd`, with its dependencies beside the device.
+- Fixed the namespace abstraction boundary and ossia access attributes, then
+  added a static regression check for standard inlets/outlets and read-only
+  status versus bidirectional config parameters.
+- Loaded the device in Ableton and verified the complete Windows loopback fixture
+  through its Live-hosted UDP 9000 receiver and OSCQuery endpoint on TCP 5679.
+  The published sentinel values include two notes, `445.125` Hz, BPM `96`,
+  sustain mode, control changes, and the final `run_stop` release.
 
 Still required before Phase 5B is complete:
 
-- Open and save the source as a Max-generated `.amxd` through Live's
-  **Edit in Max** workflow.
-- Verify the local OSCQuery namespace in the Live-hosted Max environment.
-- Hear and meter the bounded preview synth in Ableton Live.
+- Enable a deliberate Ableton audio output, then hear and meter the bounded
+  preview synth. The prior hosted verification ran with Live's audio engine off.
 - Phase 5B does not include Ubuntu-to-Windows LAN validation.
 
 ### Phase 5C: Two-machine performance integration
@@ -124,7 +131,14 @@ Status: pending after Phase 5B
 
 - Added a configurable, model-free Ubuntu LAN fixture backed by the production
   OSC sender, so UDP/firewall reception can be checked before model inference.
-- Configure explicit LAN addresses and firewall rules.
+- Current observed Windows destination is `192.168.1.208:9000`; recheck it before
+  testing because DHCP can change it. No new firewall rule has been authorized.
+- Next Ubuntu action is exactly:
+  `uv run python -m scripts.send_osc_test --host 192.168.1.208 --port 9000`.
+  Success must be observed on the Windows receiver, not inferred from sending.
+- After the fixture passes, point the existing browser emitter at the same
+  destination and verify the real Gemma/SAE stream. Keep this work to transport
+  and observation of existing fields; the final Ableton mapping matrix is later.
 - Decide the master clock and quantization policy.
 - Confirm that live UI lens/blend changes are audible in Ableton on subsequent
   tokens.

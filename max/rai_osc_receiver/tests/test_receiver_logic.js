@@ -9,6 +9,34 @@ const receiverPath = path.join(__dirname, "..", "rai_osc_receiver.js");
 const source = fs.readFileSync(receiverPath, "utf8");
 const outputs = [[], [], []];
 
+const namespacePath = path.join(__dirname, "..", "rai_ossia_namespace.maxpat");
+const namespace = JSON.parse(fs.readFileSync(namespacePath, "utf8"));
+const namespaceBoxes = namespace.patcher.boxes.map(({ box }) => box);
+const namespaceById = new Map(namespaceBoxes.map((box) => [box.id, box]));
+
+assert.strictEqual(namespaceById.get("obj-in").maxclass, "inlet",
+    "the namespace abstraction must use a standard Max inlet");
+const configIds = ["obj-port", "obj-gain", "obj-mute"];
+for (const id of configIds) {
+    assert.match(namespaceById.get(id).text, /@mode bi(?:\s|$)/,
+        `${id} must remain remotely readable and writable`);
+}
+const statusParameters = namespaceBoxes.filter((box) =>
+    typeof box.text === "string" && box.text.startsWith("ossia.parameter status/"));
+assert.strictEqual(statusParameters.length, 23);
+for (const box of statusParameters) {
+    assert.match(box.text, /@mode get(?:\s|$)/,
+        `${box.id} must remain read-only in OSCQuery`);
+    assert.doesNotMatch(box.text, /@access\b/,
+        `${box.id} must use the current ossia @mode attribute`);
+}
+const configOutlets = ["obj-out-port", "obj-out-gain", "obj-out-mute"]
+    .map((id) => namespaceById.get(id));
+assert(configOutlets.every((box) => box.maxclass === "outlet"),
+    "the namespace abstraction must expose three standard Max outlets");
+assert.deepStrictEqual(configOutlets.map((box) => box.patching_rect[0]), [650, 700, 750],
+    "outlet placement must preserve port, gain, mute ordering");
+
 const sandbox = {
     Math,
     Number,
