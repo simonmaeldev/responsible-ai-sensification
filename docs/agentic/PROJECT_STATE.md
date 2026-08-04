@@ -34,6 +34,11 @@ OSCQuery namespace were exercised with the complete Windows loopback fixture.
 The remaining Phase 5B gap is the audible/meter check because Ableton's audio
 engine was off during verification.
 
+The two-machine transport path is now verified in both fixture and real-model
+runs. The Ubuntu GPU PC sent `/rai/v1` UDP to the Windows Live-hosted receiver,
+and the receiver's OSCQuery state confirmed the expected fixture fields and a
+real three-token Gemma/SAE stream carrying capped, final post-tonality notes.
+
 Agent workflow clarification: use Codex for planning, implementation, review, and
 remote-machine coordination. Do not assume Anthropic/Claude tooling for agentic
 project work.
@@ -42,9 +47,8 @@ project work.
 
 - **Ubuntu GPU PC**: runs Gemma/SAE inference, FastAPI, the browser interface,
   and the completed outbound OSC emitter.
-- **Windows laptop**: runs Ableton Live, Max for Live, and ossia; it will host a
-  separate Max/ossia receiver task. It is the current Phase 5B implementation
-  and verification target.
+- **Windows laptop**: runs Ableton Live, Max for Live, and ossia; it hosts the
+  Max/ossia receiver and remains the Phase 5B audible-output verification target.
 - **Ubuntu laptop**: a separate lightweight development/control environment; no
   GPU, Ableton, Max, or shared-cache assumptions should be made.
 
@@ -117,8 +121,7 @@ OSC/OSCQuery moves live performance data.
   `run_stop`. Status parameters were read-only and config parameters remained
   bidirectional.
 - Ableton's audio engine was off during that pass, so no audible or meter result
-  is claimed. The Ubuntu-to-Windows LAN fixture and real browser-emitter test
-  are also still pending.
+  is claimed.
 - Reviewed the synchronized Windows receiver against the production Ubuntu
   emitter. The exact OSC address, argument order/type, lifecycle, live-control,
   final-frequency, and note-cap expectations match; the receiver state test and
@@ -128,6 +131,18 @@ OSC/OSCQuery moves live performance data.
   token frames, bounded notes, live control changes, done, silent, and stop in
   order. No Windows address is hardcoded, and the current full server suite
   passes with 51 tests.
+- Verified the cross-machine LAN fixture from the Ubuntu GPU PC to the Windows
+  Live-hosted receiver at the then-current `192.168.1.208:9000` destination.
+  OSCQuery confirmed run `ubuntu-lan-d05982a212e6`, both token frames, the final
+  two-note frame, raw final frequency `445.125`, BPM `96`, sustain mode, control
+  changes, and final `run_stop`; this result was observed at the receiver rather
+  than inferred from UDP transmission.
+- Ran a real three-token Gemma/SAE generation through semantic tonality and the
+  production OSC output. Windows OSCQuery confirmed run
+  `c3be7ff96b2241b9923b639201ffad49`, sequence `3`, token ` is`, the configured
+  two-note cap, tonality `luminous resolve`, pitch bias `0.55`, and clean
+  `run_stop`. The received frame preserved final post-tonality frequencies and
+  SAE activation, feature, cluster, and instrument data.
 
 ## Local Reference Material
 
@@ -156,42 +171,27 @@ Avoid reverting to the older archive interface.
 - What the first user-facing workflow should be after paper ingestion.
 - Whether paper passages should become selectable prompt presets or stay outside
   the app as reference context.
-- Final Windows LAN address/ports and whether Ableton or the app should be the
-  master clock for the first two-machine performance test.
+- Whether Ableton or the app should be the master clock for the first
+  two-machine performance test.
 
 ## Handoff Notes
 
-### Immediate Ubuntu GPU PC handoff
+### Immediate integration status and next action
 
 Do not rebuild or redesign the Windows receiver. The Max-generated
-`max/rai_osc_receiver/RAI OSC Receiver.amxd` already exists, is saved in the
-Windows Ableton set, listens on UDP 9000, and passed the complete Windows-local
-loopback/OSCQuery check.
+`max/rai_osc_receiver/RAI OSC Receiver.amxd` exists in the Windows Ableton set,
+listens on UDP 9000, and has passed Windows-local loopback plus Ubuntu-to-Windows
+fixture and real Gemma/SAE reception checks. Recheck the Windows IPv4 before a
+new session because DHCP can change it; no address is hardcoded in the app.
 
-The next Ubuntu agent should only establish and verify the cross-machine send:
+The next required action is on the Windows laptop: enable Ableton's audio engine
+and deliberately hear or meter the bounded preview synth. Then use the browser
+controls during a longer real run to confirm that live tonality-lens and
+raw/interpreted pitch-blend edits are audible on subsequent tokens.
 
-1. Pull this branch on the Ubuntu GPU PC.
-2. Confirm the Windows laptop is still at `192.168.1.208`; DHCP can change this.
-3. Ask the user to keep Ableton open on Windows with `RAI OSC Receiver` loaded.
-4. From the Ubuntu repository root, run:
-
-   ```bash
-   uv run python -m scripts.send_osc_test --host 192.168.1.208 --port 9000
-   ```
-
-5. Do not call UDP transmission a pass by itself. A pass requires the Windows
-   panel or OSCQuery endpoint to show both token frames, two notes in the final
-   frame, `445.125` Hz, BPM `96`, sustain mode, the control changes, and the
-   done/silent/stop lifecycle.
-6. Only after the fixture is visibly received, configure the Ubuntu browser OSC
-   destination as `192.168.1.208:9000`, enable OSC, and run the real Gemma/SAE
-   stream. Confirm subsequent received note frequencies change when the existing
-   raw/interpreted blend or tonality-lens controls are edited.
-
-The scope is still transport plus observation of the existing Gemma/SAE fields.
-Do not invent the final Ableton parameter-mapping matrix, expand `/rai/v1`, or
-add discovery/pairing in this handoff. The Windows audible/meter check remains a
-separate pending result because Live's audio engine was off.
+The scope remains observation and mapping of existing Gemma/SAE fields. Do not
+expand `/rai/v1` or add discovery/pairing until the current audio path is heard
+and the desired Ableton parameter-mapping matrix is specified.
 
 ### Later local and integration work
 
@@ -199,12 +199,13 @@ separate pending result because Live's audio engine was off.
    `max/rai_osc_receiver/RAI OSC Receiver.amxd` in Ableton and enable a deliberate
    audio output. Rerun the loopback fixture and hear/meter the bounded preview;
    do not infer audio success from OSCQuery state alone.
-2. Only after that local audio check passes, recheck the current Windows IPv4 and
-   run the model-free Ubuntu fixture:
-   `uv run python -m scripts.send_osc_test --host <current-windows-ipv4> --port 9000`.
-3. After the fixture appears in the receiver, run the real Phase 5C app check
-   on UDP 9000 and confirm live lens/blend edits affect subsequent Ableton notes.
-4. Recheck the Windows LAN address before Phase 5C because DHCP can change it.
+2. Recheck the Windows LAN address before each performance session because DHCP
+   can change it.
+3. Run a longer real app session and confirm live lens/blend edits affect
+   subsequent audible Ableton notes.
+4. If transport needs to be isolated again, rerun
+   `uv run python -m scripts.send_osc_test --host <current-windows-ipv4> --port 9000`
+   and verify the result through the receiver panel or OSCQuery.
    Create no firewall rule unless the existing Ableton rule proves insufficient
    and the user approves an exact proposed rule.
 5. Decide the master-clock policy during Phase 5C; do not add Link or

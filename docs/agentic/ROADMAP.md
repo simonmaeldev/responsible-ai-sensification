@@ -75,7 +75,7 @@ Implemented:
 
 ## Phase 5: Ableton Live Bridge
 
-Status: Phase 5A complete; Phase 5B in progress; Phase 5C pending
+Status: Phase 5A complete; Phase 5B in progress; Phase 5C transport verified
 
 Goal: let UI-edited, post-tonality SAE musical events produced on the Ubuntu GPU
 PC affect Ableton Live on the Windows laptop in real time.
@@ -127,21 +127,23 @@ Still required before Phase 5B is complete:
 
 ### Phase 5C: Two-machine performance integration
 
-Status: pending after Phase 5B
+Status: in progress; fixture and real-model transport verified
 
 - Added a configurable, model-free Ubuntu LAN fixture backed by the production
   OSC sender, so UDP/firewall reception can be checked before model inference.
-- Current observed Windows destination is `192.168.1.208:9000`; recheck it before
-  testing because DHCP can change it. No new firewall rule has been authorized.
-- Next Ubuntu action is exactly:
-  `uv run python -m scripts.send_osc_test --host 192.168.1.208 --port 9000`.
-  Success must be observed on the Windows receiver, not inferred from sending.
-- After the fixture passes, point the existing browser emitter at the same
-  destination and verify the real Gemma/SAE stream. Keep this work to transport
-  and observation of existing fields; the final Ableton mapping matrix is later.
+- Verified the fixture over the LAN from Ubuntu to the Live-hosted receiver at
+  the then-current `192.168.1.208:9000` destination. Windows OSCQuery confirmed
+  both frames, bounded notes, live controls, `445.125` Hz, and stop lifecycle.
+- Verified a real three-token Gemma/SAE run through semantic tonality and the
+  production sender. Windows OSCQuery confirmed sequence 3, a two-note cap,
+  final post-tonality frequencies, tonality `luminous resolve`, SAE metadata,
+  and clean stop. This proves transport and receiver state handling, not audible
+  Ableton output.
+- Recheck the Windows destination before each session because DHCP can change
+  it. No Windows address is hardcoded and no new firewall rule was required.
 - Decide the master clock and quantization policy.
-- Confirm that live UI lens/blend changes are audible in Ableton on subsequent
-  tokens.
+- Enable Ableton audio, hear/meter the bounded preview, and confirm that live UI
+  lens/blend changes are audible in Ableton on subsequent tokens.
 
 The focused contract and machine boundaries are in
 `specs/ableton-osc-bridge.md`.

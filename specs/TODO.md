@@ -20,7 +20,10 @@ priority takes precedence over the older numeric ordering.
 - **Windows laptop (in progress):** the Max-generated `.amxd`, receiver panel,
   Live-hosted UDP/OSCQuery path, and complete local loopback fixture are verified;
   the deliberate audible/meter check remains because Live's audio engine was off.
-- **Integration:** test both computers over the LAN after each side works alone.
+- **Integration (transport verified):** the model-free fixture and a real
+  three-token Gemma/SAE/post-tonality run were received over the LAN and
+  confirmed through Windows OSCQuery. A deliberate audible/meter pass and live
+  UI lens/blend listening test remain.
 - Do not treat Git worktrees as a cross-computer synchronization mechanism.
 
 ## 1. Image generation placeholder → actual image
