@@ -4,9 +4,11 @@ import dataclasses
 import json
 import logging
 import sys
+import uuid
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from app.server.pipeline.osc_output import OscResult, OscRunOutput
 from app.server.session import PipelineParams, PipelineSession  # noqa: F401 (PipelineSession used for _session)
 
 logger = logging.getLogger(__name__)
@@ -30,6 +32,61 @@ _session = PipelineSession()
 
 async def _send(ws: WebSocket, msg: dict) -> None:
     await ws.send_text(json.dumps(msg))
+
+
+async def _call_osc(
+    ws: WebSocket,
+    operation,
+    *args,
+    report_status: bool = False,
+) -> OscResult:
+    """Run a failure-isolated OSC operation outside the WebSocket event loop."""
+    try:
+        result = await asyncio.to_thread(operation, *args)
+    except Exception as exc:  # defensive: the OSC helper itself must not escape
+        logger.exception("Unexpected OSC output error")
+        result = OscResult("error", f"OSC output error: {exc}", error=str(exc))
+
+    if report_status or result.state == "error":
+        try:
+            await _send(
+                ws,
+                {
+                    "type": "osc_status",
+                    "status": result.state,
+                    "message": result.message,
+                },
+            )
+        except Exception:
+            logger.debug("Could not send OSC status to browser", exc_info=True)
+    return result
+
+
+async def _forward_token_event(
+    ws: WebSocket,
+    event: dict,
+    params: PipelineParams,
+    osc_output: OscRunOutput,
+) -> OscResult:
+    """Preserve the browser event, then mirror its final notes to OSC."""
+    await _send(ws, event)
+    return await _call_osc(ws, osc_output.emit_token, params, event)
+
+
+async def _sync_live_osc_controls(
+    ws: WebSocket,
+    params: PipelineParams,
+    osc_output: OscRunOutput,
+    changed_fields: set[str],
+) -> OscResult:
+    """Apply live OSC destination/control edits without restarting the run."""
+    return await _call_osc(
+        ws,
+        osc_output.sync_controls,
+        params,
+        changed_fields,
+        report_status=True,
+    )
 
 
 def _get_tonality_runtime() -> dict:
@@ -87,6 +144,8 @@ def _get_tonality_cache_runtime(raw_lenses: list[dict] | None = None) -> dict:
 
 async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
     """Background task: load model (cached), run inspect_live, stream token events."""
+    osc_output = OscRunOutput(uuid.uuid4().hex)
+    _session.osc_output = osc_output
     try:
         cache_key = (params.model, params.layer, params.width)
 
@@ -240,6 +299,7 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
 
         print(f"[pipeline] Starting pipeline: prompt={params.prompt!r} strategy={params.strategy} clusters={params.clusters}", file=sys.stderr, flush=True)
         logger.info("Starting pipeline: prompt=%r strategy=%s clusters=%s", params.prompt, params.strategy, params.clusters)
+        await _call_osc(ws, osc_output.begin, params, report_status=True)
 
         # Producer + synthesizer: run generation concurrently with timed playback
         queue: asyncio.Queue = asyncio.Queue()
@@ -346,11 +406,15 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
                 if event is None:
                     break
                 collected.append(event)
-                await _send(ws, event)
+                if event.get("type") == "token":
+                    await _forward_token_event(ws, event, params, osc_output)
+                else:
+                    await _send(ws, event)
                 if params.mode == "timed":
                     await asyncio.sleep(60.0 / params.bpm)
 
             await _send(ws, {"type": "done"})
+            await _call_osc(ws, osc_output.emit_done, params)
 
             # Post-generation: loop or idle until cancelled
             loop_count = 0
@@ -362,13 +426,18 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
                     for event in collected:
                         if not params.loop:
                             break
-                        await _send(ws, {**event, "loop_count": loop_count})
+                        loop_event = {**event, "loop_count": loop_count}
+                        if event.get("type") == "token":
+                            await _forward_token_event(ws, loop_event, params, osc_output)
+                        else:
+                            await _send(ws, loop_event)
                         if params.mode == "timed":
                             await asyncio.sleep(60.0 / params.bpm)
                 else:
                     if was_looping:
                         was_looping = False
                         await _send(ws, {"type": "silent"})
+                        await _call_osc(ws, osc_output.emit_silent, params)
                     await asyncio.sleep(0.1)
 
         producer_task = asyncio.create_task(_producer())
@@ -384,6 +453,9 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
         except Exception:
             pass
     finally:
+        await _call_osc(ws, osc_output.stop, params)
+        if _session.osc_output is osc_output:
+            _session.osc_output = None
         try:
             await _send(ws, {"type": "stopped"})
         except Exception:
@@ -420,7 +492,15 @@ async def ws_stream(ws: WebSocket) -> None:
                 await _send(ws, {"type": "stopped"})
 
             elif action == "update_params":
-                _session.params.update(**msg.get("params", {}))
+                raw_params = msg.get("params", {})
+                _session.params.update(**raw_params)
+                if _session.osc_output is not None:
+                    await _sync_live_osc_controls(
+                        ws,
+                        _session.params,
+                        _session.osc_output,
+                        set(raw_params),
+                    )
 
             else:
                 await _send(ws, {"type": "error", "message": f"Unknown action: {action}"})

@@ -309,6 +309,41 @@ select:focus {
   gap: 14px;
 }
 
+.external-output-heading {
+  margin-bottom: -8px;
+}
+
+.external-output {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid rgba(44,197,167,0.24);
+  border-radius: 6px;
+  background: rgba(44,197,167,0.045);
+}
+
+.external-output-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.osc-status {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.osc-status[data-state="ready"] {
+  color: var(--accent);
+}
+
+.osc-status[data-state="error"] {
+  color: var(--red);
+}
+
 #tonality-lens-list {
   display: flex;
   flex-direction: column;

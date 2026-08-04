@@ -73,11 +73,49 @@ Implemented:
 - Run-level tonality memory.
 - "Why this sound" active-feature evidence panel.
 
-## Phase 5: Next Candidate Features
+## Phase 5: Ableton Live Bridge
 
-Status: open
+Status: Phase 5A complete; Phases 5B and 5C pending
 
-Good next steps:
+Goal: let UI-edited, post-tonality SAE musical events produced on the Ubuntu GPU
+PC affect Ableton Live on the Windows laptop in real time.
+
+### Phase 5A: Ubuntu GPU PC OSC emitter
+
+Status: complete
+
+- Added optional, live-configurable OSC destination, UDP port, and note-cap
+  controls to the browser UI using the existing WebSocket/localStorage flow.
+- Added the `/rai/v1` lifecycle, live-control, token, final post-tonality note,
+  and tonality output with per-run sequence numbers.
+- Kept browser/WebSocket token events uncapped and unchanged; OSC errors are
+  logged/reported without interrupting generation.
+- Verified with focused tests, the complete 48-test server suite, JavaScript
+  syntax checking, and a real Ubuntu loopback UDP receiver.
+
+### Phase 5B: Windows Max for Live/ossia receiver
+
+Status: pending on the Windows laptop
+
+- Build the Max for Live receiver on the Windows laptop through Codex there.
+- Receive the Phase 5A OSC contract and map it to Ableton instruments/effects.
+- Use ossia/OSCQuery for structured parameters and later feedback to the app.
+
+### Phase 5C: Two-machine performance integration
+
+Status: pending after Phase 5B
+
+- Configure explicit LAN addresses and firewall rules.
+- Decide the master clock and quantization policy.
+- Confirm that live UI lens/blend changes are audible in Ableton on subsequent
+  tokens.
+
+The focused contract and machine boundaries are in
+`specs/ableton-osc-bridge.md`.
+
+## Later Candidate Features
+
+Good later steps:
 
 - Session history and replay/export, so live runs become reproducible research
   artifacts.
@@ -85,8 +123,6 @@ Good next steps:
   the strongest feature descriptions behind each token.
 - Semantic color/image mapping based on the same lens logic as tonalities.
 - Neuronpedia/model loading progress, so performance setup has clearer feedback.
-- OSC/MIDI or DAW output, if the priority becomes live performance with external
-  audio gear.
 
 ## Verification Pattern
 

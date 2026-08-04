@@ -1,6 +1,7 @@
 # Feature Backlog
 
-Each item below is a self-contained feature for this branch, to be implemented in order.
+Each item below is a self-contained feature for this branch. The current user
+priority takes precedence over the older numeric ordering.
 
 ## Completed
 
@@ -11,6 +12,15 @@ Each item below is a self-contained feature for this branch, to be implemented i
   intervals can be changed from the GUI before or during generation; raw versus
   interpreted pitch blend is exposed; token payloads include run-level tonality
   memory and active-feature evidence.
+
+## Current priority: Ableton OSC bridge
+
+- **Ubuntu GPU PC (complete):** optional, live-configurable `/rai/v1` OSC
+  emission is implemented and verified against a local UDP receiver.
+- **Windows laptop (next):** implement the Max for Live/ossia receiver in a
+  separate task and clone/branch.
+- **Integration:** test both computers over the LAN after each side works alone.
+- Do not treat Git worktrees as a cross-computer synchronization mechanism.
 
 ## 1. Image generation placeholder → actual image
 The bottom-right panel is currently a static placeholder.

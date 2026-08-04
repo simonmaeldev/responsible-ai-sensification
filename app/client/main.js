@@ -168,6 +168,7 @@ let tonalityCatalogue = []; // default artist tonalities from server
 let defaultTonalityCatalogue = [];
 let lastRenderedNotes = [];
 let lensUpdateTimer = null;
+let oscUpdateTimer = null;
 
 // Transport / history state
 let isPaused = false;
@@ -175,6 +176,7 @@ let tokenHistory = [];   // all token events received since last start
 let historyIndex = -1;   // index into tokenHistory currently shown; -1 = none
 let pendingBuffer = [];  // tokens received while paused, not yet played
 let isDone = false;      // generation finished (but session not stopped)
+let sessionActive = false; // server task remains active while done/looping/idle
 
 // Cluster viz state
 let cvPalette = [];       // [{cluster_id, name, color}] ordered by PCA
@@ -214,6 +216,12 @@ const modeHelp        = document.getElementById("mode-help");
 const bpmGroup        = document.getElementById("bpm-group");
 const bpmIn           = document.getElementById("bpm");
 const loopCb          = document.getElementById("loop");
+const oscEnabledCb    = document.getElementById("osc-enabled");
+const oscControls     = document.getElementById("osc-controls");
+const oscHostIn       = document.getElementById("osc-host");
+const oscPortIn       = document.getElementById("osc-port");
+const oscMaxNotesIn   = document.getElementById("osc-max-notes");
+const oscStatus       = document.getElementById("osc-status");
 const volumeIn        = document.getElementById("volume");
 const tonalityEnabledCb = document.getElementById("tonality-enabled");
 const tonalityControls = document.getElementById("tonality-controls");
@@ -438,6 +446,10 @@ function applyParams(p) {
   if (p.mode       !== undefined) { modeSel.value = p.mode; updateModeHelp(); }
   if (p.bpm        !== undefined) bpmIn.value        = p.bpm;
   if (p.loop       !== undefined) loopCb.checked     = p.loop;
+  if (p.osc_enabled !== undefined) oscEnabledCb.checked = Boolean(p.osc_enabled);
+  if (p.osc_host !== undefined) oscHostIn.value = p.osc_host;
+  if (p.osc_port !== undefined) oscPortIn.value = p.osc_port;
+  if (p.osc_max_notes_per_token !== undefined) oscMaxNotesIn.value = p.osc_max_notes_per_token;
   if (p.tonality_enabled !== undefined) tonalityEnabledCb.checked = Boolean(p.tonality_enabled);
   if (p.prompt_influence !== undefined) promptInfluenceIn.value = p.prompt_influence;
   if (p.tonality_pitch_bias !== undefined) tonalityPitchBiasIn.value = p.tonality_pitch_bias;
@@ -450,6 +462,7 @@ function applyParams(p) {
   // Sync conditional visibility
   if (p.strategy !== undefined) syncClustersVisibility();
   if (p.mode     !== undefined) syncBpmVisibility();
+  syncOscControls();
   syncTonalityControls();
   updateTonalityControlValues();
 }
@@ -467,6 +480,10 @@ function collectParams() {
     mode:       modeSel.value,
     bpm:        parseInt(bpmIn.value),
     loop:       loopCb.checked,
+    osc_enabled: oscEnabledCb.checked,
+    osc_host: oscHostIn.value.trim(),
+    osc_port: boundedIntValue(oscPortIn, 9000, 1, 65535),
+    osc_max_notes_per_token: boundedIntValue(oscMaxNotesIn, 32, 1, 128),
     tonality_enabled: tonalityEnabledCb.checked,
     prompt_influence: parseFloat(promptInfluenceIn.value),
     tonality_pitch_bias: parseFloat(tonalityPitchBiasIn.value),
@@ -485,6 +502,47 @@ function syncBpmVisibility() {
 
 function syncTonalityControls() {
   tonalityControls.classList.toggle("hidden", !tonalityEnabledCb.checked);
+}
+
+function boundedIntValue(input, fallback, minimum, maximum) {
+  const value = parseInt(input.value);
+  if (!Number.isFinite(value)) return fallback;
+  return Math.max(minimum, Math.min(maximum, value));
+}
+
+function setOscStatus(message, state) {
+  if (!oscStatus) return;
+  oscStatus.textContent = message;
+  oscStatus.dataset.state = state;
+}
+
+function syncOscControls() {
+  const enabled = oscEnabledCb.checked;
+  oscControls.classList.toggle("hidden", !enabled);
+  if (!enabled) {
+    setOscStatus("OSC disabled", "disabled");
+    return;
+  }
+  const host = oscHostIn.value.trim();
+  if (!host) {
+    setOscStatus("Enabled — enter a destination host/IP", "unconfigured");
+    return;
+  }
+  const port = boundedIntValue(oscPortIn, 9000, 1, 65535);
+  setOscStatus(`UDP target ${host}:${port} — delivery unconfirmed`, "ready");
+}
+
+function scheduleOscUpdate(delayMs = 250) {
+  saveParams();
+  if (oscUpdateTimer) clearTimeout(oscUpdateTimer);
+  oscUpdateTimer = setTimeout(() => {
+    sendParamUpdate({
+      osc_enabled: oscEnabledCb.checked,
+      osc_host: oscHostIn.value.trim(),
+      osc_port: boundedIntValue(oscPortIn, 9000, 1, 65535),
+      osc_max_notes_per_token: boundedIntValue(oscMaxNotesIn, 32, 1, 128),
+    });
+  }, delayMs);
 }
 
 function updateTonalityControlValues() {
@@ -510,7 +568,7 @@ function connectWS() {
   };
 
   ws.onerror = () => setStatus("WebSocket error");
-  ws.onclose = () => { ws = null; setIdle(); };
+  ws.onclose = () => { ws = null; sessionActive = false; setIdle(); };
 }
 
 function handleMessage(msg) {
@@ -560,9 +618,14 @@ function handleMessage(msg) {
       setStatus("Silent");
       break;
 
+    case "osc_status":
+      setOscStatus(msg.message || "OSC status unavailable", msg.status || "unconfigured");
+      break;
+
     case "stopped":
       engine.stopAll();
       if (!isRunning) {
+        sessionActive = false;
         setIdle();
         resetClusterViz();
       }
@@ -570,6 +633,7 @@ function handleMessage(msg) {
 
     case "error":
       setStatus(`Error: ${msg.message}`);
+      sessionActive = false;
       setIdle();
       break;
   }
@@ -985,7 +1049,7 @@ function setDone() {
   isRunning = false; isDone = true;
   btnPlay.disabled  = false;
   btnPause.disabled = true;
-  btnStop.disabled  = true;
+  btnStop.disabled  = false;
   btnPrev.disabled  = historyIndex <= 0;
   btnNext.disabled  = historyIndex >= tokenHistory.length - 1;
   btnSend.disabled  = false;
@@ -1073,6 +1137,7 @@ function startPipeline() {
   engine.resume();
   engine.setVolume(parseFloat(volumeIn.value));
   setRunning();
+  sessionActive = true;
   ws.send(JSON.stringify({ action: "start", params: collectParams() }));
 }
 
@@ -1084,6 +1149,8 @@ btnPause.addEventListener("click", pausePipeline);
 btnStop.addEventListener("click", () => {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
   engine.stopAll();
+  isRunning = false;
+  sessionActive = false;
   isPaused = false;
   pendingBuffer = [];
   ws.send(JSON.stringify({ action: "stop" }));
@@ -1093,7 +1160,7 @@ btnNext.addEventListener("click", navigateNext);
 btnSend.addEventListener("click", startPipeline);
 
 function sendParamUpdate(partial) {
-  if (!isRunning || !ws || ws.readyState !== WebSocket.OPEN) return;
+  if (!sessionActive || !ws || ws.readyState !== WebSocket.OPEN) return;
   ws.send(JSON.stringify({ action: "update_params", params: partial }));
 }
 
@@ -1127,6 +1194,27 @@ modeSel.addEventListener("change", () => {
 
 bpmIn.addEventListener("input", () => { sendParamUpdate({ bpm: parseInt(bpmIn.value) }); saveParams(); });
 loopCb.addEventListener("change", () => { sendParamUpdate({ loop: loopCb.checked }); saveParams(); });
+
+oscEnabledCb.addEventListener("change", () => {
+  syncOscControls();
+  scheduleOscUpdate(0);
+});
+
+oscHostIn.addEventListener("input", () => { syncOscControls(); scheduleOscUpdate(); });
+oscHostIn.addEventListener("change", () => scheduleOscUpdate(0));
+
+oscPortIn.addEventListener("input", () => { syncOscControls(); scheduleOscUpdate(); });
+oscPortIn.addEventListener("change", () => {
+  oscPortIn.value = boundedIntValue(oscPortIn, 9000, 1, 65535);
+  syncOscControls();
+  scheduleOscUpdate(0);
+});
+
+oscMaxNotesIn.addEventListener("input", () => { syncOscControls(); scheduleOscUpdate(); });
+oscMaxNotesIn.addEventListener("change", () => {
+  oscMaxNotesIn.value = boundedIntValue(oscMaxNotesIn, 32, 1, 128);
+  scheduleOscUpdate(0);
+});
 
 volumeIn.addEventListener("input", () => engine.setVolume(parseFloat(volumeIn.value)));
 

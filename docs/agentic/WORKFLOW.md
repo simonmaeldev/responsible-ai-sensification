@@ -8,36 +8,55 @@ The goal is to make agent work persistent, scoped, and easy to restart without l
 
 ## Core Loop
 
-1. Explore
+1. Locate
+   - Name the execution machine: Ubuntu GPU PC, Ubuntu laptop, or Windows laptop.
+   - If the task crosses machines, name the source, destination, and in-scope side.
+   - Confirm that required hardware/software exists on the selected machine.
+
+2. Explore
    - Read the relevant files instead of relying on memory.
    - Record durable findings in `docs/agentic/PROJECT_STATE.md` when they matter for future work.
 
-2. Clarify
+3. Clarify
    - For ambiguous or research-heavy changes, ask focused questions before coding.
    - Capture decisions in a spec, roadmap item, or state note.
 
-3. Plan
+4. Plan
    - Turn a large idea into a short spec or phased checklist.
    - Keep each implementation unit small enough to review and verify.
 
-4. Constrain
+5. Constrain
    - Identify exact files likely to change.
    - Define tests, smoke checks, or manual checks before implementation when possible.
    - Repeat important negative constraints directly in the task.
 
-5. Implement
+6. Implement
    - Make only the changes required by the current task.
    - Preserve existing code style and architecture.
    - Do not implement unrelated ideas discovered during exploration.
 
-6. Verify
+7. Verify
    - Run focused tests or checks immediately.
    - Report what was run and what could not be run.
    - Update state docs if the result affects future work.
 
-7. Save Point
+8. Save Point
    - Ask the user before committing.
    - Keep Git status understandable between tasks.
+
+## Multi-Machine Work
+
+- Ubuntu GPU PC: Gemma/SAE inference, FastAPI, browser UI, OSC emission, and
+  server-side automated tests.
+- Windows laptop: Ableton Live, Max for Live, ossia receiver, Live API mapping,
+  and audible end-to-end validation.
+- Ubuntu laptop: browser/control use and lightweight work unless the user assigns
+  a different role; never assume a GPU.
+- Use a separate clone on each computer. Use separate branches when both sides
+  are being developed concurrently, and merge through Git after each side is
+  independently understandable.
+- Do not use Git as the live transport. Use OSC/OSCQuery over the LAN for runtime
+  messages.
 
 ## Agent Tooling
 
@@ -86,6 +105,9 @@ Use the smallest check that gives confidence:
 - Python server behavior: `cd app/server && uv run pytest`
 - UI behavior: run `./scripts/start.sh`, then manually or browser-test the relevant workflow.
 - Streaming/model behavior: expect HuggingFace/model cache/API constraints and document what was or was not exercised.
+- Cross-machine OSC behavior: first verify the Ubuntu sender against a loopback
+  receiver; verify Ableton/Max reception separately on Windows; then run one LAN
+  integration check with both machines named in the report.
 
 ## No-Code Discussion Mode
 

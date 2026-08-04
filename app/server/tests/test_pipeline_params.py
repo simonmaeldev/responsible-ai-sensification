@@ -38,3 +38,24 @@ def test_pipeline_params_update_accepts_live_tonality_lenses():
     params.update(tonality_lenses=lenses)
 
     assert params.tonality_lenses == lenses
+
+
+def test_pipeline_params_update_coerces_and_bounds_osc_settings():
+    params = PipelineParams()
+
+    params.update(
+        osc_enabled="true",
+        osc_host="  ableton-host.local  ",
+        osc_port="70000",
+        osc_max_notes_per_token="0",
+    )
+
+    assert params.osc_enabled is True
+    assert params.osc_host == "ableton-host.local"
+    assert params.osc_port == 65_535
+    assert params.osc_max_notes_per_token == 1
+
+    params.update(osc_port="invalid", osc_max_notes_per_token=999)
+
+    assert params.osc_port == 65_535
+    assert params.osc_max_notes_per_token == 128

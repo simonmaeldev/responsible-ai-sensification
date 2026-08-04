@@ -86,6 +86,31 @@
           </label>
         </section>
 
+        <section class="control-group external-output-heading">
+          <label class="checkbox-label">
+            <input id="osc-enabled" type="checkbox" />
+            OSC output
+          </label>
+        </section>
+
+        <div id="osc-controls" class="external-output hidden">
+          <section class="control-group">
+            <label>Destination host/IP</label>
+            <input id="osc-host" type="text" value="" placeholder="Host or IP address" autocomplete="off" />
+          </section>
+          <div class="external-output-grid">
+            <section class="control-group">
+              <label>UDP port</label>
+              <input id="osc-port" type="number" min="1" max="65535" value="9000" />
+            </section>
+            <section class="control-group">
+              <label>Notes/token</label>
+              <input id="osc-max-notes" type="number" min="1" max="128" value="32" />
+            </section>
+          </div>
+          <div id="osc-status" class="osc-status" data-state="disabled">OSC disabled</div>
+        </div>
+
         <section class="control-group">
           <label>Volume</label>
           <input id="volume" type="range" min="0" max="1" step="0.01" value="0.7" />

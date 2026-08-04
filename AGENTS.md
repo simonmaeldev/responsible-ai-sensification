@@ -17,6 +17,25 @@ Before making non-trivial changes, read:
 
 If the user adds a term paper or design document, treat it as the primary design context before proposing implementation.
 
+## Execution Environment
+
+At the start of every task, explicitly identify the machine where commands and
+edits will run. Use one of these names exactly:
+
+- **Ubuntu GPU PC**: primary model-inference and FastAPI machine; owns the
+  browser app backend and outbound OSC implementation.
+- **Ubuntu laptop**: secondary lightweight development/control machine; do not
+  assume CUDA, Ableton, Max, or the same local caches as the GPU PC.
+- **Windows laptop**: Ableton Live, Max for Live, and ossia machine; owns the
+  Max/ossia receiver and Ableton mappings.
+
+If the target machine is not explicit, clarify it before making changes. For a
+task spanning machines, state the source, destination, and which side is in
+scope. Never imply that a command run on one machine changed another machine.
+Separate computers use separate Git clones and branches; Git worktrees are only
+for multiple working directories on the same computer. Git synchronizes source
+code, while OSC/OSCQuery carries live performance data between machines.
+
 ## Collaboration Mode
 
 - Use Codex as the coding agent/workflow driver. Do not assume Claude Code,

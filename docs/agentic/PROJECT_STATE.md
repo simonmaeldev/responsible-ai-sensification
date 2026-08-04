@@ -1,6 +1,6 @@
 # Project State
 
-Last updated: 2026-06-20
+Last updated: 2026-08-03
 
 ## Branch
 
@@ -21,9 +21,27 @@ verbal tonality descriptions and active SAE feature descriptions share the same
 embedding space, prompt semantics can be blended into the token signal, and note
 frequencies can be softly pulled toward the active tonality's custom intervals.
 
+Phase 5A is complete on the Ubuntu GPU PC: the browser can opt into a
+live-configurable OSC v1 output whose destination, UDP port, and per-token note
+cap can be changed during a run. The sender mirrors final post-tonality note
+events without changing browser audio, visualization, or token payloads.
+
 Agent workflow clarification: use Codex for planning, implementation, review, and
 remote-machine coordination. Do not assume Anthropic/Claude tooling for agentic
 project work.
+
+## Machine Topology
+
+- **Ubuntu GPU PC** (current implementation target): runs Gemma/SAE inference,
+  FastAPI, the browser interface, and the planned outbound OSC emitter.
+- **Windows laptop**: runs Ableton Live, Max for Live, and ossia; it will host a
+  separate Max/ossia receiver task.
+- **Ubuntu laptop**: a separate lightweight development/control environment; no
+  GPU, Ableton, Max, or shared-cache assumptions should be made.
+
+Every task must identify its execution machine. Worktrees are not shared across
+computers: each computer uses its own clone/branch. Git moves source changes;
+OSC/OSCQuery moves live performance data.
 
 ## Recent Setup
 
@@ -44,6 +62,17 @@ project work.
   can be changed before or during a run, raw/interpreted blend is exposed as a
   performance control, and each token can report run-level tonality memory plus
   top active-feature evidence for the current sound.
+- Completed the Ubuntu Phase 5A OSC emitter with the `/rai/v1` lifecycle,
+  control, token, bounded-note, and tonality messages. OSC is disabled and
+  unconfigured by default, uses no hardcoded Windows address, and reports UDP
+  delivery as unconfirmed.
+- Added focused OSC parameter, payload, live-reconfiguration, failure-isolation,
+  and WebSocket-forwarding tests. The full server suite passes with 48 tests;
+  `node --check app/client/main.js` passes.
+- Verified the real UDP encoding locally against a loopback receiver on the
+  Ubuntu GPU PC. It received 14 ordered messages for a test run, including two
+  capped notes carrying final post-tonality frequencies, followed by done and
+  stop.
 
 ## Local Reference Material
 
@@ -67,20 +96,24 @@ Avoid reverting to the older archive interface.
 
 - Where the user will place the term paper.
 - Whether paper passages should become prompts, annotations, comparison units, or all three.
-- Whether semantic tonality should next control timbre, envelope, density,
-  filter/brightness, or external DAW/OSC/MIDI output in addition to pitch.
+- Which Ableton parameters should follow semantic tonality after the initial
+  note/activation bridge: timbre, envelope, density, filter, or brightness.
 - What the first user-facing workflow should be after paper ingestion.
 - Whether paper passages should become selectable prompt presets or stay outside
   the app as reference context.
+- Final Windows LAN address/ports and whether Ableton or the app should be the
+  master clock for the first two-machine performance test.
 
 ## Handoff Notes
 
 Before coding next:
 
-1. Use the live lens editor and raw/interpreted blend in the browser to test
-   artist-facing mappings during actual generation.
-2. Decide whether the next paper idea should be session replay/export, deeper
-   feature detail inspection, semantic color/image mapping, or OSC/MIDI output.
-3. Keep generated caches, papers, references, runs, and screenshots untracked
+1. On the Windows laptop, implement the separate Max for Live/ossia receiver
+   that consumes the `/rai/v1` contract in `specs/ableton-osc-bridge.md`.
+2. After that receiver works locally, run the Phase 5C two-machine LAN check and
+   confirm live lens/blend edits affect subsequent Ableton notes.
+3. Decide the final Windows LAN address, firewall rule, receiving port, and
+   master-clock policy during the two-machine integration task.
+4. Keep generated caches, papers, references, runs, and screenshots untracked
    unless the user explicitly asks to save them in Git.
-4. Keep each implementation step small and verifiable.
+5. Keep each implementation step small and verifiable.
