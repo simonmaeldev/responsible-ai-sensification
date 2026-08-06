@@ -240,7 +240,12 @@ let mappingUpdateTimer = null;
 let mappingCatalogue = { signals: [], targets: [], curves: [], default_mappings: [] };
 let emitterMappings = [];
 let defaultEmitterMappings = [];
+let emitterSignalCatalogue = [];
+let defaultEmitterSignalKeys = [];
+let selectedEmitterSignalKeys = new Set();
+let signalCatalogueKindFilter = "all";
 let currentEmitterSignals = {};
+let currentEmitterStreams = {};
 let currentEmitterControls = {};
 let currentMappingDiagnostics = [];
 let currentVisualControls = {};
@@ -380,6 +385,14 @@ const controlMonitor = document.getElementById("control-monitor");
 const featureCount = document.getElementById("feature-count");
 const featureSearch = document.getElementById("feature-search");
 const featureBrowser = document.getElementById("feature-browser");
+const signalCatalogueSearch = document.getElementById("signal-catalogue-search");
+const signalCatalogueList = document.getElementById("signal-catalogue-list");
+const signalActiveCount = document.getElementById("signal-active-count");
+const signalLocalRouteCount = document.getElementById("signal-local-route-count");
+const signalMappingRouteCount = document.getElementById("signal-mapping-route-count");
+const btnDefaultSignals = document.getElementById("btn-default-signals");
+const btnClearSignals = document.getElementById("btn-clear-signals");
+const visualProofPanel = document.getElementById("visual-proof-panel");
 
 // ── Load options + defaults ─────────────────────────────────────────────────
 async function loadOptions() {
@@ -446,6 +459,19 @@ async function loadOptions() {
   }
 
   try {
+    const res = await fetch("/api/config/emitter-signals");
+    const data = await res.json();
+    emitterSignalCatalogue = data.signals ?? [];
+    defaultEmitterSignalKeys = data.default_active ?? [];
+    if (!selectedEmitterSignalKeys.size) {
+      selectedEmitterSignalKeys = new Set(defaultEmitterSignalKeys);
+    }
+    renderSignalExplorer();
+  } catch (e) {
+    console.warn("Could not load Emitter signal catalogue", e);
+  }
+
+  try {
     const res = await fetch("/api/config/tonalities");
     const data = await res.json();
     tonalityCatalogue = (data.tonalities ?? []).map(entry => ({ ...entry, enabled: true }));
@@ -461,6 +487,7 @@ async function loadOptions() {
   renderMappingEditor();
   renderSceneSelectors();
   renderFeatureBrowser();
+  renderSignalExplorer();
 }
 
 function populateLayerWidth(modelId) {
@@ -659,6 +686,10 @@ function applyParams(p) {
     emitterMappings = structuredClone(p.emitter_mappings);
     renderMappingEditor();
   }
+  if (Array.isArray(p.emitter_signal_keys)) {
+    selectedEmitterSignalKeys = new Set(p.emitter_signal_keys.map(String));
+    renderSignalExplorer();
+  }
 
   // Sync conditional visibility
   if (p.strategy !== undefined) syncClustersVisibility();
@@ -691,6 +722,7 @@ function collectParams() {
     prompt_influence: parseFloat(promptInfluenceIn.value),
     tonality_pitch_bias: parseFloat(tonalityPitchBiasIn.value),
     tonality_lenses: collectTonalityLenses(),
+    emitter_signal_keys: [...selectedEmitterSignalKeys],
     emitter_mappings: structuredClone(emitterMappings),
   };
 }
@@ -763,6 +795,170 @@ function setInterpretationBlend(value) {
   updateTonalityControlValues();
   sendParamUpdate({ tonality_pitch_bias: parseFloat(tonalityPitchBiasIn.value) });
   saveParams();
+}
+
+// ── General Emitter Signal Explorer ───────────────────────────────────────
+function filterSignalCatalogue(entries, query = "", kind = "all") {
+  const needle = String(query || "").trim().toLowerCase();
+  return entries.filter(entry => {
+    if (kind !== "all" && entry.kind !== kind) return false;
+    if (!needle) return true;
+    return [
+      entry.key,
+      entry.label,
+      entry.group,
+      entry.location,
+      entry.value_type,
+      entry.description,
+    ].some(value => String(value || "").toLowerCase().includes(needle));
+  });
+}
+
+function signalRouteSummary(spec, selectedKeys, mappings) {
+  return {
+    active: selectedKeys.has(spec.key),
+    mappingCount: mappings.filter(mapping => mapping.enabled !== false && mapping.source === spec.key).length,
+    connector: "Not routed",
+  };
+}
+
+function describeStreamValue(stream) {
+  const value = stream?.value;
+  if (stream?.value_type === "vector") {
+    const length = Number(value?.shape?.[0] ?? value?.values?.length ?? 0);
+    return `${length} ${value?.dtype || "numeric"} values`;
+  }
+  if (stream?.value_type === "sparse_vector") {
+    const count = Array.isArray(value) ? value.length : 0;
+    return `${count} active feature${count === 1 ? "" : "s"}`;
+  }
+  if (stream?.value_type === "structured") {
+    const count = Array.isArray(value?.items) ? value.items.length : 0;
+    return `${count} top-k entr${count === 1 ? "y" : "ies"}`;
+  }
+  if (Array.isArray(value)) return `${value.length} values`;
+  if (value && typeof value === "object") return `${Object.keys(value).length} fields`;
+  return value === undefined ? "waiting for token" : String(value);
+}
+
+function signalPreview(spec) {
+  const scalar = currentEmitterSignals[spec.key];
+  if (scalar) {
+    return `${formatSignalValue(scalar.raw)}${scalar.unit ? ` ${scalar.unit}` : ""}`;
+  }
+  const stream = currentEmitterStreams[spec.key];
+  if (stream) return describeStreamValue(stream);
+  return selectedEmitterSignalKeys.has(spec.key) ? "waiting for token" : "available";
+}
+
+function sendSignalSelectionUpdate() {
+  saveParams();
+  sendParamUpdate({ emitter_signal_keys: [...selectedEmitterSignalKeys] });
+  renderSignalExplorer();
+  renderSignalMonitor();
+}
+
+function renderSignalExplorer() {
+  if (!signalCatalogueList) return;
+  const filtered = filterSignalCatalogue(
+    emitterSignalCatalogue,
+    signalCatalogueSearch?.value,
+    signalCatalogueKindFilter,
+  );
+  const selectedCount = emitterSignalCatalogue.filter(spec => selectedEmitterSignalKeys.has(spec.key)).length;
+  const activeMappings = emitterMappings.filter(mapping => mapping.enabled !== false);
+  if (signalActiveCount) signalActiveCount.textContent = `${selectedCount} active`;
+  if (signalLocalRouteCount) signalLocalRouteCount.textContent = `${selectedCount} selected`;
+  if (signalMappingRouteCount) signalMappingRouteCount.textContent = `${activeMappings.length} routes`;
+
+  signalCatalogueList.innerHTML = "";
+  signalCatalogueList.classList.remove("empty-monitor");
+  const groups = new Map();
+  for (const spec of filtered) {
+    if (!groups.has(spec.group)) groups.set(spec.group, []);
+    groups.get(spec.group).push(spec);
+  }
+
+  for (const [groupName, specs] of groups) {
+    const group = document.createElement("section");
+    group.className = "signal-catalogue-group";
+    const heading = document.createElement("div");
+    heading.className = "signal-group-heading";
+    const headingLabel = document.createElement("span");
+    headingLabel.textContent = groupName;
+    const headingCount = document.createElement("span");
+    headingCount.textContent = `${specs.filter(spec => selectedEmitterSignalKeys.has(spec.key)).length}/${specs.length}`;
+    heading.append(headingLabel, headingCount);
+    group.appendChild(heading);
+
+    for (const spec of specs) {
+      const routes = signalRouteSummary(spec, selectedEmitterSignalKeys, emitterMappings);
+      const card = document.createElement("label");
+      card.className = "signal-card";
+      card.classList.toggle("is-active", routes.active);
+      card.title = spec.key;
+
+      const enabled = document.createElement("input");
+      enabled.type = "checkbox";
+      enabled.checked = routes.active;
+      enabled.addEventListener("change", () => {
+        if (enabled.checked) selectedEmitterSignalKeys.add(spec.key);
+        else selectedEmitterSignalKeys.delete(spec.key);
+        sendSignalSelectionUpdate();
+      });
+
+      const main = document.createElement("div");
+      main.className = "signal-card-main";
+      const title = document.createElement("div");
+      title.className = "signal-card-title";
+      const label = document.createElement("strong");
+      label.textContent = spec.label;
+      const kind = document.createElement("span");
+      kind.className = `signal-badge ${spec.kind}`;
+      kind.textContent = spec.kind;
+      const type = document.createElement("span");
+      type.className = "signal-badge";
+      type.textContent = spec.value_type;
+      title.append(label, kind, type);
+
+      const description = document.createElement("div");
+      description.className = "signal-card-description";
+      description.textContent = spec.description;
+      const meta = document.createElement("div");
+      meta.className = "signal-card-meta";
+      const location = document.createElement("span");
+      location.textContent = spec.location;
+      const cost = document.createElement("span");
+      cost.textContent = `${spec.cost || "low"} cost`;
+      meta.append(location, cost);
+
+      const preview = document.createElement("div");
+      preview.className = "signal-card-preview";
+      preview.textContent = signalPreview(spec);
+      const routeList = document.createElement("div");
+      routeList.className = "signal-card-routes";
+      const monitorRoute = document.createElement("span");
+      monitorRoute.className = routes.active ? "is-routed" : "";
+      monitorRoute.textContent = routes.active ? "Local monitor" : "Inactive";
+      const mappingRoute = document.createElement("span");
+      mappingRoute.className = routes.mappingCount ? "is-routed" : "";
+      mappingRoute.textContent = spec.mappable
+        ? `${routes.mappingCount} mapping${routes.mappingCount === 1 ? "" : "s"}`
+        : "Not scalar-mappable";
+      const connectorRoute = document.createElement("span");
+      connectorRoute.textContent = routes.connector;
+      routeList.append(monitorRoute, mappingRoute, connectorRoute);
+      main.append(title, description, meta, preview, routeList);
+      card.append(enabled, main);
+      group.appendChild(card);
+    }
+    signalCatalogueList.appendChild(group);
+  }
+
+  if (!filtered.length) {
+    signalCatalogueList.classList.add("empty-monitor");
+    signalCatalogueList.textContent = "No signals match this search and filter.";
+  }
 }
 
 // ── Emitter mapping instrument ─────────────────────────────────────────────
@@ -944,6 +1140,7 @@ function renderMappingEditor() {
     row.append(top, grid, readout);
     mappingList.appendChild(row);
   });
+  renderSignalExplorer();
 }
 
 function scheduleMappingUpdate(delayMs = 120) {
@@ -1215,6 +1412,7 @@ function formatSignalValue(value) {
 function consumeEmitterPayload(msg) {
   const emitter = msg.emitter || {};
   currentEmitterSignals = emitter.signals || {};
+  currentEmitterStreams = emitter.streams || {};
   currentEmitterControls = emitter.controls || {};
   currentMappingDiagnostics = emitter.mappings || [];
   currentVisualControls = Object.fromEntries(
@@ -1222,6 +1420,7 @@ function consumeEmitterPayload(msg) {
   );
   updateFeatureCatalogue(msg.notes || []);
   applyVisualControls();
+  renderSignalExplorer();
 }
 
 function auditionNotes(notes) {
@@ -1275,6 +1474,17 @@ function renderSignalMonitor() {
     const value = document.createElement("span");
     value.textContent = `${formatSignalValue(signal.raw)}${signal.unit ? ` ${signal.unit}` : ""}`;
     row.append(fill, label, value);
+    signalMonitor.appendChild(row);
+  }
+  for (const [key, stream] of Object.entries(currentEmitterStreams)) {
+    const row = document.createElement("div");
+    row.className = "signal-row stream-signal-row";
+    row.title = `${key} · ${stream.location || "stream"}`;
+    const label = document.createElement("span");
+    label.textContent = stream.label || key;
+    const value = document.createElement("span");
+    value.textContent = describeStreamValue(stream);
+    row.append(label, value);
     signalMonitor.appendChild(row);
   }
   if (!signalMonitor.children.length) {
@@ -2115,6 +2325,36 @@ sceneMorph.addEventListener("input", applySceneMorph);
 sceneA.addEventListener("change", applySceneMorph);
 sceneB.addEventListener("change", applySceneMorph);
 featureSearch.addEventListener("input", renderFeatureBrowser);
+signalCatalogueSearch.addEventListener("input", renderSignalExplorer);
+
+for (const filterButton of document.querySelectorAll("[data-signal-filter]")) {
+  filterButton.addEventListener("click", () => {
+    signalCatalogueKindFilter = filterButton.dataset.signalFilter || "all";
+    for (const item of document.querySelectorAll("[data-signal-filter]")) {
+      item.classList.toggle("active", item === filterButton);
+    }
+    renderSignalExplorer();
+  });
+}
+
+btnDefaultSignals.addEventListener("click", () => {
+  selectedEmitterSignalKeys = new Set(defaultEmitterSignalKeys);
+  sendSignalSelectionUpdate();
+});
+
+btnClearSignals.addEventListener("click", () => {
+  selectedEmitterSignalKeys = new Set();
+  sendSignalSelectionUpdate();
+});
+
+visualProofPanel.addEventListener("toggle", () => {
+  if (!visualProofPanel.open) return;
+  requestAnimationFrame(() => {
+    const clusterCanvas = document.getElementById("cluster-canvas");
+    if (clusterCanvas) drawClusterBars(clusterCanvas, lastRenderedNotes);
+    applyVisualControls();
+  });
+});
 
 // ── Init ───────────────────────────────────────────────────────────────────
 loadOptions();

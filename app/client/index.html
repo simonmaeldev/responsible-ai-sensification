@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SAE Sensification</title>
+  <title>Responsible AI Sensification</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -24,11 +24,12 @@
       <aside class="controls">
         <div class="emitter-identity">
           <span>GPU Emitter</span>
-          <small>Gemma Scope · SAE · semantic instrument</small>
+          <small>Model probes · signals · live sensification</small>
         </div>
 
         <nav class="control-tabs" aria-label="Emitter controls">
           <button type="button" class="control-tab active" data-control-tab="source">Source</button>
+          <button type="button" class="control-tab" data-control-tab="signals">Signals</button>
           <button type="button" class="control-tab" data-control-tab="tonality">Tonality</button>
           <button type="button" class="control-tab" data-control-tab="mapping">Mappings</button>
           <button type="button" class="control-tab" data-control-tab="output">Connector</button>
@@ -95,6 +96,51 @@
               <span id="volume-value">70%</span>
             </label>
             <input id="volume" type="range" min="0" max="1" step="0.01" value="0.7" />
+          </section>
+        </div>
+
+        <div class="control-page hidden" data-control-page="signals">
+          <div class="role-card signal-explorer-intro">
+            <strong>Signal Explorer</strong>
+            <span>Choose what this Emitter observes. Raw probes and artistic interpretations remain distinct.</span>
+          </div>
+
+          <section class="signal-explorer-toolbar">
+            <input id="signal-catalogue-search" type="search" placeholder="Search probes, locations, or types…" />
+            <div class="signal-kind-filters" aria-label="Signal type filter">
+              <button type="button" class="active" data-signal-filter="all">All</button>
+              <button type="button" data-signal-filter="raw">Raw</button>
+              <button type="button" data-signal-filter="derived">Derived</button>
+            </div>
+          </section>
+
+          <section class="instrument-section signal-catalogue-section">
+            <div class="section-title-row">
+              <span>Available probes</span>
+              <span id="signal-active-count" class="inline-status">0 active</span>
+            </div>
+            <div id="signal-catalogue-list" class="signal-catalogue-list empty-monitor">Loading signal catalogue…</div>
+            <div class="mini-actions">
+              <button id="btn-default-signals" type="button">Recommended</button>
+              <button id="btn-clear-signals" type="button">Monitor none</button>
+            </div>
+          </section>
+
+          <section class="instrument-section signal-destinations">
+            <div class="section-title">Destinations</div>
+            <div class="signal-route-card">
+              <span>Local monitor</span>
+              <strong id="signal-local-route-count">0 selected</strong>
+            </div>
+            <div class="signal-route-card">
+              <span>Mapping matrix</span>
+              <strong id="signal-mapping-route-count">0 routes</strong>
+            </div>
+            <div class="signal-route-card connector-route-card">
+              <span>External Connector</span>
+              <strong id="signal-connector-route-status">Not routed</strong>
+              <small>Signal selection does not silently change OSC v1.</small>
+            </div>
           </section>
         </div>
 
@@ -225,16 +271,6 @@
       <section class="visuals">
         <div class="visuals-right">
           <div class="live-panels">
-            <div id="cluster-viz-panel">
-              <div id="cv-token-label">—</div>
-              <div id="cv-color-strip"></div>
-              <div id="cv-labels">
-                <span id="cv-cluster-label">cluster: —</span>
-                <span id="cv-feature-label">feature: —</span>
-              </div>
-              <canvas id="cluster-canvas"></canvas>
-            </div>
-
             <div id="tonality-panel">
               <div class="tonality-header">
                 <span>Semantic Tonality</span>
@@ -250,6 +286,22 @@
                 <canvas id="wave-canvas"></canvas>
               </div>
             </div>
+
+            <details id="visual-proof-panel">
+              <summary>
+                <span>Visual mapping</span>
+                <small>Proof of concept · reveal</small>
+              </summary>
+              <div id="cluster-viz-panel">
+                <div id="cv-token-label">—</div>
+                <div id="cv-color-strip"></div>
+                <div id="cv-labels">
+                  <span id="cv-cluster-label">cluster: —</span>
+                  <span id="cv-feature-label">feature: —</span>
+                </div>
+                <canvas id="cluster-canvas"></canvas>
+              </div>
+            </details>
           </div>
           <div id="cv-text-output">
             <div id="cv-text-content"></div>
@@ -257,7 +309,7 @@
           <section id="emitter-inspector">
             <div class="inspector-column">
               <div class="inspector-heading">
-                <span>Emitter signals</span>
+                <span>Selected signals</span>
                 <span id="signal-token">waiting</span>
               </div>
               <div id="signal-monitor" class="monitor-list empty-monitor">Start a run to inspect normalized signals.</div>

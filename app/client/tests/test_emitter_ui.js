@@ -61,6 +61,12 @@ const source = fs.readFileSync(sourcePath, "utf8");
 const htmlIds = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map(match => match[1]));
 const referencedIds = [...source.matchAll(/getElementById\("([^"]+)"\)/g)].map(match => match[1]);
 assert.deepEqual(referencedIds.filter(id => !htmlIds.has(id)), []);
+assert.match(html, /data-control-tab="signals"/);
+assert.match(html, /id="signal-catalogue-search"/);
+assert.match(html, /id="signal-catalogue-list"/);
+const visualDisclosure = html.match(/<details\s+id="visual-proof-panel"[^>]*>/);
+assert.ok(visualDisclosure, "visual proof of concept must use a details disclosure");
+assert.doesNotMatch(visualDisclosure[0], /\sopen(?:\s|=|>)/);
 
 const elements = new Map([...htmlIds].map(id => [id, new FakeElement()]));
 global.document = {
@@ -75,8 +81,13 @@ global.requestAnimationFrame = () => 0;
 global.CSS = { escape: value => String(value) };
 global.WebSocket = class {
   static OPEN = 1;
-  constructor() { this.readyState = 1; }
-  send() {}
+  static instances = [];
+  constructor() {
+    this.readyState = 1;
+    this.sent = [];
+    global.WebSocket.instances.push(this);
+  }
+  send(message) { this.sent.push(JSON.parse(message)); }
 };
 global.fetch = async url => ({
   async json() {
@@ -107,6 +118,25 @@ global.fetch = async url => ({
         ],
       };
     }
+    if (url.endsWith("emitter-signals")) {
+      return {
+        default_active: ["activation.max", "model.residual.rms"],
+        signals: [
+          {
+            key: "activation.max", label: "Maximum activation", group: "SAE",
+            location: "sae.output", kind: "derived", value_type: "scalar",
+            description: "strongest feature", default_active: true, mappable: true,
+            cost: "low",
+          },
+          {
+            key: "model.residual.vector", label: "Residual vector", group: "Model",
+            location: "decoder.layer.selected.residual", kind: "raw", value_type: "vector",
+            description: "raw residual", default_active: false, mappable: false,
+            cost: "high",
+          },
+        ],
+      };
+    }
     if (url.endsWith("tonalities")) {
       return { tonalities: [{ name: "glass", description: "clear", intervals: [0, 7] }] };
     }
@@ -114,7 +144,7 @@ global.fetch = async url => ({
   },
 });
 
-const instrumented = `${source}\n;globalThis.__emitterTest = { completeMapping, templateMappings, morphMapping, lerp };`;
+const instrumented = `${source}\n;globalThis.__emitterTest = { completeMapping, templateMappings, morphMapping, lerp, filterSignalCatalogue, signalRouteSummary, describeStreamValue, setSignalSelection(keys) { sessionActive = true; selectedEmitterSignalKeys = new Set(keys); sendSignalSelectionUpdate(); } };`;
 vm.runInThisContext(instrumented, { filename: sourcePath });
 
 setTimeout(() => {
@@ -132,5 +162,36 @@ setTimeout(() => {
   assert.equal(morphed.output_min, -0.5);
   assert.equal(morphed.output_max, 0.5);
   assert.ok(api.templateMappings("activation").length > 0);
+  const filtered = api.filterSignalCatalogue(
+    [
+      { key: "activation.max", label: "Maximum activation", group: "SAE", kind: "derived", location: "sae.output" },
+      { key: "model.residual.vector", label: "Residual vector", group: "Model", kind: "raw", location: "decoder.layer.selected.residual" },
+    ],
+    "residual",
+    "raw",
+  );
+  assert.deepEqual(filtered.map(item => item.key), ["model.residual.vector"]);
+  assert.deepEqual(
+    api.signalRouteSummary(
+      { key: "activation.max", mappable: true },
+      new Set(["activation.max"]),
+      [{ enabled: true, source: "activation.max" }, { enabled: false, source: "activation.max" }],
+    ),
+    { active: true, mappingCount: 1, connector: "Not routed" },
+  );
+  assert.equal(
+    api.describeStreamValue({ value_type: "vector", value: { values: [1, 2], shape: [2], dtype: "float32" } }),
+    "2 float32 values",
+  );
+  assert.equal(
+    api.describeStreamValue({ value_type: "sparse_vector", value: [{ index: 1, activation: 2 }] }),
+    "1 active feature",
+  );
+  assert.ok(elements.get("signal-catalogue-list").children.length > 0);
+  api.setSignalSelection(["activation.max", "model.residual.vector"]);
+  assert.deepEqual(global.WebSocket.instances[0].sent.at(-1), {
+    action: "update_params",
+    params: { emitter_signal_keys: ["activation.max", "model.residual.vector"] },
+  });
   console.log(JSON.stringify({ passed: true, referencedIds: referencedIds.length }));
 }, 25);
