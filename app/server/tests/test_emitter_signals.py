@@ -1,6 +1,7 @@
 """Tests for the general, model-agnostic Emitter signal catalogue."""
 
 import math
+from types import SimpleNamespace
 
 import pytest
 import torch
@@ -12,7 +13,7 @@ from app.server.pipeline.emitter_signals import (
     emitter_signal_catalogue,
     coerce_emitter_signal_keys,
 )
-from app.server.pipeline.extract import capture_model_probe_values
+from app.server.pipeline.extract import capture_model_probe_values, inspect_live
 
 
 def test_catalogue_preserves_legacy_sources_and_describes_general_probes():
@@ -95,6 +96,70 @@ def test_model_probe_capture_only_materializes_requested_values():
     assert top_k["shape"] == [2]
     assert [item["token_id"] for item in top_k["items"]] == [1, 2]
     assert top_k["items"][0]["logit"] == 2.0
+
+
+def test_live_probe_key_callback_changes_the_next_generated_token():
+    class FakeHookHandle:
+        def __init__(self, layer):
+            self.layer = layer
+
+        def remove(self):
+            self.layer.hook = None
+
+    class FakeLayer:
+        hook = None
+
+        def register_forward_hook(self, hook):
+            self.hook = hook
+            return FakeHookHandle(self)
+
+    class FakeModel:
+        def __init__(self):
+            self.layer = FakeLayer()
+            self.model = SimpleNamespace(layers=[self.layer])
+
+        def __call__(self, input_ids):
+            sequence_length = input_ids.shape[1]
+            hidden = torch.full((1, sequence_length, 2), float(sequence_length))
+            self.layer.hook(self.layer, (), (hidden,))
+            logits = torch.tensor([[[0.0, 2.0, 1.0]]] * sequence_length)
+            return SimpleNamespace(logits=logits)
+
+    class FakeTokenizer:
+        eos_token_id = 99
+
+        def __call__(self, _prompt, **_kwargs):
+            return {"input_ids": torch.tensor([[0]])}
+
+        def decode(self, token_ids):
+            return f"token-{token_ids[0]}"
+
+    class FakeSae:
+        def encode(self, _residual):
+            return torch.tensor([[0.0, 1.0, 0.0]])
+
+    selections = iter(
+        [
+            {"model.residual.rms"},
+            {"model.residual.vector"},
+        ]
+    )
+    generated = list(
+        inspect_live(
+            "test",
+            FakeModel(),
+            FakeTokenizer(),
+            FakeSae(),
+            0,
+            SimpleNamespace(explanations={1: "test feature"}),
+            max_new_tokens=2,
+            probe_keys=lambda: next(selections),
+        )
+    )
+
+    assert set(generated[0][0].probe_values) == {"model.residual.rms"}
+    assert set(generated[1][0].probe_values) == {"model.residual.vector"}
+    assert generated[1][0].probe_values["model.residual.vector"]["shape"] == [2]
 
 
 def test_payload_hides_unselected_signals_without_breaking_mapping_dependencies():
