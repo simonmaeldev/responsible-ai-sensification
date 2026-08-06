@@ -27,22 +27,33 @@ The goal is to make agent work persistent, scoped, and easy to restart without l
 
 5. Constrain
    - Identify exact files likely to change.
-   - Define tests, smoke checks, or manual checks before implementation when possible.
+   - Define tests, smoke checks, or manual checks before implementation.
    - Repeat important negative constraints directly in the task.
 
-6. Implement
-   - Make only the changes required by the current task.
-   - Preserve existing code style and architecture.
-   - Do not implement unrelated ideas discovered during exploration.
+6. Red
+   - Test-driven development is the default for implementation work.
+   - Add or extend the smallest automated test that expresses the requested
+     behavior, then run it and confirm that it fails for the intended reason.
+   - For behavior that cannot reasonably be automated, write down the manual
+     acceptance check before changing the implementation.
 
-7. Verify
-   - Run focused tests or checks immediately.
+7. Green And Refactor
+   - Make only the smallest in-scope change required to pass the new test.
+   - Preserve existing code style and architecture, and do not implement
+     unrelated ideas discovered during exploration.
+   - Refactor only while the focused tests remain green.
+
+8. Verify
+   - Run the focused tests and the complete relevant suite.
    - Report what was run and what could not be run.
    - Update state docs if the result affects future work.
 
-8. Save Point
-   - Ask the user before committing.
-   - Keep Git status understandable between tasks.
+9. Save Point
+   - Inspect the diff and staged paths, then automatically create a focused
+     commit for each coherent, completed, verified change.
+   - Do not commit unrelated user changes or known failing behavior.
+   - Do not push, switch branches, rebase, or create worktrees unless the user
+     explicitly requests that separate operation.
 
 ## Multi-Machine Work
 
@@ -59,8 +70,14 @@ The goal is to make agent work persistent, scoped, and easy to restart without l
   synonym for either machine. Current external transport is OSC v1; the browser
   WebSocket is an internal emitter transport.
 - Emitter work must run and be observable locally with external connectors off.
-  Establish named emitter controls before deciding which controls a connector
-  should carry or how a receiver should apply them.
+  The Emitter may expose arbitrary raw or derived probe data; Gemma Scope, SAE,
+  Neuronpedia, tonality, audio, and visual mappings are current experiments, not
+  a closed list. Establish discoverable signals without requiring them to have
+  a predetermined artistic interpretation.
+- Connectors should preserve access to selected raw data when technically
+  feasible. Selection, serialization, chunking, and rate limits may be needed
+  for a transport, but artistic transformations may instead be created by a
+  Receiver.
 - Use a separate clone on each computer. Use separate branches when both sides
   are being developed concurrently, and merge through Git after each side is
   independently understandable.
@@ -109,7 +126,8 @@ Proceed directly when:
 
 ## Verification Expectations
 
-Use the smallest check that gives confidence:
+Begin behavior changes with a failing focused test, then use both focused and
+complete relevant checks for confidence:
 
 - Python server behavior: `cd app/server && uv run pytest`
 - UI behavior: run `./scripts/start.sh`, then manually or browser-test the relevant workflow.
@@ -117,6 +135,9 @@ Use the smallest check that gives confidence:
 - Cross-machine OSC behavior: first verify the Ubuntu sender against a loopback
   receiver; verify Ableton/Max reception separately on Windows; then run one LAN
   integration check with both machines named in the report.
+- Documentation-only changes: inspect the complete diff, run `git diff --check`,
+  and confirm that linked workflow/state documents remain consistent. Do not
+  invent a code test merely to claim test-driven development.
 
 ## No-Code Discussion Mode
 

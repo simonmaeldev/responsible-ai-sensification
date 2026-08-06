@@ -197,9 +197,15 @@ Good later steps:
 
 For implementation phases:
 
-- Server behavior: run `uv run pytest` on the PC project environment.
+- Use test-driven development by default: add or extend a focused behavioral
+  test, confirm the intended failure, implement the smallest passing change,
+  and refactor while green.
+- Server behavior: run the focused test and complete `uv run pytest` suite on
+  the PC project environment.
 - Browser behavior: run the app on the PC, capture a screenshot from the laptop,
-  and stop the server afterward.
-- Git hygiene: commit completed feature slices on `nicolas-attempts`; keep
-  generated caches, papers, references, runs, and screenshots out of Git unless
-  explicitly requested.
+  and stop the server afterward. Add automated DOM/behavior coverage where
+  practical and run JavaScript syntax checks.
+- Git hygiene: automatically commit each completed, verified feature slice on
+  `nicolas-attempts`; never include unrelated user work. Do not push or perform
+  branch/history operations unless requested. Keep generated caches, papers,
+  references, runs, and screenshots out of Git unless explicitly requested.

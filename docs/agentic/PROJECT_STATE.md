@@ -1,6 +1,6 @@
 # Project State
 
-Last updated: 2026-08-05
+Last updated: 2026-08-06
 
 ## Branch
 
@@ -14,8 +14,10 @@ git branch --show-current
 
 ## Current Mode
 
-Implementation is active on the GPU emitter as a paper-driven live mapping
-instrument.
+Implementation is active on a general GPU-hosted Emitter for inspecting and
+sensifying model/runtime data. The current Gemma 3, Gemma Scope, SAE,
+Neuronpedia, semantic-tonality, browser audio, and visualization system is a
+substantial proof of concept, not the definition or limit of the Emitter.
 
 The current interface now exposes a local MiniLM-based semantic-tonality layer:
 verbal tonality descriptions and active SAE feature descriptions share the same
@@ -48,23 +50,30 @@ evidence or final post-tonality notes.
 
 ## Emitter, Connector, Receiver
 
-- **Emitter:** observes model/SAE data and creates locally inspectable signals,
-  artistic interpretations, and mappings. It can be any compatible runtime; the
-  current emitter is FastAPI plus the browser GUI on the Ubuntu GPU PC.
+- **Emitter:** observes arbitrary model/runtime probes and makes selected raw or
+  derived data locally inspectable. Artistic interpretations and mappings are
+  optional. It can be any compatible runtime; the current emitter is FastAPI
+  plus the browser GUI on the Ubuntu GPU PC.
 - **Connector:** transports selected emitter events and controls without
-  defining their artistic meaning. It can use any bounded transport; current
-  external communication uses `/rai/v1` OSC, while the emitter browser uses an
-  internal WebSocket.
-- **Receiver:** consumes connector data and applies it elsewhere. It can be
-  Ableton, TouchDesigner, ossia, another browser, hardware, or another system;
-  the current receiver is the Windows Max for Live/ossia device.
+  defining their artistic meaning. It may select, serialize, rate-limit, chunk,
+  or adapt data as technically required by a transport, while preserving raw
+  access where feasible. Current external communication uses `/rai/v1` OSC,
+  while the emitter browser uses an internal WebSocket.
+- **Receiver:** consumes connector data and may perform its own transformations
+  on raw signals or apply already-derived controls. It can be Ableton,
+  TouchDesigner, ossia, another browser, hardware, or another system; the
+  current receiver is the Windows Max for Live/ossia device.
 
 These roles may move between processes or machines. New emitter capabilities
 must be usable locally before a connector contract or receiver mapping is added.
 
-Agent workflow clarification: use Codex for planning, implementation, review, and
-remote-machine coordination. Do not assume Anthropic/Claude tooling for agentic
-project work.
+Agent workflow clarification: use Codex for planning, implementation, review,
+and remote-machine coordination. Test-driven development is expected by
+default: establish a failing behavioral test before implementation, then run
+focused and complete relevant suites. After a coherent change is verified,
+Codex creates a focused commit automatically so development history stays easy
+to follow. Commits do not authorize pushes or branch/history operations. Do not
+assume Anthropic/Claude tooling for agentic project work.
 
 ## Machine Topology
 

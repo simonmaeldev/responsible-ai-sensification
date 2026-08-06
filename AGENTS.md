@@ -2,7 +2,11 @@
 
 ## Project
 
-This repository is `responsible-ai-sensification`: a research/prototype app that turns Gemma 3 SAE feature activations into live browser audio and visualizations.
+This repository is `responsible-ai-sensification`: a research/prototype platform
+for inspecting and sensifying data from LLMs and related computational systems.
+The current Gemma 3/SAE browser instrument is one proof of concept, not a fixed
+definition of which probes, signals, transformations, or artistic outputs the
+project may support.
 
 The current working direction is the new browser interface in `app/client/`, backed by the FastAPI server in `app/server/`.
 
@@ -22,14 +26,21 @@ If the user adds a term paper or design document, treat it as the primary design
 Treat Emitter, Connector, and Receiver as logical roles, not permanent protocols,
 applications, operating systems, or physical computers:
 
-- **Emitter** observes a model/SAE runtime and creates inspectable raw signals,
-  artistic interpretations, and mapped controls. It must remain useful locally
-  without a connector or receiver.
+- **Emitter** observes arbitrary probes in a model or related runtime and makes
+  selected data available. It may expose raw streams, derived signals, artistic
+  interpretations, or mapped controls, but none of the current Gemma Scope,
+  SAE, Neuronpedia, semantic-tonality, audio, or visual experiments defines its
+  permanent scope. It must remain useful locally without a connector or
+  receiver.
 - **Connector** transports selected emitter data without owning its artistic
-  meaning. OSC is one connector; WebSockets, OSCQuery, MIDI, files, or other
-  bounded transports may be used later.
-- **Receiver** consumes connector data and applies it in an external context
-  such as Ableton, TouchDesigner, ossia, a browser, or hardware.
+  meaning. It may perform technically necessary selection, serialization,
+  rate-limiting, or protocol adaptation, but it should not require signals to
+  be artistically interpreted before transport. OSC is one connector;
+  WebSockets, OSCQuery, MIDI, files, or other bounded transports may be used
+  later.
+- **Receiver** consumes connector data and may transform raw signals or apply
+  already-derived controls in an external context such as Ableton,
+  TouchDesigner, ossia, a browser, or hardware.
 
 In the current setup, the FastAPI/browser application on the Ubuntu GPU PC is
 the emitter, outbound `/rai/v1` OSC is the external connector, and the Windows
@@ -65,6 +76,26 @@ code, while OSC/OSCQuery carries live performance data between machines.
 - Prefer asking targeted clarifying questions before implementing ambiguous research-interface ideas.
 - Do not silently make architecture decisions that are not present in a spec, paper note, or explicit user instruction.
 
+## Development Discipline
+
+- Test-driven development is the default and expected workflow for every
+  implementation change. Add or extend a test first, run it to confirm that it
+  fails for the intended reason, implement the smallest change that makes it
+  pass, and then refactor while keeping the tests green.
+- After focused tests pass, run the complete relevant test suite before calling
+  an implementation complete. For browser work, add automated DOM/behavior
+  coverage where practical and always run the applicable syntax and browser
+  checks. If a behavior cannot reasonably be automated, define its manual
+  acceptance check before implementation and report the result explicitly.
+- Documentation-only changes do not require a contrived failing code test;
+  verify their diffs and internal consistency instead.
+- After completing and verifying a coherent change, create a focused Git commit
+  automatically so project history remains easy to follow. Inspect the diff and
+  staged files first, never include unrelated user work, and never commit known
+  failing behavior.
+- A commit does not authorize a push, branch switch, rebase, worktree creation,
+  or other remote/history operation. Perform those only when the user asks.
+
 ## Codebase Map
 
 - `app/client/`: vanilla JavaScript browser interface.
@@ -90,13 +121,15 @@ code, while OSC/OSCQuery carries live performance data between machines.
 - Follow the existing Python/FastAPI and vanilla JavaScript style.
 - Keep browser UI changes in `app/client/index.html`, `app/client/style.css`, and `app/client/main.js` unless a server change is required.
 - Keep server streaming changes localized to `app/server/routers/stream.py` and pipeline helpers where possible.
-- Add tests when changing reusable Python behavior or bug-prone server logic.
+- Follow the test-driven development rules above for Python, JavaScript, and
+  other behavior changes.
 - For research-facing logic, use meaningful names and docstrings that connect code to the paper/design context.
 - Avoid hardcoded absolute paths in app code. Use relative paths, config, or environment variables.
 
 ## Safety
 
-- Do not commit, push, or switch branches unless the user asks.
+- Commit completed, verified, in-scope work automatically. Do not push, switch
+  branches, rebase, or create worktrees unless the user asks.
 - Do not edit files outside the repo unless the user explicitly asks.
 - Do not add generated caches, audio outputs, runs, local references, or papers to Git without confirmation.
 - `references/` is ignored intentionally; it is local background material, not active app code.
