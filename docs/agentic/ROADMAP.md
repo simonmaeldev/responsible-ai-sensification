@@ -211,6 +211,9 @@ Implemented:
   live WebSocket selection serialization, and local application start/stop.
   Screenshot capture was unavailable because no functioning headless browser is
   installed on this Ubuntu host.
+- Verified a production one-token Gemma 3 1B/SAE GPU payload with five model
+  summaries, a `[1152]` residual vector, eight top logits, 52 sparse SAE
+  activations, and OSC disabled.
 
 Next evaluation:
 

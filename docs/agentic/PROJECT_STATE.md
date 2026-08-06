@@ -226,6 +226,10 @@ OSC/OSCQuery moves live performance data.
   stopped successfully. A new screenshot was not captured because this host's
   Firefox command is an uninstalled Snap placeholder and no Chromium/Playwright
   browser is installed; no system package was installed as a workaround.
+- Verified the new probe path with a real one-token Gemma 3 1B/SAE GPU run and
+  OSC disabled. Token ` to` carried all five selected scalar model summaries, a
+  raw residual vector with shape `[1152]`, eight top-logit records, and 52
+  sparse active SAE features in the production WebSocket payload.
 
 ## Local Reference Material
 

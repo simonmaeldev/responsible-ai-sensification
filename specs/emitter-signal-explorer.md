@@ -134,4 +134,7 @@ Completed on the Ubuntu GPU PC on 2026-08-06.
 - The application starts and stops locally. Screenshot capture was attempted but
   was unavailable because this host has no functioning Firefox, Chromium, or
   Playwright browser installation; the server was stopped afterward.
+- A production one-token Gemma 3 1B/SAE GPU smoke run produced five selected
+  scalar model signals, a `[1152]` residual vector, eight top-logit entries, and
+  52 sparse SAE activations with OSC disabled.
 - OSC v1 and the Windows Receiver were not expanded.
