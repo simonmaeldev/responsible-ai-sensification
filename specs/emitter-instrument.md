@@ -5,9 +5,11 @@
 The project uses three logical roles. A role is a responsibility, not a fixed
 protocol, application, operating system, or physical computer.
 
-- **Emitter:** observes a model/SAE runtime, interprets its data, and produces
-  inspectable musical/visual signals and mapped controls. In the current setup
-  it is the FastAPI/browser application on the Ubuntu GPU PC.
+- **Emitter:** observes arbitrary model/runtime probes and may expose raw data,
+  derived measurements, or optional artistic interpretations and mapped
+  controls. The current Gemma/SAE musical and visual work is one instrument, not
+  a permanent boundary. In the current setup the Emitter is the FastAPI/browser
+  application on the Ubuntu GPU PC.
 - **Connector:** transports selected emitter events and controls without owning
   their artistic meaning. OSC v1 is the current connector, but future connectors
   may use OSCQuery, MIDI, WebSockets, files, or another bounded transport.

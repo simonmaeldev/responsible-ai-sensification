@@ -182,6 +182,48 @@ Next evaluation:
 
 The focused implementation contract is in `specs/emitter-instrument.md`.
 
+## Phase 7: General Emitter Signal Explorer
+
+Status: complete; hands-on probe evaluation next
+
+Goal: make the Emitter discoverable and extensible beyond the current SAE,
+semantic-tonality, audio, and visual proofs of concept without creating a new
+application or preassigning artistic meaning to raw model data.
+
+Implemented:
+
+- Added a generic ordered registry with stable keys, source/location, raw versus
+  derived classification, value type, unit, cost, default state, description,
+  and scalar-mapping capability.
+- Preserved all 18 established scalar mapping sources and added five lightweight
+  selected-layer residual/output-logit summaries.
+- Added opt-in full residual vectors, structured top-k logits, and sparse SAE
+  active-feature streams. High-bandwidth raw streams are disabled by default
+  and are not routed through OSC v1.
+- Added live session selection that is resolved on each generation step and
+  updates subsequent browser payloads without restarting.
+- Added an in-place Signals tab with Available, Active, and Destinations
+  information, search/filtering, live values, and honest `Not routed` Connector
+  state.
+- Kept the current visual mapping functional while moving it behind a compact,
+  closed-by-default proof-of-concept disclosure.
+- Verified 68 server tests, JavaScript syntax, a 104-ID DOM/behavior harness,
+  live WebSocket selection serialization, and local application start/stop.
+  Screenshot capture was unavailable because no functioning headless browser is
+  installed on this Ubuntu host.
+
+Next evaluation:
+
+- Run real model sessions and compare the residual, logit, and SAE signals as
+  research/performance material.
+- Add new probe adapters only when a concrete research or artistic question
+  requires them; do not build an unrestricted hook editor prematurely.
+- Keep large raw data local until a bounded non-OSC transport is deliberately
+  selected.
+
+The focused implementation contract is in
+`specs/emitter-signal-explorer.md`.
+
 ## Later Candidate Features
 
 Good later steps:

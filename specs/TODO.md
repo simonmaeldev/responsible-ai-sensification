@@ -17,9 +17,17 @@ priority takes precedence over the older numeric ordering.
   mapped live to 14 bounded browser audio/visual targets. Includes templates,
   signal/control monitoring, feature search/pin/mute/solo, saved scenes, A/B
   morphing, and visible verbal-lens re-embedding status.
+- General Emitter Signal Explorer: 26 discoverable raw/derived entries across
+  selected-layer residuals, output logits, SAE/Neuronpedia, semantic proofs of
+  concept, pitch, and generation. Live selection, opt-in high-bandwidth streams,
+  route visibility, and a compact visual-mapping disclosure are implemented.
 
 ## Current priority: play and evaluate the emitter
 
+- Use the Signals tab to compare selected-layer residual, output-logit, SAE, and
+  derived semantic signals during real generation.
+- Deliberately activate raw residual/top-k/sparse streams only when their full
+  values are needed; they remain local and are not automatically routed to OSC.
 - Run with OSC disabled and evaluate mappings locally in browser audio/visuals.
 - Save promising mapping/lens combinations as scenes.
 - Choose which proven internal controls belong in a future Connector contract;

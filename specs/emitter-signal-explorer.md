@@ -119,3 +119,19 @@ without changing its data or mappings.
 - Existing browser audio, tonality, visualization, mappings, WebSocket flow,
   scenes, and optional OSC output remain functional.
 - The visual/color proof of concept is closed by default and appears on demand.
+
+## Completion Record
+
+Completed on the Ubuntu GPU PC on 2026-08-06.
+
+- All 26 registered signals and the three first observation sites are
+  implemented.
+- Live per-token selection, opt-in raw streams, mapping dependency preservation,
+  and the in-place GUI are covered by focused tests.
+- The complete server suite passes with 68 tests.
+- `node --check app/client/main.js` and the 104-ID browser DOM/behavior harness
+  pass.
+- The application starts and stops locally. Screenshot capture was attempted but
+  was unavailable because this host has no functioning Firefox, Chromium, or
+  Playwright browser installation; the server was stopped afterward.
+- OSC v1 and the Windows Receiver were not expanded.

@@ -48,6 +48,15 @@ semantic-tonality, pitch, and generation signals. A live mapping matrix turns
 them into 14 bounded browser audio/visual targets without modifying raw feature
 evidence or final post-tonality notes.
 
+The in-place Signal Explorer is now complete. A generic ordered registry
+describes 26 signals across model residuals, model logits, SAE activations,
+Neuronpedia coverage, clusters, semantic experiments, final pitches, and
+generation timing. The original 18 mapping sources remain compatible; five
+lightweight model summaries are available as scalar mapping sources; and full
+residual vectors, top-k logits, and sparse SAE feature streams are explicit
+opt-in raw signals. Live selection affects subsequent tokens without extending
+OSC v1 or requiring an artistic transformation.
+
 ## Emitter, Connector, Receiver
 
 - **Emitter:** observes arbitrary model/runtime probes and makes selected raw or
@@ -196,6 +205,27 @@ OSC/OSCQuery moves live performance data.
   `feature.top_share` to `audio.pan` mapping. The complete server suite now
   passes with 60 tests, the 95-ID browser DOM harness passes, and JavaScript
   syntax checks pass.
+- Added the general Emitter signal registry and API. It preserves the original
+  18 scalar mapping keys while adding residual-stream and output-logit scalar
+  summaries plus opt-in raw residual, top-k logit, and sparse SAE streams.
+- Added live, validated `emitter_signal_keys` session selection. The model probe
+  callback resolves the current selection on every generation step, so browser
+  changes affect subsequent tokens; enabled mappings continue to compute their
+  required scalar source even when it is hidden from the monitor.
+- Added the in-place Signals tab with searchable/grouped Available probes,
+  active checkboxes, raw/derived and cost metadata, live previews, mapping-route
+  counts, and explicit Connector `Not routed` status. No OSC v1 message or
+  Windows Receiver behavior changed.
+- Moved the cluster/color visualization behind a compact, closed-by-default
+  **Visual mapping — Proof of concept** disclosure. The existing visualization
+  remains functional when revealed while the tonality/waveform workspace gets
+  the primary live area.
+- Verified the completed slice with 68 passing server tests,
+  `node --check app/client/main.js`, and the 104-ID browser DOM/behavior harness,
+  including a live WebSocket selection payload. The application started and
+  stopped successfully. A new screenshot was not captured because this host's
+  Firefox command is an uninstalled Snap placeholder and no Chromium/Playwright
+  browser is installed; no system package was installed as a workaround.
 
 ## Local Reference Material
 
@@ -213,6 +243,7 @@ Use the new interface already present in this repo:
 - Generated text output linked to token playback.
 - Enriched cluster naming/colors.
 - Receiver-independent emitter signal monitor and mapping matrix.
+- General Signal Explorer for discoverable raw and derived model/runtime probes.
 - Searchable/pinnable/muteable/soloable SAE feature evidence.
 - Local mapping scenes and A/B morphing.
 
@@ -231,17 +262,26 @@ Avoid reverting to the older archive interface.
   two-machine performance test.
 - Which validated emitter controls should eventually be added to a future
   connector contract; do not assume every internal signal belongs on the wire.
+- Which model-family probe adapters and observation sites should be added after
+  the selected-layer residual, output-logit, and SAE examples.
+- Which bounded binary transport should carry intentionally selected large raw
+  arrays if OSC/libossia is unsuitable for them.
 
 ## Handoff Notes
 
 ### Immediate Ubuntu GPU PC emitter handoff
 
-The emitter instrument is implemented and verified locally. Start it with
-`./scripts/start.sh`, open `http://127.0.0.1:8080`, and use the Source, Tonality,
-and Mappings tabs with OSC disabled. Begin with one of the three templates,
-watch raw/normalized values in the emitter inspector, search or audition SAE
-features, then save useful combinations as scenes. Mapping and lens changes
-apply to subsequent tokens without a restart.
+The emitter instrument and general Signal Explorer are implemented and verified
+locally. Start it with `./scripts/start.sh`, open `http://127.0.0.1:8080`, and
+use the Source, Signals, Tonality, and Mappings tabs with OSC disabled. In
+Signals, search model/SAE/semantic probes, use the checkboxes to choose the live
+monitor set, and deliberately opt into raw vectors only when needed. Begin with
+one of the three mapping templates, inspect live values, search or audition SAE
+features, then save useful combinations as scenes. Signal, mapping, and lens
+changes apply to subsequent tokens without a server restart.
+
+The color/cluster experiment is intentionally collapsed by default. Use the
+**Visual mapping** disclosure to reveal it during visual mapping evaluation.
 
 Do not expand OSC or change the Windows receiver merely because a new local
 mapping exists. First evaluate which emitter controls are musically useful in
@@ -261,9 +301,11 @@ and deliberately hear or meter the bounded preview synth. Then use the browser
 controls during a longer real run to confirm that live tonality-lens and
 raw/interpreted pitch-blend edits are audible on subsequent tokens.
 
-The scope remains observation and mapping of existing Gemma/SAE fields. Do not
-expand `/rai/v1` or add discovery/pairing until the current audio path is heard
-and the desired Ableton parameter-mapping matrix is specified.
+The Emitter catalogue can now grow beyond existing Gemma/SAE fields, but the
+external contract has not grown with it. Do not expand `/rai/v1` or add
+discovery/pairing merely because a signal appears in the Explorer. First hear
+the current audio path and deliberately choose which bounded signals belong in
+a future Connector contract.
 
 ### Later local and integration work
 
