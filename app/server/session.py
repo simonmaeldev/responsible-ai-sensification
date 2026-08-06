@@ -7,6 +7,10 @@ from app.server.pipeline.emitter_mapping import (
     coerce_emitter_mappings,
     default_emitter_mappings,
 )
+from app.server.pipeline.emitter_signals import (
+    coerce_emitter_signal_keys,
+    default_emitter_signal_keys,
+)
 
 
 @dataclass
@@ -31,6 +35,7 @@ class PipelineParams:
     prompt_influence: float = 0.2
     tonality_pitch_bias: float = 0.55
     tonality_lenses: list[dict] = field(default_factory=list)
+    emitter_signal_keys: list[str] = field(default_factory=default_emitter_signal_keys)
     emitter_mappings: list[dict] = field(default_factory=default_emitter_mappings)
     osc_enabled: bool = False
     osc_host: str = ""
@@ -65,6 +70,8 @@ class PipelineParams:
                     value = value.strip()
             elif key == "emitter_mappings":
                 value = coerce_emitter_mappings(value)
+            elif key == "emitter_signal_keys":
+                value = coerce_emitter_signal_keys(value)
             setattr(self, key, value)
 
 

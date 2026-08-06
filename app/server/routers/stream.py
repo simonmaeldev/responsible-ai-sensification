@@ -351,10 +351,19 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
                     nonlocal prompt_embedding, token_count
                     print(f"[pipeline] Generation starting (max_tokens={params.max_tokens})...", file=sys.stderr, flush=True)
                     logger.info("Starting generation: max_tokens=%d", params.max_tokens)
+                    def _requested_probe_keys() -> set[str]:
+                        mapping_sources = {
+                            str(mapping.get("source") or "")
+                            for mapping in params.emitter_mappings
+                            if mapping.get("enabled", True)
+                        }
+                        return set(params.emitter_signal_keys) | mapping_sources
+
                     for token_analysis, elapsed_ms in inspect_live(
                         params.prompt, model, tokenizer, sae,
                         params.layer, neuronpedia,
                         max_new_tokens=params.max_tokens,
+                        probe_keys=_requested_probe_keys,
                     ):
                         token_count += 1
                         active_features = [f.model_dump() for f in token_analysis.active_features]
@@ -426,6 +435,8 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
                                 token_index=token_count,
                                 max_tokens=params.max_tokens,
                                 width=params.width,
+                                probe_values=token_analysis.probe_values,
+                                selected_signal_keys=params.emitter_signal_keys,
                             ),
                         }
                         if tonality_payload is not None:

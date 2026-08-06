@@ -1,6 +1,7 @@
 """Tests for PipelineParams update coercion."""
 
 from app.server.session import PipelineParams
+from app.server.pipeline.emitter_signals import default_emitter_signal_keys
 
 
 def test_pipeline_params_update_coerces_tonality_controls():
@@ -79,3 +80,19 @@ def test_pipeline_params_coerces_live_emitter_mappings():
     assert params.emitter_mappings[0]["id"] == "live"
     assert params.emitter_mappings[0]["output_min"] == -24
     assert params.emitter_mappings[0]["output_max"] == 24
+
+
+def test_pipeline_params_coerces_live_emitter_signal_selection():
+    params = PipelineParams()
+
+    assert params.emitter_signal_keys == default_emitter_signal_keys()
+    params.update(
+        emitter_signal_keys=[
+            "activation.max",
+            "model.residual.vector",
+            "not.registered",
+            "activation.max",
+        ]
+    )
+
+    assert params.emitter_signal_keys == ["activation.max", "model.residual.vector"]

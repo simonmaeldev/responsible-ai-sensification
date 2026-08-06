@@ -12,13 +12,12 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any
 
-
-@dataclass(frozen=True)
-class SignalSpec:
-    key: str
-    label: str
-    group: str
-    unit: str = ""
+from app.server.pipeline.emitter_signals import (
+    EMITTER_SIGNAL_REGISTRY,
+    coerce_emitter_signal_keys,
+    default_emitter_signal_keys,
+    mappable_signal_specs,
+)
 
 
 @dataclass(frozen=True)
@@ -31,26 +30,7 @@ class TargetSpec:
     unit: str = ""
 
 
-SIGNAL_SPECS = (
-    SignalSpec("activation.max", "Maximum activation", "SAE", "activation"),
-    SignalSpec("activation.mean", "Mean activation", "SAE", "activation"),
-    SignalSpec("activation.total", "Total activation", "SAE", "activation"),
-    SignalSpec("activation.delta", "Activation change", "SAE", "activation"),
-    SignalSpec("feature.count", "Active feature count", "SAE", "features"),
-    SignalSpec("feature.top_index", "Strongest feature index", "SAE", "index"),
-    SignalSpec("feature.top_share", "Strongest activation share", "SAE", "ratio"),
-    SignalSpec("feature.described_ratio", "Neuronpedia-described ratio", "Neuronpedia", "ratio"),
-    SignalSpec("cluster.count", "Active cluster count", "Clusters", "clusters"),
-    SignalSpec("cluster.dominance", "Dominant cluster share", "Clusters", "ratio"),
-    SignalSpec("tonality.score", "Dominant tonality similarity", "Semantic", "cosine"),
-    SignalSpec("tonality.change", "Tonality changed", "Semantic", "gate"),
-    SignalSpec("prompt.influence", "Prompt influence", "Semantic", "ratio"),
-    SignalSpec("pitch.interpretation", "Raw/interpreted blend", "Semantic", "ratio"),
-    SignalSpec("pitch.mean", "Mean final pitch", "Pitch", "MIDI"),
-    SignalSpec("pitch.spread", "Final pitch spread", "Pitch", "semitones"),
-    SignalSpec("generation.elapsed", "Token inference time", "Generation", "ms"),
-    SignalSpec("token.progress", "Generation progress", "Generation", "ratio"),
-)
+SIGNAL_SPECS = mappable_signal_specs()
 
 TARGET_SPECS = (
     TargetSpec("audio.gain", "Voice gain", "Audio", 0.0, 1.0, "ratio"),
@@ -281,6 +261,7 @@ class EmitterMappingRuntime:
         token_index: int,
         max_tokens: int,
         width: Any,
+        probe_values: dict[str, Any] | None = None,
     ) -> dict[str, dict[str, Any]]:
         amplitudes = [max(0.0, _finite_float(item.get("activation"), 0.0)) for item in active_features]
         total = sum(amplitudes)
@@ -370,16 +351,67 @@ class EmitterMappingRuntime:
             "token.progress": _clamp(progress, 0.0, 1.0),
         }
 
-        return {
+        signals = {
             key: {
                 "label": SIGNALS_BY_KEY[key].label,
                 "group": SIGNALS_BY_KEY[key].group,
+                "location": SIGNALS_BY_KEY[key].location,
+                "kind": SIGNALS_BY_KEY[key].kind,
+                "value_type": SIGNALS_BY_KEY[key].value_type,
                 "unit": SIGNALS_BY_KEY[key].unit,
                 "raw": raw[key],
                 "normalized": normalized[key],
             }
             for key in raw
         }
+        for key, sample in (probe_values or {}).items():
+            spec = SIGNALS_BY_KEY.get(key)
+            if spec is None or spec.value_type != "scalar" or not isinstance(sample, dict):
+                continue
+            probe_raw = _finite_float(sample.get("raw"), 0.0)
+            provided_normalized = sample.get("normalized")
+            probe_normalized = (
+                self._adaptive_unit(key, max(0.0, probe_raw))
+                if provided_normalized is None
+                else _clamp(_finite_float(provided_normalized, 0.0), 0.0, 1.0)
+            )
+            signals[key] = {
+                "label": spec.label,
+                "group": spec.group,
+                "location": spec.location,
+                "kind": spec.kind,
+                "value_type": spec.value_type,
+                "unit": spec.unit,
+                "raw": probe_raw,
+                "normalized": probe_normalized,
+            }
+        return signals
+
+    def build_streams(
+        self,
+        *,
+        active_features: list[dict[str, Any]],
+        probe_values: dict[str, Any] | None,
+        selected_signal_keys: list[str],
+    ) -> dict[str, dict[str, Any]]:
+        """Package explicitly selected non-scalar data without mapping it."""
+        values = dict(probe_values or {})
+        values["sae.active_features"] = deepcopy(active_features)
+        streams: dict[str, dict[str, Any]] = {}
+        for key in selected_signal_keys:
+            spec = EMITTER_SIGNAL_REGISTRY.get(key)
+            if spec is None or spec.value_type == "scalar" or key not in values:
+                continue
+            streams[key] = {
+                "label": spec.label,
+                "group": spec.group,
+                "location": spec.location,
+                "kind": spec.kind,
+                "value_type": spec.value_type,
+                "unit": spec.unit,
+                "value": deepcopy(values[key]),
+            }
+        return streams
 
     def apply_mappings(
         self,
@@ -438,8 +470,10 @@ class EmitterMappingRuntime:
         token_index: int,
         max_tokens: int,
         width: Any,
+        probe_values: dict[str, Any] | None = None,
+        selected_signal_keys: Any = None,
     ) -> dict[str, Any]:
-        signals = self.build_signals(
+        all_signals = self.build_signals(
             active_features=active_features,
             notes=notes,
             tonality=tonality,
@@ -447,6 +481,24 @@ class EmitterMappingRuntime:
             token_index=token_index,
             max_tokens=max_tokens,
             width=width,
+            probe_values=probe_values,
         )
-        controls, diagnostics = self.apply_mappings(signals, mappings)
-        return {"signals": signals, "controls": controls, "mappings": diagnostics}
+        selected = (
+            default_emitter_signal_keys()
+            if selected_signal_keys is None
+            else coerce_emitter_signal_keys(selected_signal_keys)
+        )
+        visible_signals = {key: all_signals[key] for key in selected if key in all_signals}
+        streams = self.build_streams(
+            active_features=active_features,
+            probe_values=probe_values,
+            selected_signal_keys=selected,
+        )
+        controls, diagnostics = self.apply_mappings(all_signals, mappings)
+        return {
+            "signals": visible_signals,
+            "streams": streams,
+            "controls": controls,
+            "mappings": diagnostics,
+            "active_signal_keys": selected,
+        }

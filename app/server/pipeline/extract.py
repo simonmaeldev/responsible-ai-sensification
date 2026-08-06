@@ -9,9 +9,11 @@ import argparse
 import gzip
 import itertools
 import json
+import math
 import re
 import sys
 import time
+from collections.abc import Callable, Collection
 from pathlib import Path
 from typing import Generator
 
@@ -19,7 +21,7 @@ import requests
 import torch
 import torch.nn as nn
 from huggingface_hub import hf_hub_download
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from safetensors.torch import load_file
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -45,6 +47,7 @@ class TokenAnalysis(BaseModel):
     token: str
     l0: int  # total number of active features (activation > 0)
     active_features: list[ActiveFeature]
+    probe_values: dict[str, object] = Field(default_factory=dict)
 
 
 class GenerationAnalysis(BaseModel):
@@ -203,6 +206,89 @@ def _get_decoder_layers(model):
     )
 
 
+def capture_model_probe_values(
+    residual_last: torch.Tensor,
+    logits_last: torch.Tensor,
+    requested_keys: Collection[str],
+    *,
+    logits_top_k: int = 8,
+) -> dict[str, object]:
+    """Materialize only requested observations from two real model locations."""
+    requested = set(requested_keys)
+    probes: dict[str, object] = {}
+    residual_keys = {
+        "model.residual.rms",
+        "model.residual.max_abs",
+        "model.residual.vector",
+    }
+    if requested & residual_keys:
+        residual = residual_last.detach().float().reshape(-1)
+        if "model.residual.rms" in requested:
+            rms = torch.sqrt(torch.mean(residual.square())).item() if residual.numel() else 0.0
+            probes["model.residual.rms"] = {"raw": rms, "normalized": None}
+        if "model.residual.max_abs" in requested:
+            maximum = residual.abs().max().item() if residual.numel() else 0.0
+            probes["model.residual.max_abs"] = {"raw": maximum, "normalized": None}
+        if "model.residual.vector" in requested:
+            probes["model.residual.vector"] = {
+                "values": residual.cpu().tolist(),
+                "shape": [residual.numel()],
+                "dtype": "float32",
+            }
+
+    logits_keys = {
+        "model.logits.entropy",
+        "model.logits.top_probability",
+        "model.logits.margin",
+        "model.logits.top_k",
+    }
+    if requested & logits_keys:
+        logits = logits_last.detach().float().reshape(-1)
+        probabilities = torch.softmax(logits, dim=-1)
+        count = logits.numel()
+        top_count = min(max(1, int(logits_top_k)), count) if count else 0
+        top_logits, top_indices = torch.topk(logits, top_count) if top_count else (logits, logits.long())
+        top_probabilities = probabilities[top_indices] if top_count else probabilities
+
+        if "model.logits.entropy" in requested:
+            entropy = -(probabilities * probabilities.clamp_min(1e-12).log()).sum().item()
+            maximum_entropy = math.log(count) if count > 1 else 1.0
+            probes["model.logits.entropy"] = {
+                "raw": entropy,
+                "normalized": min(max(entropy / maximum_entropy, 0.0), 1.0),
+            }
+        if "model.logits.top_probability" in requested:
+            probability = top_probabilities[0].item() if top_count else 0.0
+            probes["model.logits.top_probability"] = {
+                "raw": probability,
+                "normalized": probability,
+            }
+        if "model.logits.margin" in requested:
+            margin = (top_logits[0] - top_logits[1]).item() if top_count > 1 else 0.0
+            probes["model.logits.margin"] = {
+                "raw": margin,
+                "normalized": 1.0 - math.exp(-max(0.0, margin)),
+            }
+        if "model.logits.top_k" in requested:
+            probes["model.logits.top_k"] = {
+                "items": [
+                    {
+                        "token_id": int(token_id),
+                        "logit": float(logit),
+                        "probability": float(probability),
+                    }
+                    for token_id, logit, probability in zip(
+                        top_indices.cpu().tolist(),
+                        top_logits.cpu().tolist(),
+                        top_probabilities.cpu().tolist(),
+                    )
+                ],
+                "shape": [top_count],
+                "dtype": "token_logit",
+            }
+    return probes
+
+
 def inspect_live(
     prompt: str,
     model,
@@ -211,6 +297,7 @@ def inspect_live(
     layer: int,
     neuronpedia: NeuronpediaScope,
     max_new_tokens: int = 200,
+    probe_keys: Collection[str] | Callable[[], Collection[str]] | None = None,
 ) -> Generator[tuple[TokenAnalysis, int], None, None]:
     """Generate tokens autoregressively and capture SAE feature activations.
 
@@ -242,6 +329,13 @@ def inspect_live(
 
         next_token_id = int(outputs.logits[0, -1].argmax().item())
 
+        requested_probe_keys = probe_keys() if callable(probe_keys) else (probe_keys or ())
+        probe_values = capture_model_probe_values(
+            residual_last,
+            outputs.logits[0, -1],
+            requested_probe_keys,
+        )
+
         sae_acts = sae.encode(residual_last.float().unsqueeze(0)).squeeze(0)
 
         active_indices = (sae_acts > 0).nonzero(as_tuple=True)[0].tolist()
@@ -261,6 +355,7 @@ def inspect_live(
             token=token_str,
             l0=l0,
             active_features=active_features,
+            probe_values=probe_values,
         )
 
         elapsed_ms = int((time.perf_counter() - t0) * 1000)
