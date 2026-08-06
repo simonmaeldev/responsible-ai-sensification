@@ -3,6 +3,7 @@ import dataclasses
 
 from fastapi import APIRouter
 
+from app.server.pipeline.emitter_mapping import emitter_mapping_catalogue
 from app.server.pipeline.semantic_tonality import load_tonality_descriptions
 from app.server.session import PipelineParams
 
@@ -63,3 +64,8 @@ def get_tonalities() -> dict:
             for tonality in tonality_set.tonalities
         ],
     }
+
+
+@router.get("/emitter-mapping")
+def get_emitter_mapping() -> dict:
+    return emitter_mapping_catalogue()

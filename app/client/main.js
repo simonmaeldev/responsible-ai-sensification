@@ -5,6 +5,12 @@ class WebAudioEngine {
   constructor() {
     this._audioCtx   = null;
     this._masterGain = null;
+    this._voiceBus   = null;
+    this._filter     = null;
+    this._panner     = null;
+    this._delay      = null;
+    this._delayWet   = null;
+    this._delayFeedback = null;
     this._analyser   = null;
     this._waveData   = null;
     this._activeNodes = [];
@@ -14,10 +20,30 @@ class WebAudioEngine {
     if (!this._audioCtx) {
       this._audioCtx   = new AudioContext();
       this._masterGain = this._audioCtx.createGain();
+      this._voiceBus   = this._audioCtx.createGain();
+      this._filter     = this._audioCtx.createBiquadFilter();
+      this._panner     = this._audioCtx.createStereoPanner();
+      this._delay      = this._audioCtx.createDelay(1.0);
+      this._delayWet   = this._audioCtx.createGain();
+      this._delayFeedback = this._audioCtx.createGain();
       this._analyser   = this._audioCtx.createAnalyser();
       this._analyser.fftSize = 1024;
       this._waveData = new Float32Array(this._analyser.fftSize);
       this._masterGain.gain.value = 1.0;
+      this._filter.type = "lowpass";
+      this._filter.frequency.value = 16000;
+      this._filter.Q.value = 0.1;
+      this._delay.delayTime.value = 0.2;
+      this._delayWet.gain.value = 0;
+      this._delayFeedback.gain.value = 0.25;
+      this._voiceBus.connect(this._filter);
+      this._filter.connect(this._panner);
+      this._panner.connect(this._masterGain);
+      this._panner.connect(this._delay);
+      this._delay.connect(this._delayWet);
+      this._delayWet.connect(this._masterGain);
+      this._delay.connect(this._delayFeedback);
+      this._delayFeedback.connect(this._delay);
       this._masterGain.connect(this._analyser);
       this._analyser.connect(this._audioCtx.destination);
     }
@@ -35,7 +61,7 @@ class WebAudioEngine {
       osc.frequency.value = frequency;
       g.gain.value        = Math.max(gainValue, 0.0001);
       osc.connect(g);
-      g.connect(this._masterGain);
+      g.connect(this._voiceBus);
       osc.start(startTime);
       if (stopTime !== null) osc.stop(stopTime);
       nodes.push({ osc, gain: g });
@@ -115,21 +141,37 @@ class WebAudioEngine {
     return nodes;
   }
 
-  playNotes(notes, mode, bpm) {
+  playNotes(notes, mode, bpm, controls = {}) {
     if (!this._audioCtx || !notes.length) return;
 
-    const maxAmp     = Math.max(...notes.map(n => n.amplitude ?? 0), 1);
-    const durationSec = mode === "timed" ? 60 / bpm : null;
+    this.setMappedControls(controls);
+    const density = Math.max(1, Math.round(controls["audio.note_density"] ?? notes.length));
+    const audibleNotes = [...notes]
+      .sort((a, b) => (b.amplitude ?? 0) - (a.amplitude ?? 0))
+      .slice(0, density);
+    if (!audibleNotes.length) return;
+
+    const maxAmp = Math.max(...audibleNotes.map(n => n.amplitude ?? 0), 1);
+    const durationScale = Math.max(0.05, controls["audio.duration"] ?? 1);
+    const durationSec = mode === "timed" ? (60 / bpm) * durationScale : null;
     const startTime  = this._audioCtx.currentTime;
     const stopTime   = durationSec !== null ? startTime + durationSec : null;
+    const pitchRatio = 2 ** ((controls["audio.pitch_semitones"] ?? 0) / 12);
+    const voiceGain = Math.max(0, controls["audio.gain"] ?? 1);
+    const timbreIndex = controls["audio.timbre"];
+    const timbres = ["piano", "guitar", "bass", "strings", "pad", "bell", "flute", "brass"];
 
     if (mode === "sustain") this.stopAll();
+    if (voiceGain <= 0) return;
 
-    for (const note of notes) {
+    for (const note of audibleNotes) {
+      const mappedInstrument = Number.isFinite(timbreIndex)
+        ? timbres[Math.max(0, Math.min(timbres.length - 1, Math.round(timbreIndex)))]
+        : (note.instrument ?? "default");
       const newNodes = this._buildNoteGraph(
-        note.freq      ?? 440,
-        (note.amplitude ?? 0) / maxAmp,
-        note.instrument ?? "default",
+        (note.freq ?? 440) * pitchRatio,
+        ((note.amplitude ?? 0) / maxAmp) * voiceGain,
+        mappedInstrument,
         startTime,
         stopTime
       );
@@ -147,6 +189,31 @@ class WebAudioEngine {
 
   setVolume(v) {
     if (this._masterGain) this._masterGain.gain.value = v;
+  }
+
+  setMappedControls(controls = {}) {
+    if (!this._audioCtx) return;
+    const now = this._audioCtx.currentTime;
+    const settle = now + 0.04;
+    if (this._filter) {
+      const cutoff = Math.max(80, Math.min(16000, controls["audio.filter_hz"] ?? 16000));
+      const resonance = Math.max(0.1, Math.min(24, controls["audio.resonance"] ?? 0.1));
+      this._filter.frequency.cancelScheduledValues(now);
+      this._filter.frequency.linearRampToValueAtTime(cutoff, settle);
+      this._filter.Q.linearRampToValueAtTime(resonance, settle);
+    }
+    if (this._panner) {
+      const pan = Math.max(-1, Math.min(1, controls["audio.pan"] ?? 0));
+      this._panner.pan.linearRampToValueAtTime(pan, settle);
+    }
+    if (this._delay) {
+      const delayTime = Math.max(0.01, Math.min(1, controls["audio.delay_time"] ?? 0.2));
+      this._delay.delayTime.linearRampToValueAtTime(delayTime, settle);
+    }
+    if (this._delayWet) {
+      const mix = Math.max(0, Math.min(0.75, controls["audio.delay_mix"] ?? 0));
+      this._delayWet.gain.linearRampToValueAtTime(mix, settle);
+    }
   }
 
   getWaveform() {
@@ -169,6 +236,19 @@ let defaultTonalityCatalogue = [];
 let lastRenderedNotes = [];
 let lensUpdateTimer = null;
 let oscUpdateTimer = null;
+let mappingUpdateTimer = null;
+let mappingCatalogue = { signals: [], targets: [], curves: [], default_mappings: [] };
+let emitterMappings = [];
+let defaultEmitterMappings = [];
+let currentEmitterSignals = {};
+let currentEmitterControls = {};
+let currentMappingDiagnostics = [];
+let currentVisualControls = {};
+let featureCatalogue = new Map();
+let pinnedFeatures = new Set();
+let mutedFeatures = new Set();
+let soloFeatures = new Set();
+let instrumentScenes = [];
 
 // Transport / history state
 let isPaused = false;
@@ -183,6 +263,8 @@ let cvPalette = [];       // [{cluster_id, name, color}] ordered by PCA
 
 // ── Local storage ──────────────────────────────────────────────────────────
 const STORAGE_KEY = "sae_ui_params";
+const INSTRUMENT_STORAGE_KEY = "sae_emitter_instrument_v1";
+const SCENE_STORAGE_KEY = "sae_emitter_scenes_v1";
 
 function saveParams() {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(collectParams())); } catch {}
@@ -190,6 +272,37 @@ function saveParams() {
 
 function loadSavedParams() {
   try { const raw = localStorage.getItem(STORAGE_KEY); return raw ? JSON.parse(raw) : null; } catch { return null; }
+}
+
+function saveInstrumentState() {
+  const payload = {
+    pinned: [...pinnedFeatures],
+    muted: [...mutedFeatures],
+    solo: [...soloFeatures],
+  };
+  try { localStorage.setItem(INSTRUMENT_STORAGE_KEY, JSON.stringify(payload)); } catch {}
+}
+
+function loadInstrumentState() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(INSTRUMENT_STORAGE_KEY) || "{}");
+    pinnedFeatures = new Set((raw.pinned || []).map(Number));
+    mutedFeatures = new Set((raw.muted || []).map(Number));
+    soloFeatures = new Set((raw.solo || []).map(Number));
+  } catch {}
+}
+
+function saveScenes() {
+  try { localStorage.setItem(SCENE_STORAGE_KEY, JSON.stringify(instrumentScenes)); } catch {}
+}
+
+function loadScenes() {
+  try {
+    const value = JSON.parse(localStorage.getItem(SCENE_STORAGE_KEY) || "[]");
+    instrumentScenes = Array.isArray(value) ? value : [];
+  } catch {
+    instrumentScenes = [];
+  }
 }
 
 // ── DOM refs ───────────────────────────────────────────────────────────────
@@ -223,6 +336,7 @@ const oscPortIn       = document.getElementById("osc-port");
 const oscMaxNotesIn   = document.getElementById("osc-max-notes");
 const oscStatus       = document.getElementById("osc-status");
 const volumeIn        = document.getElementById("volume");
+const volumeValue     = document.getElementById("volume-value");
 const tonalityEnabledCb = document.getElementById("tonality-enabled");
 const tonalityControls = document.getElementById("tonality-controls");
 const promptInfluenceIn = document.getElementById("prompt-influence");
@@ -242,9 +356,35 @@ const tonalityIntervals = document.getElementById("tonality-intervals");
 const tonalityMemory = document.getElementById("tonality-memory");
 const tonalityEvidence = document.getElementById("tonality-evidence");
 const waveCanvas = document.getElementById("wave-canvas");
+const lensEmbeddingStatus = document.getElementById("lens-embedding-status");
+const mappingList = document.getElementById("mapping-list");
+const mappingCount = document.getElementById("mapping-count");
+const mappingTemplate = document.getElementById("mapping-template");
+const btnApplyTemplate = document.getElementById("btn-apply-template");
+const btnAddMapping = document.getElementById("btn-add-mapping");
+const btnResetMappings = document.getElementById("btn-reset-mappings");
+const btnClearMappings = document.getElementById("btn-clear-mappings");
+const sceneName = document.getElementById("scene-name");
+const sceneSelect = document.getElementById("scene-select");
+const sceneA = document.getElementById("scene-a");
+const sceneB = document.getElementById("scene-b");
+const sceneMorph = document.getElementById("scene-morph");
+const sceneMorphValue = document.getElementById("scene-morph-value");
+const btnSaveScene = document.getElementById("btn-save-scene");
+const btnLoadScene = document.getElementById("btn-load-scene");
+const btnDeleteScene = document.getElementById("btn-delete-scene");
+const signalToken = document.getElementById("signal-token");
+const signalMonitor = document.getElementById("signal-monitor");
+const controlCount = document.getElementById("control-count");
+const controlMonitor = document.getElementById("control-monitor");
+const featureCount = document.getElementById("feature-count");
+const featureSearch = document.getElementById("feature-search");
+const featureBrowser = document.getElementById("feature-browser");
 
 // ── Load options + defaults ─────────────────────────────────────────────────
 async function loadOptions() {
+  loadInstrumentState();
+  loadScenes();
   try {
     const res = await fetch("/api/config/model-options");
     const data = await res.json();
@@ -295,10 +435,21 @@ async function loadOptions() {
   }
 
   try {
+    const res = await fetch("/api/config/emitter-mapping");
+    mappingCatalogue = await res.json();
+    defaultEmitterMappings = structuredClone(mappingCatalogue.default_mappings ?? []);
+    if (!emitterMappings.length) emitterMappings = structuredClone(defaultEmitterMappings);
+    renderMappingEditor();
+    renderSceneSelectors();
+  } catch (e) {
+    console.warn("Could not load emitter mapping catalogue", e);
+  }
+
+  try {
     const res = await fetch("/api/config/tonalities");
     const data = await res.json();
-    tonalityCatalogue = data.tonalities ?? [];
-    defaultTonalityCatalogue = tonalityCatalogue.map(entry => ({ ...entry }));
+    tonalityCatalogue = (data.tonalities ?? []).map(entry => ({ ...entry, enabled: true }));
+    defaultTonalityCatalogue = structuredClone(tonalityCatalogue);
     renderLensEditor();
     renderTonalityIdle();
   } catch (e) {
@@ -307,6 +458,9 @@ async function loadOptions() {
 
   const saved = loadSavedParams();
   if (saved) applyParams(saved);
+  renderMappingEditor();
+  renderSceneSelectors();
+  renderFeatureBrowser();
 }
 
 function populateLayerWidth(modelId) {
@@ -349,6 +503,7 @@ function normalizedLens(entry) {
     intervals: Array.isArray(entry.intervals)
       ? entry.intervals.map(value => Number(value)).filter(value => Number.isFinite(value))
       : parseIntervals(entry.intervals),
+    enabled: entry.enabled !== false,
   };
 }
 
@@ -370,6 +525,16 @@ function renderLensEditor() {
     const top = document.createElement("div");
     top.className = "lens-editor-top";
 
+    const enabled = document.createElement("input");
+    enabled.type = "checkbox";
+    enabled.checked = lens.enabled;
+    enabled.title = "Enable lens";
+    enabled.addEventListener("change", () => {
+      tonalityCatalogue[index].enabled = enabled.checked;
+      item.classList.toggle("is-disabled", !enabled.checked);
+      scheduleLensUpdate(0);
+    });
+
     const name = document.createElement("input");
     name.type = "text";
     name.value = lens.name;
@@ -380,12 +545,34 @@ function renderLensEditor() {
       scheduleLensUpdate();
     });
 
-    const remove = document.createElement("button");
-    remove.type = "button";
-    remove.className = "mini-icon-btn";
-    remove.textContent = "×";
-    remove.title = "Remove lens";
-    remove.addEventListener("click", () => {
+    const makeAction = (label, title, action) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "mini-icon-btn";
+      button.textContent = label;
+      button.title = title;
+      button.addEventListener("click", action);
+      return button;
+    };
+    const moveUp = makeAction("↑", "Move lens up", () => {
+      if (index <= 0) return;
+      [tonalityCatalogue[index - 1], tonalityCatalogue[index]] = [tonalityCatalogue[index], tonalityCatalogue[index - 1]];
+      renderLensEditor();
+      scheduleLensUpdate(0);
+    });
+    const moveDown = makeAction("↓", "Move lens down", () => {
+      if (index >= tonalityCatalogue.length - 1) return;
+      [tonalityCatalogue[index + 1], tonalityCatalogue[index]] = [tonalityCatalogue[index], tonalityCatalogue[index + 1]];
+      renderLensEditor();
+      scheduleLensUpdate(0);
+    });
+    const duplicate = makeAction("⧉", "Duplicate lens", () => {
+      const copy = { ...normalizedLens(tonalityCatalogue[index]), name: `${lens.name} copy` };
+      tonalityCatalogue.splice(index + 1, 0, copy);
+      renderLensEditor();
+      scheduleLensUpdate(0);
+    });
+    const remove = makeAction("×", "Remove lens", () => {
       tonalityCatalogue.splice(index, 1);
       renderLensEditor();
       scheduleLensUpdate(0);
@@ -411,7 +598,8 @@ function renderLensEditor() {
       scheduleLensUpdate();
     });
 
-    top.append(name, remove);
+    item.classList.toggle("is-disabled", !lens.enabled);
+    top.append(enabled, name, moveUp, moveDown, duplicate, remove);
     item.append(top, description, intervals);
     tonalityLensList.appendChild(item);
   });
@@ -419,12 +607,20 @@ function renderLensEditor() {
 
 function scheduleLensUpdate(delayMs = 300) {
   saveParams();
+  setLensEmbeddingStatus("queued", "embedding");
   if (lensUpdateTimer) clearTimeout(lensUpdateTimer);
   lensUpdateTimer = setTimeout(() => {
     const lenses = collectTonalityLenses();
     sendParamUpdate({ tonality_lenses: lenses });
+    if (!sessionActive) setLensEmbeddingStatus("ready on play", "ready");
     if (!isRunning) renderTonalityIdle();
   }, delayMs);
+}
+
+function setLensEmbeddingStatus(message, state) {
+  if (!lensEmbeddingStatus) return;
+  lensEmbeddingStatus.textContent = message;
+  lensEmbeddingStatus.dataset.state = state;
 }
 
 function updateStrategyHelp() {
@@ -450,6 +646,7 @@ function applyParams(p) {
   if (p.osc_host !== undefined) oscHostIn.value = p.osc_host;
   if (p.osc_port !== undefined) oscPortIn.value = p.osc_port;
   if (p.osc_max_notes_per_token !== undefined) oscMaxNotesIn.value = p.osc_max_notes_per_token;
+  if (p.volume !== undefined) volumeIn.value = p.volume;
   if (p.tonality_enabled !== undefined) tonalityEnabledCb.checked = Boolean(p.tonality_enabled);
   if (p.prompt_influence !== undefined) promptInfluenceIn.value = p.prompt_influence;
   if (p.tonality_pitch_bias !== undefined) tonalityPitchBiasIn.value = p.tonality_pitch_bias;
@@ -458,6 +655,10 @@ function applyParams(p) {
     renderLensEditor();
     renderTonalityIdle();
   }
+  if (Array.isArray(p.emitter_mappings)) {
+    emitterMappings = structuredClone(p.emitter_mappings);
+    renderMappingEditor();
+  }
 
   // Sync conditional visibility
   if (p.strategy !== undefined) syncClustersVisibility();
@@ -465,6 +666,7 @@ function applyParams(p) {
   syncOscControls();
   syncTonalityControls();
   updateTonalityControlValues();
+  updateVolumeValue();
 }
 
 // ── Collect current params ─────────────────────────────────────────────────
@@ -484,10 +686,12 @@ function collectParams() {
     osc_host: oscHostIn.value.trim(),
     osc_port: boundedIntValue(oscPortIn, 9000, 1, 65535),
     osc_max_notes_per_token: boundedIntValue(oscMaxNotesIn, 32, 1, 128),
+    volume: parseFloat(volumeIn.value),
     tonality_enabled: tonalityEnabledCb.checked,
     prompt_influence: parseFloat(promptInfluenceIn.value),
     tonality_pitch_bias: parseFloat(tonalityPitchBiasIn.value),
     tonality_lenses: collectTonalityLenses(),
+    emitter_mappings: structuredClone(emitterMappings),
   };
 }
 
@@ -550,11 +754,359 @@ function updateTonalityControlValues() {
   tonalityPitchBiasValue.textContent = `${Math.round(parseFloat(tonalityPitchBiasIn.value) * 100)}%`;
 }
 
+function updateVolumeValue() {
+  if (volumeValue) volumeValue.textContent = `${Math.round(parseFloat(volumeIn.value) * 100)}%`;
+}
+
 function setInterpretationBlend(value) {
   tonalityPitchBiasIn.value = String(value);
   updateTonalityControlValues();
   sendParamUpdate({ tonality_pitch_bias: parseFloat(tonalityPitchBiasIn.value) });
   saveParams();
+}
+
+// ── Emitter mapping instrument ─────────────────────────────────────────────
+function mappingId(prefix = "mapping") {
+  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function targetSpec(key) {
+  return mappingCatalogue.targets.find(item => item.key === key) ?? {
+    minimum: 0,
+    maximum: 1,
+    unit: "",
+  };
+}
+
+function completeMapping(partial = {}) {
+  const source = partial.source || mappingCatalogue.signals[0]?.key || "activation.max";
+  const target = partial.target || mappingCatalogue.targets[0]?.key || "audio.gain";
+  const spec = targetSpec(target);
+  return {
+    id: partial.id || mappingId(),
+    enabled: partial.enabled !== false,
+    source,
+    target,
+    curve: partial.curve || "linear",
+    threshold: Number(partial.threshold ?? 0),
+    invert: Boolean(partial.invert),
+    quantize_steps: Number(partial.quantize_steps ?? 0),
+    smoothing: Number(partial.smoothing ?? 0),
+    output_min: Number(partial.output_min ?? spec.minimum),
+    output_max: Number(partial.output_max ?? spec.maximum),
+  };
+}
+
+function populateGroupedOptions(select, items, selected) {
+  select.innerHTML = "";
+  const groups = new Map();
+  for (const item of items) {
+    if (!groups.has(item.group)) groups.set(item.group, []);
+    groups.get(item.group).push(item);
+  }
+  for (const [group, entries] of groups) {
+    const optgroup = document.createElement("optgroup");
+    optgroup.label = group;
+    for (const entry of entries) {
+      const option = document.createElement("option");
+      option.value = entry.key;
+      option.textContent = entry.label;
+      option.selected = entry.key === selected;
+      optgroup.appendChild(option);
+    }
+    select.appendChild(optgroup);
+  }
+}
+
+function mappingField(label, control) {
+  const field = document.createElement("label");
+  field.className = "mapping-field";
+  const caption = document.createElement("span");
+  caption.textContent = label;
+  field.append(caption, control);
+  return field;
+}
+
+function numberControl(value, step, onChange) {
+  const input = document.createElement("input");
+  input.type = "number";
+  input.step = step;
+  input.value = Number(value).toFixed(step < 1 ? 2 : 0);
+  input.addEventListener("change", () => onChange(Number(input.value)));
+  return input;
+}
+
+function renderMappingEditor() {
+  if (!mappingList) return;
+  mappingList.innerHTML = "";
+  if (mappingCount) mappingCount.textContent = `${emitterMappings.length}/${mappingCatalogue.max_mappings || 32}`;
+  if (!mappingCatalogue.signals.length || !mappingCatalogue.targets.length) return;
+
+  emitterMappings.forEach((rawMapping, index) => {
+    const mapping = completeMapping(rawMapping);
+    emitterMappings[index] = mapping;
+    const row = document.createElement("div");
+    row.className = "mapping-row";
+    row.dataset.mappingId = mapping.id;
+    row.classList.toggle("is-disabled", !mapping.enabled);
+
+    const top = document.createElement("div");
+    top.className = "mapping-row-top";
+    const enabled = document.createElement("input");
+    enabled.type = "checkbox";
+    enabled.checked = mapping.enabled;
+    enabled.title = "Enable mapping";
+    enabled.addEventListener("change", () => {
+      mapping.enabled = enabled.checked;
+      row.classList.toggle("is-disabled", !mapping.enabled);
+      scheduleMappingUpdate();
+    });
+    const source = document.createElement("select");
+    populateGroupedOptions(source, mappingCatalogue.signals, mapping.source);
+    source.addEventListener("change", () => {
+      mapping.source = source.value;
+      scheduleMappingUpdate();
+    });
+    const arrow = document.createElement("span");
+    arrow.className = "mapping-arrow";
+    arrow.textContent = "→";
+    const target = document.createElement("select");
+    populateGroupedOptions(target, mappingCatalogue.targets, mapping.target);
+    target.addEventListener("change", () => {
+      mapping.target = target.value;
+      const spec = targetSpec(mapping.target);
+      mapping.output_min = spec.minimum;
+      mapping.output_max = spec.maximum;
+      renderMappingEditor();
+      scheduleMappingUpdate(0);
+    });
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "mapping-remove";
+    remove.textContent = "×";
+    remove.title = "Remove mapping";
+    remove.addEventListener("click", () => {
+      emitterMappings.splice(index, 1);
+      renderMappingEditor();
+      scheduleMappingUpdate(0);
+    });
+    top.append(enabled, source, arrow, target, remove);
+
+    const grid = document.createElement("div");
+    grid.className = "mapping-grid";
+    const curve = document.createElement("select");
+    for (const value of mappingCatalogue.curves || ["linear"]) {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = value.replace("_", " ");
+      option.selected = value === mapping.curve;
+      curve.appendChild(option);
+    }
+    curve.addEventListener("change", () => { mapping.curve = curve.value; scheduleMappingUpdate(); });
+    grid.append(
+      mappingField("Curve", curve),
+      mappingField("Out min", numberControl(mapping.output_min, 0.01, value => {
+        mapping.output_min = value;
+        scheduleMappingUpdate();
+      })),
+      mappingField("Out max", numberControl(mapping.output_max, 0.01, value => {
+        mapping.output_max = value;
+        scheduleMappingUpdate();
+      })),
+      mappingField("Threshold", numberControl(mapping.threshold, 0.01, value => {
+        mapping.threshold = value;
+        scheduleMappingUpdate();
+      })),
+      mappingField("Smooth", numberControl(mapping.smoothing, 0.01, value => {
+        mapping.smoothing = value;
+        scheduleMappingUpdate();
+      })),
+      mappingField("Steps", numberControl(mapping.quantize_steps, 1, value => {
+        mapping.quantize_steps = value;
+        scheduleMappingUpdate();
+      })),
+    );
+    const invert = document.createElement("label");
+    invert.className = "mapping-invert";
+    const invertInput = document.createElement("input");
+    invertInput.type = "checkbox";
+    invertInput.checked = mapping.invert;
+    invertInput.addEventListener("change", () => { mapping.invert = invertInput.checked; scheduleMappingUpdate(); });
+    invert.append(invertInput, "Invert");
+    grid.appendChild(invert);
+
+    const latest = currentMappingDiagnostics.find(item => item.id === mapping.id);
+    const readout = document.createElement("div");
+    readout.className = "mapping-live-readout";
+    readout.textContent = latest
+      ? `${formatSignalValue(latest.input)} → ${formatSignalValue(latest.output)}`
+      : "waiting for token";
+    row.append(top, grid, readout);
+    mappingList.appendChild(row);
+  });
+}
+
+function scheduleMappingUpdate(delayMs = 120) {
+  saveParams();
+  if (mappingUpdateTimer) clearTimeout(mappingUpdateTimer);
+  mappingUpdateTimer = setTimeout(() => {
+    sendParamUpdate({ emitter_mappings: structuredClone(emitterMappings) });
+  }, delayMs);
+}
+
+function templateMappings(name) {
+  if (name === "semantic") {
+    return [
+      completeMapping({ source: "tonality.score", target: "audio.delay_mix", curve: "ease_in", smoothing: 0.4, output_min: 0, output_max: 0.55 }),
+      completeMapping({ source: "tonality.change", target: "audio.pitch_semitones", quantize_steps: 8, output_min: 0, output_max: 7 }),
+      completeMapping({ source: "prompt.influence", target: "audio.pan", smoothing: 0.6, output_min: -1, output_max: 1 }),
+      completeMapping({ source: "pitch.interpretation", target: "audio.delay_time", output_min: 0.05, output_max: 0.7 }),
+      completeMapping({ source: "feature.top_index", target: "visual.hue", quantize_steps: 12, output_min: 0, output_max: 360 }),
+      completeMapping({ source: "tonality.score", target: "visual.energy", curve: "ease_out", output_min: 0.25, output_max: 1 }),
+    ];
+  }
+  if (name === "sparse") {
+    return [
+      completeMapping({ source: "feature.top_share", target: "audio.gain", curve: "ease_out", smoothing: 0.25, output_min: 0.15, output_max: 1 }),
+      completeMapping({ source: "feature.described_ratio", target: "audio.filter_hz", curve: "ease_in", smoothing: 0.5, output_min: 300, output_max: 12000 }),
+      completeMapping({ source: "pitch.spread", target: "audio.duration", curve: "ease_out", output_min: 0.2, output_max: 2 }),
+      completeMapping({ source: "cluster.dominance", target: "visual.bar_scale", output_min: 0.5, output_max: 2.3 }),
+      completeMapping({ source: "feature.count", target: "visual.motion", curve: "ease_out", output_min: 0, output_max: 1 }),
+    ];
+  }
+  return structuredClone(defaultEmitterMappings).map(completeMapping);
+}
+
+function captureScene(name, mappings = emitterMappings) {
+  return {
+    id: mappingId("scene"),
+    name,
+    mappings: structuredClone(mappings),
+    tonalities: structuredClone(tonalityCatalogue),
+    promptInfluence: Number(promptInfluenceIn.value),
+    pitchBias: Number(tonalityPitchBiasIn.value),
+    volume: Number(volumeIn.value),
+    audition: {
+      pinned: [...pinnedFeatures],
+      muted: [...mutedFeatures],
+      solo: [...soloFeatures],
+    },
+  };
+}
+
+function ensureFactoryScenes() {
+  const factories = [
+    ["factory-activation", "Activation performance", "activation"],
+    ["factory-semantic", "Semantic drift", "semantic"],
+    ["factory-sparse", "Sparse detail", "sparse"],
+  ];
+  for (const [id, name, template] of factories) {
+    const existing = instrumentScenes.find(scene => scene.id === id);
+    if (existing) {
+      if (!(existing.tonalities || []).length && tonalityCatalogue.length) {
+        existing.tonalities = structuredClone(tonalityCatalogue);
+      }
+      continue;
+    }
+    instrumentScenes.unshift({ ...captureScene(name, templateMappings(template)), id, builtin: true });
+  }
+  saveScenes();
+}
+
+function renderSceneSelectors() {
+  if (!sceneSelect || !sceneA || !sceneB) return;
+  ensureFactoryScenes();
+  for (const select of [sceneSelect, sceneA, sceneB]) {
+    const previous = select.value;
+    select.innerHTML = "";
+    instrumentScenes.forEach(scene => {
+      const option = document.createElement("option");
+      option.value = scene.id;
+      option.textContent = scene.name;
+      select.appendChild(option);
+    });
+    if (instrumentScenes.some(scene => scene.id === previous)) select.value = previous;
+  }
+  if (!sceneB.value && instrumentScenes[1]) sceneB.value = instrumentScenes[1].id;
+  if (sceneA.value === sceneB.value && instrumentScenes[1]) sceneB.value = instrumentScenes[1].id;
+}
+
+function sceneById(id) {
+  return instrumentScenes.find(scene => scene.id === id);
+}
+
+function applyScene(scene) {
+  if (!scene) return;
+  emitterMappings = structuredClone(scene.mappings || []);
+  tonalityCatalogue = structuredClone(scene.tonalities || tonalityCatalogue).map(normalizedLens);
+  promptInfluenceIn.value = String(scene.promptInfluence ?? promptInfluenceIn.value);
+  tonalityPitchBiasIn.value = String(scene.pitchBias ?? tonalityPitchBiasIn.value);
+  volumeIn.value = String(scene.volume ?? volumeIn.value);
+  const audition = scene.audition || {};
+  pinnedFeatures = new Set((audition.pinned || []).map(Number));
+  mutedFeatures = new Set((audition.muted || []).map(Number));
+  soloFeatures = new Set((audition.solo || []).map(Number));
+  renderMappingEditor();
+  renderLensEditor();
+  renderFeatureBrowser();
+  updateTonalityControlValues();
+  updateVolumeValue();
+  engine.setVolume(Number(volumeIn.value));
+  saveInstrumentState();
+  saveParams();
+  sendParamUpdate({
+    emitter_mappings: structuredClone(emitterMappings),
+    tonality_lenses: collectTonalityLenses(),
+    prompt_influence: Number(promptInfluenceIn.value),
+    tonality_pitch_bias: Number(tonalityPitchBiasIn.value),
+  });
+}
+
+function lerp(a, b, amount) {
+  return Number(a) + ((Number(b) - Number(a)) * amount);
+}
+
+function morphMapping(a, b, amount, index) {
+  const categorical = amount < 0.5 ? a : b;
+  const left = a || b;
+  const right = b || a;
+  return completeMapping({
+    ...categorical,
+    id: `morph-${index}-${categorical.target}`,
+    enabled: Boolean(categorical.enabled),
+    threshold: lerp(left.threshold ?? 0, right.threshold ?? 0, amount),
+    smoothing: lerp(left.smoothing ?? 0, right.smoothing ?? 0, amount),
+    quantize_steps: Math.round(lerp(left.quantize_steps ?? 0, right.quantize_steps ?? 0, amount)),
+    output_min: lerp(left.output_min, right.output_min, amount),
+    output_max: lerp(left.output_max, right.output_max, amount),
+  });
+}
+
+function applySceneMorph() {
+  const left = sceneById(sceneA.value);
+  const right = sceneById(sceneB.value);
+  if (!left || !right) return;
+  const amount = Number(sceneMorph.value);
+  sceneMorphValue.textContent = `${Math.round(amount * 100)}%`;
+  const count = Math.max(left.mappings?.length || 0, right.mappings?.length || 0);
+  emitterMappings = Array.from({ length: count }, (_, index) =>
+    morphMapping(left.mappings[index], right.mappings[index], amount, index)
+  );
+  tonalityCatalogue = structuredClone((amount < 0.5 ? left : right).tonalities || tonalityCatalogue).map(normalizedLens);
+  promptInfluenceIn.value = String(lerp(left.promptInfluence ?? 0.2, right.promptInfluence ?? 0.2, amount));
+  tonalityPitchBiasIn.value = String(lerp(left.pitchBias ?? 0.55, right.pitchBias ?? 0.55, amount));
+  volumeIn.value = String(lerp(left.volume ?? 0.7, right.volume ?? 0.7, amount));
+  renderMappingEditor();
+  renderLensEditor();
+  updateTonalityControlValues();
+  updateVolumeValue();
+  engine.setVolume(Number(volumeIn.value));
+  scheduleMappingUpdate(0);
+  scheduleLensUpdate(0);
+  sendParamUpdate({
+    prompt_influence: Number(promptInfluenceIn.value),
+    tonality_pitch_bias: Number(tonalityPitchBiasIn.value),
+  });
 }
 
 // ── WebSocket ──────────────────────────────────────────────────────────────
@@ -601,9 +1153,16 @@ function handleMessage(msg) {
         loopCountEl.textContent = `Loop: ${msg.loop_count}`;
         loopCountEl.classList.remove("hidden");
       }
-      engine.playNotes(msg.notes ?? [], modeSel.value, parseInt(bpmIn.value));
+      consumeEmitterPayload(msg);
+      engine.playNotes(
+        auditionNotes(msg.notes ?? []),
+        modeSel.value,
+        parseInt(bpmIn.value),
+        currentEmitterControls,
+      );
       renderClusterViz(msg);
       renderTonalityPanel(msg);
+      renderEmitterInspector(msg);
       highlightToken(historyIndex);
       break;
 
@@ -622,6 +1181,12 @@ function handleMessage(msg) {
       setOscStatus(msg.message || "OSC status unavailable", msg.status || "unconfigured");
       break;
 
+    case "tonality_lenses_status":
+      if (msg.status === "embedding") setLensEmbeddingStatus("embedding…", "embedding");
+      else if (msg.status === "ready") setLensEmbeddingStatus(`${msg.lens_count ?? 0} embedded`, "ready");
+      else setLensEmbeddingStatus("embedding error", "error");
+      break;
+
     case "stopped":
       engine.stopAll();
       if (!isRunning) {
@@ -636,6 +1201,203 @@ function handleMessage(msg) {
       sessionActive = false;
       setIdle();
       break;
+  }
+}
+
+function formatSignalValue(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return "—";
+  if (Math.abs(numeric) >= 1000) return numeric.toFixed(0);
+  if (Math.abs(numeric) >= 10) return numeric.toFixed(1);
+  return numeric.toFixed(3);
+}
+
+function consumeEmitterPayload(msg) {
+  const emitter = msg.emitter || {};
+  currentEmitterSignals = emitter.signals || {};
+  currentEmitterControls = emitter.controls || {};
+  currentMappingDiagnostics = emitter.mappings || [];
+  currentVisualControls = Object.fromEntries(
+    Object.entries(currentEmitterControls).filter(([key]) => key.startsWith("visual."))
+  );
+  updateFeatureCatalogue(msg.notes || []);
+  applyVisualControls();
+}
+
+function auditionNotes(notes) {
+  const hasSolo = soloFeatures.size > 0;
+  return notes.filter(note => {
+    const feature = Number(note.feature_index);
+    if (mutedFeatures.has(feature)) return false;
+    return !hasSolo || soloFeatures.has(feature);
+  });
+}
+
+function applyVisualControls() {
+  const panel = document.getElementById("cluster-viz-panel");
+  const canvas = document.getElementById("cluster-canvas");
+  const energy = Math.max(0, Math.min(1, currentVisualControls["visual.energy"] ?? 1));
+  const hue = currentVisualControls["visual.hue"] ?? 0;
+  const motion = Math.max(0, Math.min(1, currentVisualControls["visual.motion"] ?? 0));
+  if (panel) {
+    panel.style.opacity = String(0.55 + (energy * 0.45));
+    panel.style.transform = `translateY(${Math.sin(tokenCount * 0.9) * motion * 4}px)`;
+  }
+  if (canvas) canvas.style.filter = `hue-rotate(${hue}deg) brightness(${0.7 + (energy * 0.6)})`;
+}
+
+function renderEmitterInspector(msg) {
+  if (signalToken) signalToken.textContent = `token ${tokenCount}`;
+  renderSignalMonitor();
+  renderControlMonitor();
+  renderFeatureBrowser();
+  for (const diagnostic of currentMappingDiagnostics) {
+    const row = mappingList?.querySelector(`[data-mapping-id="${CSS.escape(diagnostic.id)}"]`);
+    const readout = row?.querySelector(".mapping-live-readout");
+    if (readout) readout.textContent = `${formatSignalValue(diagnostic.input)} → ${formatSignalValue(diagnostic.output)}`;
+  }
+  if (featureCount) featureCount.textContent = `${(msg.notes || []).length} active`;
+}
+
+function renderSignalMonitor() {
+  if (!signalMonitor) return;
+  signalMonitor.innerHTML = "";
+  signalMonitor.classList.remove("empty-monitor");
+  for (const [key, signal] of Object.entries(currentEmitterSignals)) {
+    const row = document.createElement("div");
+    row.className = "signal-row";
+    row.title = `${key} · normalized ${formatSignalValue(signal.normalized)}`;
+    const fill = document.createElement("div");
+    fill.className = "signal-fill";
+    fill.style.width = `${Math.round(Math.max(0, Math.min(1, signal.normalized || 0)) * 100)}%`;
+    const label = document.createElement("span");
+    label.textContent = signal.label || key;
+    const value = document.createElement("span");
+    value.textContent = `${formatSignalValue(signal.raw)}${signal.unit ? ` ${signal.unit}` : ""}`;
+    row.append(fill, label, value);
+    signalMonitor.appendChild(row);
+  }
+  if (!signalMonitor.children.length) {
+    signalMonitor.classList.add("empty-monitor");
+    signalMonitor.textContent = "No emitter signals in this token.";
+  }
+}
+
+function renderControlMonitor() {
+  if (!controlMonitor) return;
+  const entries = Object.entries(currentEmitterControls);
+  if (controlCount) controlCount.textContent = `${entries.length} active`;
+  controlMonitor.innerHTML = "";
+  controlMonitor.classList.remove("empty-monitor");
+  for (const [key, output] of entries) {
+    const spec = targetSpec(key);
+    const span = Math.max(spec.maximum - spec.minimum, 1e-9);
+    const normalized = Math.max(0, Math.min(1, (output - spec.minimum) / span));
+    const row = document.createElement("div");
+    row.className = "control-row";
+    row.title = key;
+    const fill = document.createElement("div");
+    fill.className = "control-fill";
+    fill.style.width = `${Math.round(normalized * 100)}%`;
+    const label = document.createElement("span");
+    label.textContent = spec.label || key;
+    const value = document.createElement("span");
+    value.textContent = `${formatSignalValue(output)}${spec.unit ? ` ${spec.unit}` : ""}`;
+    row.append(fill, label, value);
+    controlMonitor.appendChild(row);
+  }
+  if (!entries.length) {
+    controlMonitor.classList.add("empty-monitor");
+    controlMonitor.textContent = "No enabled mappings.";
+  }
+}
+
+function updateFeatureCatalogue(notes) {
+  for (const item of featureCatalogue.values()) item.active = false;
+  for (const note of notes) {
+    const index = Number(note.feature_index);
+    if (!Number.isFinite(index)) continue;
+    featureCatalogue.set(index, {
+      ...featureCatalogue.get(index),
+      index,
+      active: true,
+      activation: Number(note.amplitude || 0),
+      description: note.feature_description || "",
+      cluster: note.cluster,
+      clusterName: note.cluster_name || "",
+      color: note.cluster_color || "#888888",
+      rawFreq: Number(note.raw_freq ?? note.freq ?? 0),
+      finalFreq: Number(note.freq ?? 0),
+      instrument: note.instrument || "default",
+    });
+  }
+}
+
+function toggleFeatureSet(target, index) {
+  if (target.has(index)) target.delete(index);
+  else target.add(index);
+  saveInstrumentState();
+  renderFeatureBrowser();
+}
+
+function renderFeatureBrowser() {
+  if (!featureBrowser) return;
+  const query = String(featureSearch?.value || "").trim().toLowerCase();
+  const items = [...featureCatalogue.values()]
+    .filter(item => item.active || pinnedFeatures.has(item.index))
+    .filter(item => {
+      if (!query) return true;
+      return [item.index, item.description, item.clusterName, item.cluster, item.instrument]
+        .some(value => String(value ?? "").toLowerCase().includes(query));
+    })
+    .sort((a, b) => {
+      const pinDifference = Number(pinnedFeatures.has(b.index)) - Number(pinnedFeatures.has(a.index));
+      return pinDifference || Number(b.active) - Number(a.active) || b.activation - a.activation;
+    })
+    .slice(0, 80);
+
+  featureBrowser.innerHTML = "";
+  featureBrowser.classList.remove("empty-monitor");
+  for (const item of items) {
+    const row = document.createElement("div");
+    row.className = "feature-row";
+    row.classList.toggle("is-muted-feature", mutedFeatures.has(item.index));
+    row.classList.toggle("is-solo-feature", soloFeatures.has(item.index));
+    row.style.borderLeftColor = item.color;
+    const actions = document.createElement("div");
+    actions.className = "feature-actions";
+    for (const [label, title, set] of [
+      ["P", "Pin feature", pinnedFeatures],
+      ["M", "Mute in browser audition", mutedFeatures],
+      ["S", "Solo in browser audition", soloFeatures],
+    ]) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = label;
+      button.title = title;
+      button.classList.toggle("active", set.has(item.index));
+      button.addEventListener("click", () => toggleFeatureSet(set, item.index));
+      actions.appendChild(button);
+    }
+    const main = document.createElement("div");
+    main.className = "feature-main";
+    const description = document.createElement("div");
+    description.className = "feature-description";
+    description.textContent = item.description || `feature ${item.index}`;
+    description.title = item.description || `feature ${item.index}`;
+    const meta = document.createElement("div");
+    meta.className = "feature-meta";
+    meta.textContent = `#${item.index} · ${item.clusterName || `cluster ${item.cluster ?? "—"}`} · ${formatSignalValue(item.rawFreq)}→${formatSignalValue(item.finalFreq)} Hz`;
+    main.append(description, meta);
+    const activation = document.createElement("span");
+    activation.className = "feature-activation";
+    activation.textContent = item.active ? formatSignalValue(item.activation) : "idle";
+    row.append(actions, main, activation);
+    featureBrowser.appendChild(row);
+  }
+  if (!items.length) {
+    featureBrowser.classList.add("empty-monitor");
+    featureBrowser.textContent = query ? "No matching active or pinned features." : "Feature evidence will appear here.";
   }
 }
 
@@ -977,7 +1739,8 @@ function drawClusterBars(canvas, notes) {
 
   for (let i = 0; i < sorted.length; i++) {
     const note = sorted[i];
-    const barH = (note.amplitude / maxAmp) * H;
+    const barScale = Math.max(0.25, Math.min(2.5, currentVisualControls["visual.bar_scale"] ?? 1));
+    const barH = Math.min(H, (note.amplitude / maxAmp) * H * barScale);
     const x = i * barW;
     const y = H - barH;
     canvasCtx.fillStyle = note.cluster_color || "#888888";
@@ -1004,6 +1767,23 @@ function resetClusterViz() {
     canvasCtx.clearRect(0, 0, clusterCanvas.width, clusterCanvas.height);
   }
   lastRenderedNotes = [];
+  currentEmitterSignals = {};
+  currentEmitterControls = {};
+  currentMappingDiagnostics = [];
+  currentVisualControls = {};
+  featureCatalogue = new Map([...featureCatalogue].filter(([index]) => pinnedFeatures.has(index)));
+  if (signalToken) signalToken.textContent = "waiting";
+  if (signalMonitor) {
+    signalMonitor.className = "monitor-list empty-monitor";
+    signalMonitor.textContent = "Start a run to inspect normalized signals.";
+  }
+  if (controlMonitor) {
+    controlMonitor.className = "monitor-list empty-monitor";
+    controlMonitor.textContent = "Mappings will appear here.";
+  }
+  if (controlCount) controlCount.textContent = "0 active";
+  renderFeatureBrowser();
+  applyVisualControls();
   renderTonalityIdle();
 }
 
@@ -1072,9 +1852,11 @@ async function resumePipeline() {
   for (const event of buf) {
     if (isPaused) break;
     historyIndex = tokenHistory.indexOf(event);
-    engine.playNotes(event.notes ?? [], modeSel.value, parseInt(bpmIn.value));
+    consumeEmitterPayload(event);
+    engine.playNotes(auditionNotes(event.notes ?? []), modeSel.value, parseInt(bpmIn.value), currentEmitterControls);
     renderClusterVizStatic(event);
     renderTonalityPanel(event);
+    renderEmitterInspector(event);
     highlightToken(historyIndex);
     tokenCount++;
     setStatus(`Tokens: ${tokenCount}`);
@@ -1090,9 +1872,11 @@ function navigatePrev() {
   historyIndex--;
   const event = tokenHistory[historyIndex];
   engine.stopAll();
-  engine.playNotes(event.notes ?? [], modeSel.value, parseInt(bpmIn.value));
+  consumeEmitterPayload(event);
+  engine.playNotes(auditionNotes(event.notes ?? []), modeSel.value, parseInt(bpmIn.value), currentEmitterControls);
   renderClusterVizStatic(event);
   renderTonalityPanel(event);
+  renderEmitterInspector(event);
   highlightToken(historyIndex);
   btnPrev.disabled = historyIndex <= 0;
   btnNext.disabled = false;
@@ -1104,9 +1888,11 @@ function navigateNext() {
   historyIndex++;
   const event = tokenHistory[historyIndex];
   engine.stopAll();
-  engine.playNotes(event.notes ?? [], modeSel.value, parseInt(bpmIn.value));
+  consumeEmitterPayload(event);
+  engine.playNotes(auditionNotes(event.notes ?? []), modeSel.value, parseInt(bpmIn.value), currentEmitterControls);
   renderClusterVizStatic(event);
   renderTonalityPanel(event);
+  renderEmitterInspector(event);
 
   // Append text span if this token was never live-rendered (arrived while paused)
   const textContent = document.getElementById("cv-text-content");
@@ -1216,7 +2002,11 @@ oscMaxNotesIn.addEventListener("change", () => {
   scheduleOscUpdate(0);
 });
 
-volumeIn.addEventListener("input", () => engine.setVolume(parseFloat(volumeIn.value)));
+volumeIn.addEventListener("input", () => {
+  engine.setVolume(parseFloat(volumeIn.value));
+  updateVolumeValue();
+  saveParams();
+});
 
 tonalityEnabledCb.addEventListener("change", () => {
   syncTonalityControls();
@@ -1244,16 +2034,87 @@ btnAddLens.addEventListener("click", () => {
     name: "new lens",
     description: "type a sonic-interpretive description",
     intervals: [0, 2, 7],
+    enabled: true,
   });
   renderLensEditor();
   scheduleLensUpdate(0);
 });
 
 btnResetLenses.addEventListener("click", () => {
-  tonalityCatalogue = defaultTonalityCatalogue.map(entry => ({ ...entry }));
+  tonalityCatalogue = structuredClone(defaultTonalityCatalogue);
   renderLensEditor();
   scheduleLensUpdate(0);
 });
+
+for (const tab of document.querySelectorAll("[data-control-tab]")) {
+  tab.addEventListener("click", () => {
+    const target = tab.dataset.controlTab;
+    for (const item of document.querySelectorAll("[data-control-tab]")) {
+      item.classList.toggle("active", item === tab);
+    }
+    for (const page of document.querySelectorAll("[data-control-page]")) {
+      page.classList.toggle("hidden", page.dataset.controlPage !== target);
+    }
+  });
+}
+
+btnAddMapping.addEventListener("click", () => {
+  const maximum = mappingCatalogue.max_mappings || 32;
+  if (emitterMappings.length >= maximum) return;
+  emitterMappings.push(completeMapping());
+  renderMappingEditor();
+  scheduleMappingUpdate(0);
+});
+
+btnResetMappings.addEventListener("click", () => {
+  emitterMappings = structuredClone(defaultEmitterMappings);
+  renderMappingEditor();
+  scheduleMappingUpdate(0);
+});
+
+btnClearMappings.addEventListener("click", () => {
+  emitterMappings = [];
+  renderMappingEditor();
+  scheduleMappingUpdate(0);
+});
+
+btnApplyTemplate.addEventListener("click", () => {
+  emitterMappings = templateMappings(mappingTemplate.value);
+  renderMappingEditor();
+  scheduleMappingUpdate(0);
+});
+
+btnSaveScene.addEventListener("click", () => {
+  const name = sceneName.value.trim();
+  if (!name) return;
+  const scene = captureScene(name);
+  const existingIndex = instrumentScenes.findIndex(item => item.name.toLowerCase() === name.toLowerCase() && !item.builtin);
+  if (existingIndex >= 0) {
+    scene.id = instrumentScenes[existingIndex].id;
+    instrumentScenes[existingIndex] = scene;
+  } else {
+    instrumentScenes.push(scene);
+  }
+  sceneName.value = "";
+  saveScenes();
+  renderSceneSelectors();
+  sceneSelect.value = scene.id;
+});
+
+btnLoadScene.addEventListener("click", () => applyScene(sceneById(sceneSelect.value)));
+
+btnDeleteScene.addEventListener("click", () => {
+  const scene = sceneById(sceneSelect.value);
+  if (!scene || scene.builtin) return;
+  instrumentScenes = instrumentScenes.filter(item => item.id !== scene.id);
+  saveScenes();
+  renderSceneSelectors();
+});
+
+sceneMorph.addEventListener("input", applySceneMorph);
+sceneA.addEventListener("change", applySceneMorph);
+sceneB.addEventListener("change", applySceneMorph);
+featureSearch.addEventListener("input", renderFeatureBrowser);
 
 // ── Init ───────────────────────────────────────────────────────────────────
 loadOptions();

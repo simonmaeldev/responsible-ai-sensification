@@ -1,6 +1,6 @@
 # Project State
 
-Last updated: 2026-08-04
+Last updated: 2026-08-05
 
 ## Branch
 
@@ -14,7 +14,8 @@ git branch --show-current
 
 ## Current Mode
 
-Implementation is active on the paper-driven semantic-tonality GUI direction.
+Implementation is active on the GPU emitter as a paper-driven live mapping
+instrument.
 
 The current interface now exposes a local MiniLM-based semantic-tonality layer:
 verbal tonality descriptions and active SAE feature descriptions share the same
@@ -39,6 +40,28 @@ runs. The Ubuntu GPU PC sent `/rai/v1` UDP to the Windows Live-hosted receiver,
 and the receiver's OSCQuery state confirmed the expected fixture fields and a
 real three-token Gemma/SAE stream carrying capped, final post-tonality notes.
 
+The emitter now has a canonical, receiver-independent control bus. Each token
+can expose 18 raw/normalized Gemma Scope, SAE, Neuronpedia-coverage, cluster,
+semantic-tonality, pitch, and generation signals. A live mapping matrix turns
+them into 14 bounded browser audio/visual targets without modifying raw feature
+evidence or final post-tonality notes.
+
+## Emitter, Connector, Receiver
+
+- **Emitter:** observes model/SAE data and creates locally inspectable signals,
+  artistic interpretations, and mappings. It can be any compatible runtime; the
+  current emitter is FastAPI plus the browser GUI on the Ubuntu GPU PC.
+- **Connector:** transports selected emitter events and controls without
+  defining their artistic meaning. It can use any bounded transport; current
+  external communication uses `/rai/v1` OSC, while the emitter browser uses an
+  internal WebSocket.
+- **Receiver:** consumes connector data and applies it elsewhere. It can be
+  Ableton, TouchDesigner, ossia, another browser, hardware, or another system;
+  the current receiver is the Windows Max for Live/ossia device.
+
+These roles may move between processes or machines. New emitter capabilities
+must be usable locally before a connector contract or receiver mapping is added.
+
 Agent workflow clarification: use Codex for planning, implementation, review, and
 remote-machine coordination. Do not assume Anthropic/Claude tooling for agentic
 project work.
@@ -46,9 +69,9 @@ project work.
 ## Machine Topology
 
 - **Ubuntu GPU PC**: runs Gemma/SAE inference, FastAPI, the browser interface,
-  and the completed outbound OSC emitter.
+  the current emitter instrument, and the outbound OSC connector implementation.
 - **Windows laptop**: runs Ableton Live, Max for Live, and ossia; it hosts the
-  Max/ossia receiver and remains the Phase 5B audible-output verification target.
+  current receiver and remains the audible-output verification target.
 - **Ubuntu laptop**: a separate lightweight development/control environment; no
   GPU, Ableton, Max, or shared-cache assumptions should be made.
 
@@ -143,6 +166,27 @@ OSC/OSCQuery moves live performance data.
   two-note cap, tonality `luminous resolve`, pitch bias `0.55`, and clean
   `run_stop`. The received frame preserved final post-tonality frequencies and
   SAE activation, feature, cluster, and instrument data.
+- Added the receiver-independent GPU emitter mapping instrument. The browser now
+  separates Source, Tonality, Mappings, and Connector controls; exposes 18 raw
+  and normalized signal types and 14 bounded browser targets; and includes
+  activation, semantic, and sparse-detail templates.
+- Added browser-audio mappings for gain, pitch, note density, duration, timbre,
+  pan, filter/resonance, and delay, plus visual energy, hue, motion, and
+  activation-bar scale.
+- Added a searchable live SAE/Neuronpedia feature browser with raw/interpreted
+  frequency, activation, cluster, instrument, pin, mute, and solo controls.
+- Added local instrument scenes with save/recall and A/B morphing. Scenes capture
+  mappings, tonal lenses, prompt/pitch interpretation, volume, and local feature
+  audition state.
+- Expanded the live lens editor with enable/disable, duplicate, reorder, remove,
+  reset, and honest MiniLM embedding status. A real cached-model smoke test
+  reported `embedding` then `1 embedded`, excluded a disabled lens, and selected
+  the edited `glass current` lens for both following tokens.
+- Verified a live mapping edit without restarting generation: three real
+  Gemma/SAE tokens each exposed all 18 signals and used the newly selected
+  `feature.top_share` to `audio.pan` mapping. The complete server suite now
+  passes with 60 tests, the 95-ID browser DOM harness passes, and JavaScript
+  syntax checks pass.
 
 ## Local Reference Material
 
@@ -159,6 +203,9 @@ Use the new interface already present in this repo:
 - Cluster visualization.
 - Generated text output linked to token playback.
 - Enriched cluster naming/colors.
+- Receiver-independent emitter signal monitor and mapping matrix.
+- Searchable/pinnable/muteable/soloable SAE feature evidence.
+- Local mapping scenes and A/B morphing.
 
 Avoid reverting to the older archive interface.
 
@@ -173,8 +220,24 @@ Avoid reverting to the older archive interface.
   the app as reference context.
 - Whether Ableton or the app should be the master clock for the first
   two-machine performance test.
+- Which validated emitter controls should eventually be added to a future
+  connector contract; do not assume every internal signal belongs on the wire.
 
 ## Handoff Notes
+
+### Immediate Ubuntu GPU PC emitter handoff
+
+The emitter instrument is implemented and verified locally. Start it with
+`./scripts/start.sh`, open `http://127.0.0.1:8080`, and use the Source, Tonality,
+and Mappings tabs with OSC disabled. Begin with one of the three templates,
+watch raw/normalized values in the emitter inspector, search or audition SAE
+features, then save useful combinations as scenes. Mapping and lens changes
+apply to subsequent tokens without a restart.
+
+Do not expand OSC or change the Windows receiver merely because a new local
+mapping exists. First evaluate which emitter controls are musically useful in
+the browser; a later Connector phase can version and transport the selected
+subset.
 
 ### Immediate integration status and next action
 

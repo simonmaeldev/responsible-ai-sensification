@@ -46,12 +46,21 @@ The goal is to make agent work persistent, scoped, and easy to restart without l
 
 ## Multi-Machine Work
 
+- Start by naming the logical role in scope: Emitter, Connector, or Receiver.
+  Roles are portable responsibilities and may be implemented by different
+  applications, protocols, and machines in future setups.
 - Ubuntu GPU PC: Gemma/SAE inference, FastAPI, browser UI, OSC emission, and
-  server-side automated tests.
+  server-side automated tests. It is the current Emitter host.
 - Windows laptop: Ableton Live, Max for Live, ossia receiver, Live API mapping,
-  and audible end-to-end validation.
+  and audible end-to-end validation. It is the current Receiver host.
 - Ubuntu laptop: browser/control use and lightweight work unless the user assigns
   a different role; never assume a GPU.
+- A Connector is the transport boundary between an Emitter and Receiver, not a
+  synonym for either machine. Current external transport is OSC v1; the browser
+  WebSocket is an internal emitter transport.
+- Emitter work must run and be observable locally with external connectors off.
+  Establish named emitter controls before deciding which controls a connector
+  should carry or how a receiver should apply them.
 - Use a separate clone on each computer. Use separate branches when both sides
   are being developed concurrently, and merge through Git after each side is
   independently understandable.

@@ -22,136 +22,197 @@
     <main class="main-layout">
       <!-- Left panel: controls -->
       <aside class="controls">
-
-        <section class="control-group">
-          <label>Model</label>
-          <select id="model"></select>
-        </section>
-
-        <section class="control-group">
-          <label>Layer</label>
-          <select id="layer"></select>
-        </section>
-
-        <section class="control-group">
-          <label>Width</label>
-          <select id="width"></select>
-        </section>
-
-        <section class="control-group">
-          <label class="control-label-row">
-            Strategy
-            <span class="help-icon" id="strategy-help" data-tooltip="">?</span>
-          </label>
-          <select id="strategy"></select>
-        </section>
-
-        <div id="clusters-group" class="hidden">
-          <section class="control-group">
-            <label>Clusters</label>
-            <input id="clusters" type="number" min="2" max="128" value="8" />
-          </section>
+        <div class="emitter-identity">
+          <span>GPU Emitter</span>
+          <small>Gemma Scope · SAE · semantic instrument</small>
         </div>
 
-        <section class="control-group">
-          <label class="control-label-row">
-            Max tokens
-            <span class="help-icon" data-tooltip="Set to 0 for unlimited tokens.">?</span>
-          </label>
-          <input id="max-tokens" type="number" min="0" value="200" />
-        </section>
+        <nav class="control-tabs" aria-label="Emitter controls">
+          <button type="button" class="control-tab active" data-control-tab="source">Source</button>
+          <button type="button" class="control-tab" data-control-tab="tonality">Tonality</button>
+          <button type="button" class="control-tab" data-control-tab="mapping">Mappings</button>
+          <button type="button" class="control-tab" data-control-tab="output">Connector</button>
+        </nav>
 
-        <section class="control-group">
-          <label class="control-label-row">
-            Mode
-            <span class="help-icon" id="mode-help" data-tooltip="">?</span>
-          </label>
-          <select id="mode"></select>
-        </section>
-
-        <div id="bpm-group" class="hidden">
+        <div class="control-page" data-control-page="source">
+          <section class="control-group">
+            <label>Model</label>
+            <select id="model"></select>
+          </section>
+          <section class="control-group">
+            <label>Layer</label>
+            <select id="layer"></select>
+          </section>
+          <section class="control-group">
+            <label>Width</label>
+            <select id="width"></select>
+          </section>
           <section class="control-group">
             <label class="control-label-row">
-              BPM
-              <span class="help-icon" data-tooltip="Beats per minute — controls how fast tokens are paced in timed mode. 60 BPM = 1 s/token, 120 BPM = 0.5 s/token.">?</span>
+              Strategy
+              <span class="help-icon" id="strategy-help" data-tooltip="">?</span>
             </label>
-            <input id="bpm" type="number" min="1" max="600" value="120" />
+            <select id="strategy"></select>
           </section>
-        </div>
-
-        <section class="control-group">
-          <label class="checkbox-label">
-            <input id="loop" type="checkbox" />
-            Loop
-          </label>
-        </section>
-
-        <section class="control-group external-output-heading">
-          <label class="checkbox-label">
-            <input id="osc-enabled" type="checkbox" />
-            OSC output
-          </label>
-        </section>
-
-        <div id="osc-controls" class="external-output hidden">
-          <section class="control-group">
-            <label>Destination host/IP</label>
-            <input id="osc-host" type="text" value="" placeholder="Host or IP address" autocomplete="off" />
-          </section>
-          <div class="external-output-grid">
+          <div id="clusters-group" class="hidden">
             <section class="control-group">
-              <label>UDP port</label>
-              <input id="osc-port" type="number" min="1" max="65535" value="9000" />
-            </section>
-            <section class="control-group">
-              <label>Notes/token</label>
-              <input id="osc-max-notes" type="number" min="1" max="128" value="32" />
+              <label>Clusters</label>
+              <input id="clusters" type="number" min="2" max="128" value="8" />
             </section>
           </div>
-          <div id="osc-status" class="osc-status" data-state="disabled">OSC disabled</div>
-        </div>
-
-        <section class="control-group">
-          <label>Volume</label>
-          <input id="volume" type="range" min="0" max="1" step="0.01" value="0.7" />
-        </section>
-
-        <section class="control-group">
-          <label class="checkbox-label">
-            <input id="tonality-enabled" type="checkbox" checked />
-            Semantic tonality
-          </label>
-        </section>
-
-        <div id="tonality-controls">
-          <section class="control-group">
-            <label class="range-label">
-              <span>Prompt blend</span>
-              <span id="prompt-influence-value">20%</span>
-            </label>
-            <input id="prompt-influence" type="range" min="0" max="1" step="0.01" value="0.2" />
-          </section>
-
-          <section class="control-group">
-            <label class="range-label">
-              <span>Raw / interpreted</span>
-              <span id="tonality-pitch-bias-value">55%</span>
-            </label>
-            <input id="tonality-pitch-bias" type="range" min="0" max="1" step="0.01" value="0.55" />
-            <div class="mini-actions">
-              <button id="btn-raw-sound" type="button">Raw</button>
-              <button id="btn-interpreted-sound" type="button">Interpreted</button>
-            </div>
-          </section>
-
           <section class="control-group">
             <label class="control-label-row">
-              Performance lenses
-              <button id="btn-add-lens" class="mini-icon-btn" type="button" title="Add lens">+</button>
-              <button id="btn-reset-lenses" class="mini-icon-btn" type="button" title="Reset lenses">↺</button>
+              Max tokens
+              <span class="help-icon" data-tooltip="Set to 0 for unlimited tokens.">?</span>
             </label>
-            <div id="tonality-lens-list"></div>
+            <input id="max-tokens" type="number" min="0" value="200" />
           </section>
+          <section class="control-group">
+            <label class="control-label-row">
+              Mode
+              <span class="help-icon" id="mode-help" data-tooltip="">?</span>
+            </label>
+            <select id="mode"></select>
+          </section>
+          <div id="bpm-group" class="hidden">
+            <section class="control-group">
+              <label class="control-label-row">
+                BPM
+                <span class="help-icon" data-tooltip="Beats per minute — controls token pacing in timed mode.">?</span>
+              </label>
+              <input id="bpm" type="number" min="1" max="600" value="120" />
+            </section>
+          </div>
+          <section class="control-group source-inline-controls">
+            <label class="checkbox-label">
+              <input id="loop" type="checkbox" />
+              Loop
+            </label>
+          </section>
+          <section class="control-group">
+            <label class="range-label">
+              <span>Master volume</span>
+              <span id="volume-value">70%</span>
+            </label>
+            <input id="volume" type="range" min="0" max="1" step="0.01" value="0.7" />
+          </section>
+        </div>
+
+        <div class="control-page hidden" data-control-page="tonality">
+          <section class="control-group">
+            <label class="checkbox-label">
+              <input id="tonality-enabled" type="checkbox" checked />
+              Semantic tonality
+            </label>
+          </section>
+          <div id="tonality-controls">
+            <section class="control-group">
+              <label class="range-label">
+                <span>Prompt blend</span>
+                <span id="prompt-influence-value">20%</span>
+              </label>
+              <input id="prompt-influence" type="range" min="0" max="1" step="0.01" value="0.2" />
+            </section>
+            <section class="control-group">
+              <label class="range-label">
+                <span>Raw / interpreted</span>
+                <span id="tonality-pitch-bias-value">55%</span>
+              </label>
+              <input id="tonality-pitch-bias" type="range" min="0" max="1" step="0.01" value="0.55" />
+              <div class="mini-actions">
+                <button id="btn-raw-sound" type="button">Raw</button>
+                <button id="btn-interpreted-sound" type="button">Interpreted</button>
+              </div>
+            </section>
+            <section class="control-group lens-editor-group">
+              <label class="control-label-row">
+                Performance lenses
+                <span id="lens-embedding-status" class="inline-status" data-state="ready">ready</span>
+                <button id="btn-add-lens" class="mini-icon-btn" type="button" title="Add lens">+</button>
+                <button id="btn-reset-lenses" class="mini-icon-btn" type="button" title="Reset lenses">↺</button>
+              </label>
+              <div id="tonality-lens-list"></div>
+            </section>
+          </div>
+        </div>
+
+        <div class="control-page hidden" data-control-page="mapping">
+          <section class="instrument-section">
+            <div class="section-title">Instrument scenes</div>
+            <div class="scene-save-row">
+              <input id="scene-name" type="text" placeholder="Scene name" />
+              <button id="btn-save-scene" type="button">Save</button>
+            </div>
+            <div class="scene-load-row">
+              <select id="scene-select"></select>
+              <button id="btn-load-scene" type="button">Load</button>
+              <button id="btn-delete-scene" class="danger-quiet" type="button">×</button>
+            </div>
+            <div class="scene-morph-grid">
+              <select id="scene-a" title="Morph scene A"></select>
+              <select id="scene-b" title="Morph scene B"></select>
+            </div>
+            <label class="range-label morph-label">
+              <span>A/B morph</span>
+              <span id="scene-morph-value">0%</span>
+            </label>
+            <input id="scene-morph" type="range" min="0" max="1" step="0.01" value="0" />
+          </section>
+
+          <section class="instrument-section">
+            <div class="section-title-row">
+              <span>Mapping matrix</span>
+              <span id="mapping-count" class="inline-status">0</span>
+            </div>
+            <div class="mapping-actions">
+              <select id="mapping-template">
+                <option value="activation">Activation performance</option>
+                <option value="semantic">Semantic drift</option>
+                <option value="sparse">Sparse detail</option>
+              </select>
+              <button id="btn-apply-template" type="button">Template</button>
+              <button id="btn-add-mapping" type="button">+</button>
+            </div>
+            <div id="mapping-list"></div>
+            <div class="mini-actions">
+              <button id="btn-reset-mappings" type="button">Starter mappings</button>
+              <button id="btn-clear-mappings" type="button">Clear</button>
+            </div>
+          </section>
+        </div>
+
+        <div class="control-page hidden" data-control-page="output">
+          <div class="role-card">
+            <strong>Connector</strong>
+            <span>Moves selected emitter data. It does not define the instrument.</span>
+          </div>
+          <section class="control-group external-output-heading">
+            <label class="checkbox-label">
+              <input id="osc-enabled" type="checkbox" />
+              OSC v1 output
+            </label>
+          </section>
+          <div id="osc-controls" class="external-output hidden">
+            <section class="control-group">
+              <label>Destination host/IP</label>
+              <input id="osc-host" type="text" value="" placeholder="Host or IP address" autocomplete="off" />
+            </section>
+            <div class="external-output-grid">
+              <section class="control-group">
+                <label>UDP port</label>
+                <input id="osc-port" type="number" min="1" max="65535" value="9000" />
+              </section>
+              <section class="control-group">
+                <label>Notes/token</label>
+                <input id="osc-max-notes" type="number" min="1" max="128" value="32" />
+              </section>
+            </div>
+            <div id="osc-status" class="osc-status" data-state="disabled">OSC disabled</div>
+          </div>
+          <div class="role-card muted-role">
+            <strong>Receiver</strong>
+            <span>Ableton, TouchDesigner, ossia, hardware, or another destination.</span>
+          </div>
         </div>
 
         <div id="status" class="status">
@@ -193,6 +254,30 @@
           <div id="cv-text-output">
             <div id="cv-text-content"></div>
           </div>
+          <section id="emitter-inspector">
+            <div class="inspector-column">
+              <div class="inspector-heading">
+                <span>Emitter signals</span>
+                <span id="signal-token">waiting</span>
+              </div>
+              <div id="signal-monitor" class="monitor-list empty-monitor">Start a run to inspect normalized signals.</div>
+            </div>
+            <div class="inspector-column">
+              <div class="inspector-heading">
+                <span>Mapped controls</span>
+                <span id="control-count">0 active</span>
+              </div>
+              <div id="control-monitor" class="monitor-list empty-monitor">Mappings will appear here.</div>
+            </div>
+            <div class="inspector-column feature-browser-column">
+              <div class="inspector-heading">
+                <span>SAE feature browser</span>
+                <span id="feature-count">0 active</span>
+              </div>
+              <input id="feature-search" type="search" placeholder="Search index, cluster, Neuronpedia description…" />
+              <div id="feature-browser" class="feature-list empty-monitor">Feature evidence will appear here.</div>
+            </div>
+          </section>
         </div>
       </section>
     </main>

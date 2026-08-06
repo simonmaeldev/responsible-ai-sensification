@@ -17,6 +17,26 @@ Before making non-trivial changes, read:
 
 If the user adds a term paper or design document, treat it as the primary design context before proposing implementation.
 
+## Logical Architecture
+
+Treat Emitter, Connector, and Receiver as logical roles, not permanent protocols,
+applications, operating systems, or physical computers:
+
+- **Emitter** observes a model/SAE runtime and creates inspectable raw signals,
+  artistic interpretations, and mapped controls. It must remain useful locally
+  without a connector or receiver.
+- **Connector** transports selected emitter data without owning its artistic
+  meaning. OSC is one connector; WebSockets, OSCQuery, MIDI, files, or other
+  bounded transports may be used later.
+- **Receiver** consumes connector data and applies it in an external context
+  such as Ableton, TouchDesigner, ossia, a browser, or hardware.
+
+In the current setup, the FastAPI/browser application on the Ubuntu GPU PC is
+the emitter, outbound `/rai/v1` OSC is the external connector, and the Windows
+Max for Live/ossia device is the receiver. Do not make emitter features depend
+on a particular connector or receiver. Validate mappings in browser audio and
+visuals before expanding an external transport contract.
+
 ## Execution Environment
 
 At the start of every task, explicitly identify the machine where commands and

@@ -195,6 +195,8 @@ def coerce_tonality_lenses(raw_lenses: list[dict[str, Any]]) -> TonalityDescript
     tonalities = []
     seen: set[str] = set()
     for raw in raw_lenses:
+        if raw.get("enabled") is False:
+            continue
         name = str(raw.get("name") or "").strip()
         description = str(raw.get("description") or "").strip()
         if not name or not description or name in seen:

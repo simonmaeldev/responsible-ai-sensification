@@ -59,3 +59,23 @@ def test_pipeline_params_update_coerces_and_bounds_osc_settings():
 
     assert params.osc_port == 65_535
     assert params.osc_max_notes_per_token == 128
+
+
+def test_pipeline_params_coerces_live_emitter_mappings():
+    params = PipelineParams()
+
+    params.update(
+        emitter_mappings=[
+            {
+                "id": "live",
+                "source": "activation.max",
+                "target": "audio.pitch_semitones",
+                "output_min": -999,
+                "output_max": 999,
+            }
+        ]
+    )
+
+    assert params.emitter_mappings[0]["id"] == "live"
+    assert params.emitter_mappings[0]["output_min"] == -24
+    assert params.emitter_mappings[0]["output_max"] == 24

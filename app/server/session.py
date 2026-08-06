@@ -3,6 +3,11 @@ import asyncio
 from dataclasses import dataclass, field
 from typing import Any
 
+from app.server.pipeline.emitter_mapping import (
+    coerce_emitter_mappings,
+    default_emitter_mappings,
+)
+
 
 @dataclass
 class PipelineParams:
@@ -26,6 +31,7 @@ class PipelineParams:
     prompt_influence: float = 0.2
     tonality_pitch_bias: float = 0.55
     tonality_lenses: list[dict] = field(default_factory=list)
+    emitter_mappings: list[dict] = field(default_factory=default_emitter_mappings)
     osc_enabled: bool = False
     osc_host: str = ""
     osc_port: int = 9000
@@ -57,6 +63,8 @@ class PipelineParams:
                 value = str(value)
                 if key == "osc_host":
                     value = value.strip()
+            elif key == "emitter_mappings":
+                value = coerce_emitter_mappings(value)
             setattr(self, key, value)
 
 

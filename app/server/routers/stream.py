@@ -4,6 +4,7 @@ import dataclasses
 import json
 import logging
 import sys
+import threading
 import uuid
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -25,6 +26,7 @@ _enriched_cluster_cache: dict[tuple, dict] = {}
 
 # Semantic tonality runtime cache: embed_model -> {cache, embedder}
 _tonality_runtime_cache: dict[str, dict] = {}
+_tonality_runtime_lock = threading.RLock()
 
 # One shared session (single-user for now)
 _session = PipelineSession()
@@ -106,7 +108,7 @@ def _get_tonality_runtime() -> dict:
     return runtime
 
 
-def _get_tonality_cache_runtime(raw_lenses: list[dict] | None = None) -> dict:
+def _get_tonality_cache_runtime_unlocked(raw_lenses: list[dict] | None = None) -> dict:
     """Return an embedded tonality cache for the current live lens set."""
     import hashlib
 
@@ -140,6 +142,38 @@ def _get_tonality_cache_runtime(raw_lenses: list[dict] | None = None) -> dict:
     }
     _tonality_runtime_cache[cache_key] = runtime
     return runtime
+
+
+def _get_tonality_cache_runtime(raw_lenses: list[dict] | None = None) -> dict:
+    """Serialize MiniLM cache builds so live edits cannot race generation."""
+    with _tonality_runtime_lock:
+        return _get_tonality_cache_runtime_unlocked(raw_lenses)
+
+
+async def _prepare_live_tonality_lenses(ws: WebSocket, lenses: list[dict]) -> None:
+    """Re-embed edited lens text and report an honest browser-visible status."""
+    await _send(ws, {"type": "tonality_lenses_status", "status": "embedding"})
+    try:
+        runtime = await asyncio.to_thread(_get_tonality_cache_runtime, lenses)
+    except Exception as exc:
+        logger.exception("Could not embed live tonality lenses")
+        await _send(
+            ws,
+            {
+                "type": "tonality_lenses_status",
+                "status": "error",
+                "message": str(exc),
+            },
+        )
+        return
+    await _send(
+        ws,
+        {
+            "type": "tonality_lenses_status",
+            "status": "ready",
+            "lens_count": runtime["lens_count"],
+        },
+    )
 
 
 async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
@@ -261,6 +295,7 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
         await _send(ws, {"type": "loading", "stage": "Running generation..."})
 
         from app.server.pipeline.extract import inspect_live
+        from app.server.pipeline.emitter_mapping import EmitterMappingRuntime
         from app.server.pipeline.semantic_tonality import (
             TonalityMemory,
             apply_tonality_pitch_bias,
@@ -306,6 +341,7 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
         collected: list[dict] = []
         event_loop = asyncio.get_running_loop()
         tonality_memory = TonalityMemory()
+        emitter_mapping_runtime = EmitterMappingRuntime()
 
         async def _producer():
             try:
@@ -381,6 +417,16 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
                             "token_id": token_analysis.token_id,
                             "elapsed_ms": elapsed_ms,
                             "notes": notes,
+                            "emitter": emitter_mapping_runtime.build_payload(
+                                active_features=active_features,
+                                notes=notes,
+                                tonality=tonality_payload,
+                                mappings=params.emitter_mappings,
+                                elapsed_ms=elapsed_ms,
+                                token_index=token_count,
+                                max_tokens=params.max_tokens,
+                                width=params.width,
+                            ),
                         }
                         if tonality_payload is not None:
                             event["tonality"] = tonality_payload
@@ -494,6 +540,11 @@ async def ws_stream(ws: WebSocket) -> None:
             elif action == "update_params":
                 raw_params = msg.get("params", {})
                 _session.params.update(**raw_params)
+                if "tonality_lenses" in raw_params:
+                    await _prepare_live_tonality_lenses(
+                        ws,
+                        _session.params.tonality_lenses,
+                    )
                 if _session.osc_output is not None:
                     await _sync_live_osc_controls(
                         ws,

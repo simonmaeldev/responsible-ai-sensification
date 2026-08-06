@@ -148,6 +148,40 @@ Status: in progress; fixture and real-model transport verified
 The focused contract and machine boundaries are in
 `specs/ableton-osc-bridge.md`.
 
+## Phase 6: Receiver-Independent GPU Emitter Instrument
+
+Status: complete; hands-on artistic evaluation next
+
+Goal: make Gemma Scope, SAE, Neuronpedia, and semantic-tonality mappings exist
+and remain playable inside the emitter before exposing more controls through a
+connector.
+
+Implemented:
+
+- Formalized Emitter, Connector, and Receiver as portable logical roles.
+- Added a canonical per-token emitter payload with 18 raw/normalized source
+  signals, bounded control outputs, and per-mapping diagnostics.
+- Added a live mapping matrix with curves, threshold, inversion, quantization,
+  smoothing, and safe output ranges.
+- Added browser targets for gain, pitch, density, duration, timbre, pan, filter,
+  resonance, delay, visual energy/hue/motion, and activation-bar scale.
+- Added a searchable SAE/Neuronpedia feature browser with pin/mute/solo local
+  audition, raw and interpreted frequencies, activation, cluster, and timbre.
+- Added mapping templates, local scene save/recall, and A/B morphing.
+- Expanded live verbal lenses with enable/disable, duplication, ordering, and
+  visible MiniLM embedding status.
+- Verified live mapping replacement and verbal-lens re-embedding with real
+  cached Gemma/SAE token streams; complete server suite passes with 60 tests.
+
+Next evaluation:
+
+- Play the emitter with external output disabled and identify the most useful
+  signal/target combinations.
+- Only then specify a versioned Connector extension for the selected mapped
+  controls and decide how particular Receivers should consume them.
+
+The focused implementation contract is in `specs/emitter-instrument.md`.
+
 ## Later Candidate Features
 
 Good later steps:

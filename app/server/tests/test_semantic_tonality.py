@@ -76,6 +76,17 @@ def test_load_default_tonality_descriptions():
     assert tonality_set.tonalities[0].intervals
 
 
+def test_disabled_live_tonality_lens_is_excluded():
+    tonality_set = coerce_tonality_lenses(
+        [
+            {"name": "off", "description": "disabled", "intervals": [0], "enabled": False},
+            {"name": "on", "description": "enabled", "intervals": [0, 7], "enabled": True},
+        ]
+    )
+
+    assert [item.name for item in tonality_set.tonalities] == ["on"]
+
+
 def test_load_legacy_key_style_descriptions(tmp_path):
     path = tmp_path / "keys.json"
     path.write_text(json.dumps({

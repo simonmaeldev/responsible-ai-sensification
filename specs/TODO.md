@@ -12,8 +12,20 @@ priority takes precedence over the older numeric ordering.
   intervals can be changed from the GUI before or during generation; raw versus
   interpreted pitch blend is exposed; token payloads include run-level tonality
   memory and active-feature evidence.
+- Receiver-independent GPU emitter instrument: 18 raw/normalized model, SAE,
+  Neuronpedia-coverage, cluster, semantic, pitch, and generation signals can be
+  mapped live to 14 bounded browser audio/visual targets. Includes templates,
+  signal/control monitoring, feature search/pin/mute/solo, saved scenes, A/B
+  morphing, and visible verbal-lens re-embedding status.
 
-## Current priority: Ableton OSC bridge
+## Current priority: play and evaluate the emitter
+
+- Run with OSC disabled and evaluate mappings locally in browser audio/visuals.
+- Save promising mapping/lens combinations as scenes.
+- Choose which proven internal controls belong in a future Connector contract;
+  do not automatically expose every model signal to every Receiver.
+
+## Established connector/receiver path: Ableton OSC bridge
 
 - **Ubuntu GPU PC (complete):** optional, live-configurable `/rai/v1` OSC
   emission is implemented and verified against a local UDP receiver.
