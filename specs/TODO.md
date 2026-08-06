@@ -21,6 +21,9 @@ priority takes precedence over the older numeric ordering.
   selected-layer residuals, output logits, SAE/Neuronpedia, semantic proofs of
   concept, pitch, and generation. Live selection, opt-in high-bandwidth streams,
   route visibility, and a compact visual-mapping disclosure are implemented.
+- Emitter loading feedback: six structured preparation stages now report model,
+  SAE, Neuronpedia cache/download, feature organization, semantic tonality, and
+  first-token generation progress in the existing GUI.
 
 ## Current priority: play and evaluate the emitter
 
@@ -52,15 +55,12 @@ The bottom-right panel is currently a static placeholder.
 - Could also call an external image generation API conditioned on the generated text.
 - Decide approach when implementing.
 
-## 2. Neuronpedia download progress
-The initial model + SAE + Neuronpedia load can take 30–60 s. Add a proper progress bar in the UI fed by server-sent `loading` events, showing each stage (model load, SAE load, Neuronpedia cache hit/download).
-
-## 3. Session history & replay
+## 2. Session history & replay
 - Save each completed run (prompt + all token events) to `runs/` as NDJSON.
 - Add a "History" panel in the UI to list past runs and replay them without re-running the model.
 - Reuse the existing `export.py` / `runs/` convention.
 
-## 4. Instrument attribution per cluster 
+## 3. Instrument attribution per cluster
 - in a scroll box, display for each cluster:
   - the number of the cluster
   - which sound pack it plays (not clear how to do that at all, must be defined but the idea is to select which instrument is playing what is represented by this cluster)

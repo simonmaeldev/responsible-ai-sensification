@@ -32,8 +32,66 @@ _tonality_runtime_lock = threading.RLock()
 _session = PipelineSession()
 
 
+@dataclasses.dataclass(frozen=True)
+class LoadingStage:
+    """One stable preparation stage shown by the browser Emitter."""
+
+    key: str
+    label: str
+
+
+LOADING_STAGES = (
+    LoadingStage("model", "Language model"),
+    LoadingStage("sae", "Sparse autoencoder"),
+    LoadingStage("neuronpedia", "Neuronpedia descriptions"),
+    LoadingStage("features", "Feature organization"),
+    LoadingStage("tonality", "Semantic tonalities"),
+    LoadingStage("generation", "Generation"),
+)
+_LOADING_STATES = {"active", "complete", "cached", "skipped"}
+
+
+def _loading_event(
+    stage_key: str,
+    state: str,
+    detail: str = "",
+) -> dict:
+    """Build a stable, JSON-ready progress event for a preparation stage."""
+    if state not in _LOADING_STATES:
+        raise ValueError(f"Unknown loading state: {state}")
+    try:
+        stage_index, stage = next(
+            (index, stage)
+            for index, stage in enumerate(LOADING_STAGES)
+            if stage.key == stage_key
+        )
+    except StopIteration as exc:
+        raise ValueError(f"Unknown loading stage: {stage_key}") from exc
+
+    completed_steps = stage_index if state == "active" else stage_index + 1
+    return {
+        "type": "loading",
+        "stage_key": stage.key,
+        "label": stage.label,
+        "state": state,
+        "detail": detail,
+        "step": stage_index + 1,
+        "total": len(LOADING_STAGES),
+        "progress": completed_steps / len(LOADING_STAGES),
+    }
+
+
 async def _send(ws: WebSocket, msg: dict) -> None:
     await ws.send_text(json.dumps(msg))
+
+
+async def _send_loading(
+    ws: WebSocket,
+    stage_key: str,
+    state: str,
+    detail: str = "",
+) -> None:
+    await _send(ws, _loading_event(stage_key, state, detail))
 
 
 async def _call_osc(
@@ -185,16 +243,28 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
 
         if cache_key in _model_cache:
             print("[pipeline] Using cached model/SAE/neuronpedia.", file=sys.stderr, flush=True)
-            await _send(ws, {"type": "loading", "stage": "cached"})
             cached = _model_cache[cache_key]
             model = cached["model"]
             tokenizer = cached["tokenizer"]
             sae = cached["sae"]
             neuronpedia = cached["neuronpedia"]
+            await _send_loading(ws, "model", "cached", f"{params.model} · runtime memory")
+            await _send_loading(
+                ws,
+                "sae",
+                "cached",
+                f"Layer {params.layer} · width {params.width} · runtime memory",
+            )
+            await _send_loading(
+                ws,
+                "neuronpedia",
+                "cached",
+                f"{len(neuronpedia.explanations):,} descriptions · runtime memory",
+            )
         else:
             # Load model
             print(f"[pipeline] Loading language model: {params.model}", file=sys.stderr, flush=True)
-            await _send(ws, {"type": "loading", "stage": "Loading language model..."})
+            await _send_loading(ws, "model", "active", params.model)
 
             def _load_model():
                 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -204,10 +274,16 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
 
             model, tokenizer = await asyncio.to_thread(_load_model)
             print("[pipeline] Language model loaded.", file=sys.stderr, flush=True)
+            await _send_loading(ws, "model", "complete", f"{params.model} ready")
 
             # Load SAE
             print(f"[pipeline] Loading SAE (layer={params.layer}, width={params.width}, l0={params.l0})", file=sys.stderr, flush=True)
-            await _send(ws, {"type": "loading", "stage": f"Loading SAE (layer={params.layer}, width={params.width})..."})
+            await _send_loading(
+                ws,
+                "sae",
+                "active",
+                f"Layer {params.layer} · width {params.width} · L0 {params.l0}",
+            )
 
             def _load_sae():
                 from app.server.pipeline.extract import load_sae
@@ -218,19 +294,43 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
 
             sae = await asyncio.to_thread(_load_sae)
             print("[pipeline] SAE loaded.", file=sys.stderr, flush=True)
+            await _send_loading(
+                ws,
+                "sae",
+                "complete",
+                f"Layer {params.layer} · width {params.width} ready",
+            )
 
             # Load Neuronpedia
             print("[pipeline] Loading Neuronpedia explanations...", file=sys.stderr, flush=True)
-            await _send(ws, {"type": "loading", "stage": "Downloading Neuronpedia explanations..."})
+            from app.server.pipeline.extract import CACHE_DIR
+
+            np_model_id = params.model.split("/")[-1].replace("-pt", "")
+            neuronpedia_cache_file = (
+                CACHE_DIR / f"{np_model_id}_{params.layer}_{params.width}.jsonl"
+            )
+            neuronpedia_was_cached = neuronpedia_cache_file.exists()
+            neuronpedia_action = (
+                "Reading local explanation cache"
+                if neuronpedia_was_cached
+                else "Downloading explanation batches"
+            )
+            await _send_loading(ws, "neuronpedia", "active", neuronpedia_action)
 
             def _load_neuronpedia():
                 from app.server.pipeline.extract import download_neuronpedia_explanations
                 # Neuronpedia uses "gemma-3-1b" style key, strip the HF org prefix
-                np_model_id = params.model.split("/")[-1].replace("-pt", "")
                 return download_neuronpedia_explanations(np_model_id, params.layer, params.width)
 
             neuronpedia = await asyncio.to_thread(_load_neuronpedia)
             print(f"[pipeline] Neuronpedia loaded: {len(neuronpedia.explanations)} features.", file=sys.stderr, flush=True)
+            await _send_loading(
+                ws,
+                "neuronpedia",
+                "cached" if neuronpedia_was_cached else "complete",
+                f"{len(neuronpedia.explanations):,} descriptions "
+                f"{'from local cache' if neuronpedia_was_cached else 'downloaded and cached'}",
+            )
 
             _model_cache[cache_key] = {
                 "model": model,
@@ -239,10 +339,20 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
                 "neuronpedia": neuronpedia,
             }
 
-        # Build enriched cluster map (names + colors) — cached after first run
+        # Prepare feature organization for local visual and audio mappings.
         enriched_key = (params.model, params.layer, params.width)
-        if enriched_key not in _enriched_cluster_cache:
-            await _send(ws, {"type": "loading", "stage": "Naming clusters..."})
+        enriched_was_cached = enriched_key in _enriched_cluster_cache
+        cluster_map: dict = {}
+        cluster_was_cached = params.strategy != "cluster"
+        await _send_loading(
+            ws,
+            "features",
+            "active",
+            "Reading feature organization from memory"
+            if enriched_was_cached
+            else "Naming feature clusters and preparing colours",
+        )
+        if not enriched_was_cached:
 
             def _build_enriched():
                 from app.server.pipeline.cluster_naming import build_enriched_cluster_map
@@ -269,52 +379,23 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
             enriched_data = _enriched_cluster_cache[enriched_key]
             print("[pipeline] Enriched cluster map from cache.", file=sys.stderr, flush=True)
 
-        enriched_map = enriched_data.get("cluster_map", {})
-        palette = enriched_data.get("palette", [])
-
-        await _send(ws, {"type": "cluster_palette", "palette": palette})
-
-        tonality_runtime: dict | None = None
-        prompt_embedding = None
-        if params.tonality_enabled:
-            await _send(ws, {"type": "loading", "stage": "Loading semantic tonalities..."})
-            tonality_runtime = await asyncio.to_thread(_get_tonality_cache_runtime, params.tonality_lenses)
-
-            if params.prompt.strip():
-                def _embed_prompt():
-                    from app.server.pipeline.semantic_tonality import embed_text
-
-                    return embed_text(
-                        params.prompt,
-                        embed_model=tonality_runtime["cache"].embed_model,
-                        embedder=tonality_runtime["embedder"],
-                    )
-
-                prompt_embedding = await asyncio.to_thread(_embed_prompt)
-
-        await _send(ws, {"type": "loading", "stage": "Running generation..."})
-
-        from app.server.pipeline.extract import inspect_live
-        from app.server.pipeline.emitter_mapping import EmitterMappingRuntime
-        from app.server.pipeline.semantic_tonality import (
-            TonalityMemory,
-            apply_tonality_pitch_bias,
-            build_tonality_evidence,
-            match_active_features_and_prompt_to_tonalities,
-            tonality_result_to_payload,
-        )
-        from app.server.pipeline.transform import apply_identity, apply_cluster, build_cluster_map
-
-        cluster_map: dict = {}
         if params.strategy == "cluster":
+            from app.server.pipeline.transform import build_cluster_map
+
             cluster_key = (params.model, params.layer, params.width, params.clusters)
-            if cluster_key in _cluster_cache:
+            cluster_was_cached = cluster_key in _cluster_cache
+            if cluster_was_cached:
                 cluster_map = _cluster_cache[cluster_key]
                 print(f"[pipeline] Cluster map from in-memory cache: {len(cluster_map)} entries.", file=sys.stderr, flush=True)
                 logger.info("Cluster map loaded from in-memory cache: %d entries", len(cluster_map))
             else:
+                await _send_loading(
+                    ws,
+                    "features",
+                    "active",
+                    f"Building {params.clusters}-cluster performance map",
+                )
                 print(f"[pipeline] Building cluster map (clusters={params.clusters})...", file=sys.stderr, flush=True)
-                await _send(ws, {"type": "loading", "stage": "Building cluster map..."})
 
                 def _build_clusters():
                     np_model_id = params.model.split("/")[-1].replace("-pt", "")
@@ -331,6 +412,58 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
 
             print(f"[pipeline] Cluster map ready: {len(cluster_map)} entries.", file=sys.stderr, flush=True)
             logger.info("Cluster map ready: %d entries", len(cluster_map))
+
+        features_cached = enriched_was_cached and cluster_was_cached
+        await _send_loading(
+            ws,
+            "features",
+            "cached" if features_cached else "complete",
+            f"{len(enriched_data.get('cluster_map', {})):,} feature assignments ready",
+        )
+
+        enriched_map = enriched_data.get("cluster_map", {})
+        palette = enriched_data.get("palette", [])
+
+        await _send(ws, {"type": "cluster_palette", "palette": palette})
+
+        tonality_runtime: dict | None = None
+        prompt_embedding = None
+        if params.tonality_enabled:
+            await _send_loading(ws, "tonality", "active", "Embedding active verbal lenses")
+            tonality_runtime = await asyncio.to_thread(_get_tonality_cache_runtime, params.tonality_lenses)
+
+            if params.prompt.strip():
+                def _embed_prompt():
+                    from app.server.pipeline.semantic_tonality import embed_text
+
+                    return embed_text(
+                        params.prompt,
+                        embed_model=tonality_runtime["cache"].embed_model,
+                        embedder=tonality_runtime["embedder"],
+                    )
+
+                prompt_embedding = await asyncio.to_thread(_embed_prompt)
+            await _send_loading(
+                ws,
+                "tonality",
+                "complete",
+                f"{tonality_runtime['lens_count']} verbal lenses ready",
+            )
+        else:
+            await _send_loading(ws, "tonality", "skipped", "Disabled for this run")
+
+        await _send_loading(ws, "generation", "active", "Waiting for the first token")
+
+        from app.server.pipeline.extract import inspect_live
+        from app.server.pipeline.emitter_mapping import EmitterMappingRuntime
+        from app.server.pipeline.semantic_tonality import (
+            TonalityMemory,
+            apply_tonality_pitch_bias,
+            build_tonality_evidence,
+            match_active_features_and_prompt_to_tonalities,
+            tonality_result_to_payload,
+        )
+        from app.server.pipeline.transform import apply_identity, apply_cluster
 
         print(f"[pipeline] Starting pipeline: prompt={params.prompt!r} strategy={params.strategy} clusters={params.clusters}", file=sys.stderr, flush=True)
         logger.info("Starting pipeline: prompt=%r strategy=%s clusters=%s", params.prompt, params.strategy, params.clusters)
@@ -458,17 +591,34 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
 
         async def _synthesizer():
             # Initial playback: drain the queue
+            first_token_ready = False
             while True:
                 event = await queue.get()
                 if event is None:
                     break
                 collected.append(event)
                 if event.get("type") == "token":
+                    if not first_token_ready:
+                        first_token_ready = True
+                        await _send_loading(
+                            ws,
+                            "generation",
+                            "complete",
+                            "First token ready · streaming live",
+                        )
                     await _forward_token_event(ws, event, params, osc_output)
                 else:
                     await _send(ws, event)
                 if params.mode == "timed":
                     await asyncio.sleep(60.0 / params.bpm)
+
+            if not first_token_ready:
+                await _send_loading(
+                    ws,
+                    "generation",
+                    "complete",
+                    "Generation finished without token events",
+                )
 
             await _send(ws, {"type": "done"})
             await _call_osc(ws, osc_output.emit_done, params)

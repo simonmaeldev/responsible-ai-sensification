@@ -262,8 +262,26 @@
         </div>
 
         <div id="status" class="status">
-          <span id="status-text">Ready</span>
-          <span id="loop-count-display" class="loop-counter hidden">Loop: 0</span>
+          <div class="status-line">
+            <span id="status-text">Ready</span>
+            <span id="loop-count-display" class="loop-counter hidden">Loop: 0</span>
+          </div>
+          <section id="loading-panel" class="loading-feedback hidden" data-state="active" role="status" aria-live="polite">
+            <div class="loading-heading">
+              <strong id="loading-title">Preparing Emitter</strong>
+              <span id="loading-percent">0%</span>
+            </div>
+            <progress id="loading-progress" max="100" value="0">0%</progress>
+            <div id="loading-detail" class="loading-detail">Waiting for the runtime…</div>
+            <div class="loading-stage-list" aria-label="Emitter preparation stages">
+              <span data-loading-stage="model" data-state="pending">Model</span>
+              <span data-loading-stage="sae" data-state="pending">SAE</span>
+              <span data-loading-stage="neuronpedia" data-state="pending">Neuronpedia</span>
+              <span data-loading-stage="features" data-state="pending">Features</span>
+              <span data-loading-stage="tonality" data-state="pending">Tonality</span>
+              <span data-loading-stage="generation" data-state="pending">Generate</span>
+            </div>
+          </section>
         </div>
       </aside>
 

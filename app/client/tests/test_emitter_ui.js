@@ -6,10 +6,16 @@ const vm = require("node:vm");
 const path = require("node:path");
 
 class FakeClassList {
-  add() {}
-  remove() {}
-  toggle() {}
-  contains() { return false; }
+  constructor() { this.values = new Set(); }
+  add(...names) { names.forEach(name => this.values.add(name)); }
+  remove(...names) { names.forEach(name => this.values.delete(name)); }
+  toggle(name, force) {
+    if (force === true) { this.values.add(name); return true; }
+    if (force === false) { this.values.delete(name); return false; }
+    if (this.values.has(name)) { this.values.delete(name); return false; }
+    this.values.add(name); return true;
+  }
+  contains(name) { return this.values.has(name); }
 }
 
 class FakeElement {
@@ -64,15 +70,31 @@ assert.deepEqual(referencedIds.filter(id => !htmlIds.has(id)), []);
 assert.match(html, /data-control-tab="signals"/);
 assert.match(html, /id="signal-catalogue-search"/);
 assert.match(html, /id="signal-catalogue-list"/);
+assert.match(html, /id="loading-panel"/);
+assert.match(html, /id="loading-progress"/);
+for (const stage of ["model", "sae", "neuronpedia", "features", "tonality", "generation"]) {
+  assert.match(html, new RegExp(`data-loading-stage="${stage}"`));
+}
 const visualDisclosure = html.match(/<details\s+id="visual-proof-panel"[^>]*>/);
 assert.ok(visualDisclosure, "visual proof of concept must use a details disclosure");
 assert.doesNotMatch(visualDisclosure[0], /\sopen(?:\s|=|>)/);
 
 const elements = new Map([...htmlIds].map(id => [id, new FakeElement()]));
+const loadingBadges = new Map(
+  ["model", "sae", "neuronpedia", "features", "tonality", "generation"].map(stage => {
+    const element = new FakeElement("span");
+    element.dataset.loadingStage = stage;
+    element.dataset.state = "pending";
+    return [stage, element];
+  }),
+);
 global.document = {
   getElementById(id) { return elements.get(id) || new FakeElement(); },
   createElement(tag) { return new FakeElement(tag); },
-  querySelectorAll() { return []; },
+  querySelectorAll(selector) {
+    if (selector === "[data-loading-stage]") return [...loadingBadges.values()];
+    return [];
+  },
 };
 global.window = global;
 global.location = { protocol: "http:", host: "127.0.0.1:8080" };
@@ -144,7 +166,7 @@ global.fetch = async url => ({
   },
 });
 
-const instrumented = `${source}\n;globalThis.__emitterTest = { completeMapping, templateMappings, morphMapping, lerp, filterSignalCatalogue, signalRouteSummary, describeStreamValue, setSignalSelection(keys) { sessionActive = true; selectedEmitterSignalKeys = new Set(keys); sendSignalSelectionUpdate(); } };`;
+const instrumented = `${source}\n;globalThis.__emitterTest = { completeMapping, templateMappings, morphMapping, lerp, filterSignalCatalogue, signalRouteSummary, describeStreamValue, handleMessage, handleLoadingMessage, startLoadingProgress, finishLoadingProgress, setSignalSelection(keys) { sessionActive = true; selectedEmitterSignalKeys = new Set(keys); sendSignalSelectionUpdate(); } };`;
 vm.runInThisContext(instrumented, { filename: sourcePath });
 
 setTimeout(() => {
@@ -193,5 +215,29 @@ setTimeout(() => {
     action: "update_params",
     params: { emitter_signal_keys: ["activation.max", "model.residual.vector"] },
   });
+  api.startLoadingProgress();
+  assert.equal(elements.get("loading-panel").classList.contains("hidden"), false);
+  api.handleLoadingMessage({
+    type: "loading",
+    stage_key: "sae",
+    label: "Sparse autoencoder",
+    state: "active",
+    detail: "Layer 22 · width 65k",
+    progress: 1 / 6,
+  });
+  assert.equal(elements.get("loading-title").textContent, "Sparse autoencoder");
+  assert.equal(elements.get("loading-detail").textContent, "Layer 22 · width 65k");
+  assert.equal(elements.get("loading-percent").textContent, "17%");
+  assert.equal(elements.get("loading-progress").value, 17);
+  assert.equal(loadingBadges.get("sae").dataset.state, "active");
+  assert.equal(loadingBadges.get("model").dataset.state, "pending");
+  api.finishLoadingProgress();
+  assert.equal(elements.get("loading-panel").classList.contains("hidden"), true);
+  api.startLoadingProgress();
+  api.handleMessage({ type: "error", message: "model unavailable" });
+  api.handleMessage({ type: "stopped" });
+  assert.equal(elements.get("loading-panel").classList.contains("hidden"), false);
+  assert.equal(elements.get("loading-panel").dataset.state, "error");
+  assert.equal(elements.get("loading-detail").textContent, "model unavailable");
   console.log(JSON.stringify({ passed: true, referencedIds: referencedIds.length }));
 }, 25);

@@ -57,6 +57,13 @@ residual vectors, top-k logits, and sparse SAE feature streams are explicit
 opt-in raw signals. Live selection affects subsequent tokens without extending
 OSC v1 or requiring an artistic transformation.
 
+Emitter preparation now has structured browser feedback. A compact progress
+panel reports the language model, SAE, Neuronpedia descriptions, feature
+organization, semantic tonalities, and first-token generation as distinct
+stages, including honest cached, downloaded, skipped, complete, and error
+states. The panel dismisses when live tokens begin and does not change the
+model, browser-audio, WebSocket, OSC, or Receiver contracts.
+
 ## Emitter, Connector, Receiver
 
 - **Emitter:** observes arbitrary model/runtime probes and makes selected raw or
@@ -230,6 +237,15 @@ OSC/OSCQuery moves live performance data.
   OSC disabled. Token ` to` carried all five selected scalar model summaries, a
   raw residual vector with shape `[1152]`, eight top-logit records, and 52
   sparse active SAE features in the production WebSocket payload.
+- Added structured Emitter preparation feedback with six stable stages, a
+  compact progress bar and stage badges, local-cache/download distinctions,
+  first-token dismissal, and a persistent error presentation.
+- Verified the loading path with 70 passing server tests, the 109-ID browser
+  DOM/behavior harness, JavaScript syntax checking, and a real one-token
+  Gemma/SAE GPU run. The production WebSocket emitted all 12 active/completion
+  transitions in order, reported 64,751 Neuronpedia descriptions from local
+  cache, reached 100%, delivered token 1, and hid the preparation panel. A
+  desktop loading-state screenshot was inspected and the server was stopped.
 
 ## Local Reference Material
 
@@ -283,6 +299,11 @@ monitor set, and deliberately opt into raw vectors only when needed. Begin with
 one of the three mapping templates, inspect live values, search or audition SAE
 features, then save useful combinations as scenes. Signal, mapping, and lens
 changes apply to subsequent tokens without a server restart.
+
+After pressing Play, use the preparation panel at the bottom of the controls to
+see whether the model, SAE, Neuronpedia descriptions, feature organization, and
+semantic lenses are loading or coming from cache. The panel closes when the
+first live token arrives; a preparation failure remains visible with its error.
 
 The color/cluster experiment is intentionally collapsed by default. Use the
 **Visual mapping** disclosure to reveal it during visual mapping evaluation.

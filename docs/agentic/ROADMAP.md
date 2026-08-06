@@ -227,6 +227,32 @@ Next evaluation:
 The focused implementation contract is in
 `specs/emitter-signal-explorer.md`.
 
+## Phase 8: Emitter Loading Feedback
+
+Status: complete
+
+Goal: make the preparation delay before the first token legible enough for
+hands-on use without changing model or transport behavior.
+
+Implemented:
+
+- Replaced free-text-only loading messages with a stable six-stage WebSocket
+  contract covering model, SAE, Neuronpedia, feature organization, semantic
+  tonality, and generation.
+- Added normalized progress, step counts, concise detail, and active, complete,
+  cached, and skipped states. Neuronpedia distinguishes local cache reads from
+  downloads.
+- Added a compact progress panel and stage badges to the existing Emitter status
+  area. The first token dismisses it, while preparation errors stay visible.
+- Preserved browser audio/visuals, parameter updates, optional OSC, and the
+  Windows Receiver contract.
+- Verified 70 server tests, JavaScript syntax, the 109-ID DOM/behavior harness,
+  a deterministic desktop screenshot, and a real one-token Gemma/SAE GPU run
+  whose production WebSocket emitted every stage through 100%.
+
+The focused implementation contract and completion record are in
+`specs/emitter-loading-feedback.md`.
+
 ## Later Candidate Features
 
 Good later steps:
@@ -236,7 +262,6 @@ Good later steps:
 - Deeper feature detail inspection, including cluster/instrument attribution and
   the strongest feature descriptions behind each token.
 - Semantic color/image mapping based on the same lens logic as tonalities.
-- Neuronpedia/model loading progress, so performance setup has clearer feedback.
 
 ## Verification Pattern
 

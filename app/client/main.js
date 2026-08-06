@@ -321,6 +321,11 @@ const btnNext         = document.getElementById("btn-next");
 const statusEl        = document.getElementById("status");
 const statusText      = document.getElementById("status-text");
 const loopCountEl     = document.getElementById("loop-count-display");
+const loadingPanel    = document.getElementById("loading-panel");
+const loadingTitle    = document.getElementById("loading-title");
+const loadingPercent  = document.getElementById("loading-percent");
+const loadingProgress = document.getElementById("loading-progress");
+const loadingDetail   = document.getElementById("loading-detail");
 const modelSel        = document.getElementById("model");
 const layerSel        = document.getElementById("layer");
 const widthSel        = document.getElementById("width");
@@ -1317,18 +1322,70 @@ function connectWS() {
   };
 
   ws.onerror = () => setStatus("WebSocket error");
-  ws.onclose = () => { ws = null; sessionActive = false; setIdle(); };
+  ws.onclose = () => { ws = null; sessionActive = false; finishLoadingProgress(); setIdle(); };
+}
+
+function loadingStageElements() {
+  return [...document.querySelectorAll("[data-loading-stage]")];
+}
+
+function startLoadingProgress() {
+  loadingPanel.classList.remove("hidden");
+  loadingPanel.dataset.state = "active";
+  loadingTitle.textContent = "Preparing Emitter";
+  loadingDetail.textContent = "Waiting for the runtime…";
+  loadingPercent.textContent = "0%";
+  loadingProgress.value = 0;
+  for (const stage of loadingStageElements()) stage.dataset.state = "pending";
+}
+
+function handleLoadingMessage(msg) {
+  if (loadingPanel.classList.contains("hidden")) startLoadingProgress();
+  const priorProgress = Number(loadingProgress.value) / 100;
+  const rawProgress = Number(msg.progress);
+  const normalizedProgress = Number.isFinite(rawProgress)
+    ? Math.max(0, Math.min(1, rawProgress))
+    : Math.max(0, Math.min(1, priorProgress || 0));
+  const percent = Math.round(normalizedProgress * 100);
+  const label = msg.label || msg.stage || "Preparing Emitter";
+  const detail = msg.detail || (msg.stage_key ? "Preparing selected runtime…" : "Loading runtime resources…");
+
+  loadingPanel.dataset.state = msg.state === "error" ? "error" : "active";
+  loadingTitle.textContent = label;
+  loadingDetail.textContent = detail;
+  loadingPercent.textContent = `${percent}%`;
+  loadingProgress.value = percent;
+  for (const stage of loadingStageElements()) {
+    if (stage.dataset.loadingStage === msg.stage_key) {
+      stage.dataset.state = msg.state || "active";
+    }
+  }
+  setStatus(`Preparing · ${label}`);
+}
+
+function finishLoadingProgress(force = false) {
+  if (!force && loadingPanel.dataset.state === "error") return;
+  loadingPanel.classList.add("hidden");
+  loadingPanel.dataset.state = "active";
+}
+
+function failLoadingProgress(message) {
+  loadingPanel.classList.remove("hidden");
+  loadingPanel.dataset.state = "error";
+  loadingTitle.textContent = "Preparation failed";
+  loadingDetail.textContent = message || "The Emitter could not prepare this run.";
 }
 
 function handleMessage(msg) {
   switch (msg.type) {
     case "ready":
       applyParams(msg.params);
+      finishLoadingProgress(true);
       setStatus("Connected — ready");
       break;
 
     case "loading":
-      setStatus(msg.stage);
+      handleLoadingMessage(msg);
       break;
 
     case "cluster_palette":
@@ -1337,6 +1394,7 @@ function handleMessage(msg) {
       break;
 
     case "token":
+      finishLoadingProgress();
       tokenHistory.push(msg);
       if (isPaused) {
         pendingBuffer.push(msg);
@@ -1364,6 +1422,7 @@ function handleMessage(msg) {
       break;
 
     case "done":
+      finishLoadingProgress();
       setStatus(`Done (${tokenCount} tokens) — loop or send a new prompt`);
       if (historyIndex === -1) resetClusterViz();
       setDone();
@@ -1386,6 +1445,7 @@ function handleMessage(msg) {
 
     case "stopped":
       engine.stopAll();
+      finishLoadingProgress();
       if (!isRunning) {
         sessionActive = false;
         setIdle();
@@ -1394,6 +1454,7 @@ function handleMessage(msg) {
       break;
 
     case "error":
+      failLoadingProgress(msg.message);
       setStatus(`Error: ${msg.message}`);
       sessionActive = false;
       setIdle();
@@ -2132,6 +2193,7 @@ function startPipeline() {
   resetClusterViz();
   engine.resume();
   engine.setVolume(parseFloat(volumeIn.value));
+  startLoadingProgress();
   setRunning();
   sessionActive = true;
   ws.send(JSON.stringify({ action: "start", params: collectParams() }));
