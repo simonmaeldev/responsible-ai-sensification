@@ -23,6 +23,7 @@ class PipelineParams:
     prompt: str = "Hello world"
     model: str = "google/gemma-3-1b-pt"
     layer: int = 22
+    observation_layer: int = 22
     width: str = "65k"
     l0: str = "medium"
     max_tokens: int = 200

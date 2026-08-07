@@ -48,6 +48,7 @@ class TokenAnalysis(BaseModel):
     l0: int  # total number of active features (activation > 0)
     active_features: list[ActiveFeature]
     probe_values: dict[str, object] = Field(default_factory=dict)
+    probe_layer: int | None = None
 
 
 class GenerationAnalysis(BaseModel):
@@ -206,6 +207,15 @@ def _get_decoder_layers(model):
     )
 
 
+def _safe_layer_index(value: object, layer_count: int, fallback: int) -> int:
+    """Resolve a live probe selection to a valid decoder-layer index."""
+    try:
+        selected = int(value)
+    except (TypeError, ValueError):
+        selected = int(fallback)
+    return min(max(selected, 0), max(layer_count - 1, 0))
+
+
 def capture_model_probe_values(
     residual_last: torch.Tensor,
     logits_last: torch.Tensor,
@@ -298,11 +308,14 @@ def inspect_live(
     neuronpedia: NeuronpediaScope,
     max_new_tokens: int = 200,
     probe_keys: Collection[str] | Callable[[], Collection[str]] | None = None,
+    observation_layer: int | Callable[[], int] | None = None,
 ) -> Generator[tuple[TokenAnalysis, int], None, None]:
-    """Generate tokens autoregressively and capture SAE feature activations.
+    """Generate tokens and observe distinct dense and sparse model locations.
 
-    Yields (TokenAnalysis, elapsed_ms) per token. elapsed_ms covers the forward
-    pass + SAE encode + TokenAnalysis construction time.
+    ``layer`` is the attachment site of the loaded SAE. ``observation_layer``
+    independently selects the residual stream used by model probes and may be a
+    callback so browser changes affect the next token. Yields
+    ``(TokenAnalysis, elapsed_ms)`` per token.
     """
     inputs = tokenizer(prompt, return_tensors="pt", add_special_tokens=True)
     input_ids = inputs["input_ids"].to(device)
@@ -313,30 +326,52 @@ def inspect_live(
         if step == 0:
             print("[inspect_live] Running first forward pass...", file=sys.stderr, flush=True)
         t0 = time.perf_counter()
-        captured: list[torch.Tensor] = []
+        decoder_layers = _get_decoder_layers(model)
+        requested_layer = observation_layer() if callable(observation_layer) else observation_layer
+        probe_layer = _safe_layer_index(
+            layer if requested_layer is None else requested_layer,
+            len(decoder_layers),
+            layer,
+        )
+        captured_sae: list[torch.Tensor] = []
+        captured_probe: list[torch.Tensor] = []
 
-        def hook_fn(_module, _input, output):
-            captured.append(output[0].detach())
+        def _hidden_tensor(output):
+            return (output[0] if isinstance(output, (tuple, list)) else output).detach()
 
-        hook = _get_decoder_layers(model)[layer].register_forward_hook(hook_fn)
-        outputs = model(input_ids)
-        hook.remove()
+        def sae_hook_fn(_module, _input, output):
+            hidden = _hidden_tensor(output)
+            captured_sae.append(hidden)
+            if probe_layer == layer:
+                captured_probe.append(hidden)
+
+        def probe_hook_fn(_module, _input, output):
+            captured_probe.append(_hidden_tensor(output))
+
+        hooks = [decoder_layers[layer].register_forward_hook(sae_hook_fn)]
+        if probe_layer != layer:
+            hooks.append(decoder_layers[probe_layer].register_forward_hook(probe_hook_fn))
+        try:
+            outputs = model(input_ids)
+        finally:
+            for hook in hooks:
+                hook.remove()
         if step == 0:
             print("[inspect_live] First forward pass complete.", file=sys.stderr, flush=True)
 
-        hidden = captured[0]
-        residual_last = hidden.squeeze(0)[-1, :]  # (d_model,)
+        sae_residual_last = captured_sae[0].squeeze(0)[-1, :]
+        probe_residual_last = captured_probe[0].squeeze(0)[-1, :]
 
         next_token_id = int(outputs.logits[0, -1].argmax().item())
 
         requested_probe_keys = probe_keys() if callable(probe_keys) else (probe_keys or ())
         probe_values = capture_model_probe_values(
-            residual_last,
+            probe_residual_last,
             outputs.logits[0, -1],
             requested_probe_keys,
         )
 
-        sae_acts = sae.encode(residual_last.float().unsqueeze(0)).squeeze(0)
+        sae_acts = sae.encode(sae_residual_last.float().unsqueeze(0)).squeeze(0)
 
         active_indices = (sae_acts > 0).nonzero(as_tuple=True)[0].tolist()
         l0 = len(active_indices)
@@ -356,6 +391,7 @@ def inspect_live(
             l0=l0,
             active_features=active_features,
             probe_values=probe_values,
+            probe_layer=probe_layer,
         )
 
         elapsed_ms = int((time.perf_counter() - t0) * 1000)

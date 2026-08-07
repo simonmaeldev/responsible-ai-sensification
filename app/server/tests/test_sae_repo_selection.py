@@ -14,6 +14,15 @@ def test_sae_repo_map_covers_all_catalogue_models():
         )
 
 
+def test_model_catalogue_exposes_architecture_separately_from_sae_layers():
+    one_b = MODEL_CATALOGUE["google/gemma-3-1b-pt"]
+
+    assert one_b["layers"] == [22]
+    assert one_b["architecture"]["layer_count"] == 26
+    assert one_b["architecture"]["hidden_size"] == 1152
+    assert one_b["observation_layers"] == list(range(26))
+
+
 def test_1b_model_maps_to_correct_sae_repo():
     assert SAE_REPO_MAP["google/gemma-3-1b-pt"] == "google/gemma-scope-2-1b-pt"
 

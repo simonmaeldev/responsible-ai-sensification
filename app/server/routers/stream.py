@@ -497,6 +497,7 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
                         params.layer, neuronpedia,
                         max_new_tokens=params.max_tokens,
                         probe_keys=_requested_probe_keys,
+                        observation_layer=lambda: params.observation_layer,
                     ):
                         token_count += 1
                         active_features = [f.model_dump() for f in token_analysis.active_features]
@@ -559,6 +560,12 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
                             "token_id": token_analysis.token_id,
                             "elapsed_ms": elapsed_ms,
                             "notes": notes,
+                            "observation": {
+                                "model": params.model,
+                                "layer": token_analysis.probe_layer,
+                                "sae_layer": params.layer,
+                                "sae_width": params.width,
+                            },
                             "emitter": emitter_mapping_runtime.build_payload(
                                 active_features=active_features,
                                 notes=notes,

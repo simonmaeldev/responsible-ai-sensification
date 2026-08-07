@@ -26,6 +26,14 @@ def test_pipeline_params_update_ignores_unknown_keys():
     assert not hasattr(params, "unknown")
 
 
+def test_pipeline_params_accepts_live_observation_layer():
+    params = PipelineParams()
+
+    params.update(observation_layer="7")
+
+    assert params.observation_layer == 7
+
+
 def test_pipeline_params_update_accepts_live_tonality_lenses():
     params = PipelineParams()
     lenses = [

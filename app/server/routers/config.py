@@ -13,8 +13,28 @@ router = APIRouter(prefix="/api/config")
 _DEFAULTS = PipelineParams()
 
 MODEL_CATALOGUE = {
-    "google/gemma-3-1b-pt": {"layers": [22], "widths": ["65k"]},
-    "google/gemma-3-4b-pt": {"layers": [22], "widths": ["65k"]},
+    "google/gemma-3-1b-pt": {
+        "layers": [22],
+        "widths": ["65k"],
+        "observation_layers": list(range(26)),
+        "architecture": {
+            "label": "Gemma 3 1B",
+            "layer_count": 26,
+            "hidden_size": 1152,
+            "intermediate_size": 6912,
+        },
+    },
+    "google/gemma-3-4b-pt": {
+        "layers": [22],
+        "widths": ["65k"],
+        "observation_layers": list(range(34)),
+        "architecture": {
+            "label": "Gemma 3 4B",
+            "layer_count": 34,
+            "hidden_size": 2560,
+            "intermediate_size": 10240,
+        },
+    },
 }
 
 SAE_REPO_MAP = {

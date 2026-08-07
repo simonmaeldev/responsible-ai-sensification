@@ -162,6 +162,136 @@ def test_live_probe_key_callback_changes_the_next_generated_token():
     assert generated[1][0].probe_values["model.residual.vector"]["shape"] == [2]
 
 
+def test_dense_probe_can_move_layers_without_moving_the_sae():
+    class FakeHookHandle:
+        def __init__(self, layer):
+            self.layer = layer
+
+        def remove(self):
+            self.layer.hooks.remove(self.hook)
+
+    class FakeLayer:
+        def __init__(self, index):
+            self.index = index
+            self.hooks = []
+
+        def register_forward_hook(self, hook):
+            self.hooks.append(hook)
+            handle = FakeHookHandle(self)
+            handle.hook = hook
+            return handle
+
+    class FakeModel:
+        def __init__(self):
+            self.layers = [FakeLayer(index) for index in range(3)]
+            self.model = SimpleNamespace(layers=self.layers)
+
+        def __call__(self, input_ids):
+            sequence_length = input_ids.shape[1]
+            for layer in self.layers:
+                hidden = torch.full(
+                    (1, sequence_length, 2),
+                    float(layer.index + 1),
+                )
+                for hook in list(layer.hooks):
+                    hook(layer, (), (hidden,))
+            logits = torch.tensor([[[0.0, 2.0, 1.0]]] * sequence_length)
+            return SimpleNamespace(logits=logits)
+
+    class FakeTokenizer:
+        eos_token_id = 99
+
+        def __call__(self, _prompt, **_kwargs):
+            return {"input_ids": torch.tensor([[0]])}
+
+        def decode(self, token_ids):
+            return f"token-{token_ids[0]}"
+
+    class RecordingSae:
+        def __init__(self):
+            self.inputs = []
+
+        def encode(self, residual):
+            self.inputs.append(residual.clone())
+            return torch.tensor([[0.0, 1.0, 0.0]])
+
+    observation_layers = iter([0, 2])
+    sae = RecordingSae()
+    generated = list(
+        inspect_live(
+            "test",
+            FakeModel(),
+            FakeTokenizer(),
+            sae,
+            1,
+            SimpleNamespace(explanations={1: "test feature"}),
+            max_new_tokens=2,
+            probe_keys={"model.residual.vector"},
+            observation_layer=lambda: next(observation_layers),
+        )
+    )
+
+    assert [token.probe_layer for token, _elapsed in generated] == [0, 2]
+    assert generated[0][0].probe_values["model.residual.vector"]["values"] == [1.0, 1.0]
+    assert generated[1][0].probe_values["model.residual.vector"]["values"] == [3.0, 3.0]
+    assert [item.tolist() for item in sae.inputs] == [[[2.0, 2.0]], [[2.0, 2.0]]]
+
+
+def test_invalid_observation_layer_is_clamped_without_stopping_generation():
+    class FakeHookHandle:
+        def remove(self):
+            pass
+
+    class FakeLayer:
+        def __init__(self, value):
+            self.value = value
+
+        def register_forward_hook(self, hook):
+            self.hook = hook
+            return FakeHookHandle()
+
+    layers = [FakeLayer(1.0), FakeLayer(2.0)]
+
+    class FakeModel:
+        model = SimpleNamespace(layers=layers)
+
+        def __call__(self, input_ids):
+            length = input_ids.shape[1]
+            for layer in layers:
+                layer.hook(layer, (), (torch.full((1, length, 1), layer.value),))
+            return SimpleNamespace(logits=torch.tensor([[[0.0, 2.0]]] * length))
+
+    class FakeTokenizer:
+        eos_token_id = 1
+
+        def __call__(self, _prompt, **_kwargs):
+            return {"input_ids": torch.tensor([[0]])}
+
+        def decode(self, _token_ids):
+            return "done"
+
+    class FakeSae:
+        def encode(self, _residual):
+            return torch.tensor([[0.0]])
+
+    generated = list(
+        inspect_live(
+            "test",
+            FakeModel(),
+            FakeTokenizer(),
+            FakeSae(),
+            0,
+            SimpleNamespace(explanations={}),
+            max_new_tokens=1,
+            probe_keys={"model.residual.vector"},
+            observation_layer=99,
+        )
+    )
+
+    assert generated[0][0].probe_layer == 1
+    assert generated[0][0].probe_values["model.residual.vector"]["values"] == [2.0]
+
+
 def test_payload_hides_unselected_signals_without_breaking_mapping_dependencies():
     runtime = EmitterMappingRuntime()
     payload = runtime.build_payload(
