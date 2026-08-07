@@ -19,10 +19,26 @@ sensifying model/runtime data. The current Gemma 3, Gemma Scope, SAE,
 Neuronpedia, semantic-tonality, browser audio, and visualization system is a
 substantial proof of concept, not the definition or limit of the Emitter.
 
-The current interface now exposes a local MiniLM-based semantic-tonality layer:
-verbal tonality descriptions and active SAE feature descriptions share the same
-embedding space, prompt semantics can be blended into the token signal, and note
-frequencies can be softly pulled toward the active tonality's custom intervals.
+The browser is now organized as an Emitter workbench with four explicit stages:
+**Observe**, **Interpret**, **Transform**, and **Route**. Observe is the default.
+The inference prompt, model anatomy, selected transformer block, dense residual
+coordinates, sparse SAE coordinates, token, and provenance are primary. Semantic
+tonality, browser sound, colour, mappings, and OSC remain functional but are
+labelled as optional transformations or routes rather than the architecture of
+the project.
+
+Dense observation is now independent of the SAE attachment. The live
+`observation_layer` parameter can move residual probes across all advertised
+transformer blocks on subsequent tokens, while Gemma Scope continues to encode
+the residual from its actual trained layer. WebSocket token events identify both
+locations. The interface does not claim semantic geometry for neighbouring
+dense dimensions or SAE feature indices.
+
+The semantic-tonality experiment remains available under Transform. Verbal
+descriptions and active SAE feature descriptions share the MiniLM space, and
+each live lens now combines a conventional root key, a scale preset or custom
+interval set, and a free verbal description. The selected root is preserved by
+the backend and transposes the actual pitch target.
 
 Phase 5A is complete on the Ubuntu GPU PC: the browser can opt into a
 live-configurable OSC v1 output whose destination, UDP port, and per-token note
@@ -48,14 +64,16 @@ semantic-tonality, pitch, and generation signals. A live mapping matrix turns
 them into 14 bounded browser audio/visual targets without modifying raw feature
 evidence or final post-tonality notes.
 
-The in-place Signal Explorer is now complete. A generic ordered registry
+The in-place probe catalogue is complete. A generic ordered registry
 describes 26 signals across model residuals, model logits, SAE activations,
 Neuronpedia coverage, clusters, semantic experiments, final pitches, and
 generation timing. The original 18 mapping sources remain compatible; five
 lightweight model summaries are available as scalar mapping sources; and full
 residual vectors, top-k logits, and sparse SAE feature streams are explicit
-opt-in raw signals. Live selection affects subsequent tokens without extending
-OSC v1 or requiring an artistic transformation.
+opt-in raw signals. The browser workbench enables the residual-vector and sparse
+SAE streams on startup so its primary views have real data; they can still be
+disabled in Interpret. Live selection affects subsequent tokens without
+extending OSC v1 or requiring an artistic transformation.
 
 Emitter preparation now has structured browser feedback. A compact progress
 panel reports the language model, SAE, Neuronpedia descriptions, feature
@@ -93,8 +111,8 @@ assume Anthropic/Claude tooling for agentic project work.
 
 ## Machine Topology
 
-- **Ubuntu GPU PC**: runs Gemma/SAE inference, FastAPI, the browser interface,
-  the current emitter instrument, and the outbound OSC connector implementation.
+- **Ubuntu GPU PC**: runs Gemma/SAE inference, FastAPI, the Emitter workbench,
+  optional local transformation experiments, and outbound OSC implementation.
 - **Windows laptop**: runs Ableton Live, Max for Live, and ossia; it hosts the
   current receiver and remains the audible-output verification target.
 - **Ubuntu laptop**: a separate lightweight development/control environment; no
@@ -246,26 +264,54 @@ OSC/OSCQuery moves live performance data.
   transitions in order, reported 64,751 Neuronpedia descriptions from local
   cache, reached 100%, delivered token 1, and hid the preparation panel. A
   desktop loading-state screenshot was inspected and the server was stopped.
+- Replaced the instrument-first browser shell with a prompt-first Emitter
+  workbench organized as Observe, Interpret, Transform, and Route. Semantic
+  tonality and colour are no longer the default or dominant views.
+- Added truthful Gemma architecture metadata and an independent live
+  `observation_layer`. Dense residual probes can move through all 26 Gemma 3 1B
+  blocks while the 65k SAE remains visibly attached to layer 22. Invalid probe
+  layers are bounded without stopping generation.
+- Added focusable Structure, Dense state, and Sparse state views. Dense cells
+  are actual signed residual coordinates with min/max/RMS/peak statistics;
+  sparse marks are actual active feature indices/activations with Neuronpedia
+  descriptions where present. The UI states that layout/index proximity is not
+  semantic proximity.
+- Expanded each semantic-tonality lens with a conventional root-key selector,
+  named scale presets, and custom intervals. Root pitch class now travels
+  through coercion, embedding cache, matches, token payloads, and pitch bias.
+- Verified the redesign with 75 passing server tests, JavaScript syntax
+  checking, and the 128-ID browser DOM/behavior harness. Headless Chromium found
+  no console/page errors across Observe, dense, Transform, and Route.
+- Ran a real Gemma 3 1B GPU smoke test with dense observation at layer 7 and the
+  SAE at layer 22. The live browser rendered 1,152 residual coordinates and 48
+  active SAE features out of 65,000 for token ` of`, with no browser error. The
+  server was stopped after screenshots were captured.
 
 ## Local Reference Material
 
 `references/` is intentionally ignored by Git.
 
-It currently contains old snapshot reference material, especially the removed tonality/pitch-policy modules and an implementation ideas note. Treat it as optional background only; do not import from it directly unless the user asks to port something.
+The directory and `Rai_Report.pdf` were not present in this clone during the
+2026-08-06 workbench redesign. Earlier state notes preserve ideas previously
+extracted from the report, but a future agent must not claim to have reread the
+source unless the user restores it. Treat ignored reference material as optional
+background only; do not import from it directly unless asked.
 
 ## Current App Direction
 
-Use the new interface already present in this repo:
+Use the workbench interface already present in this repo:
 
-- Browser transport controls.
-- Token history and paused-token buffering.
-- Cluster visualization.
-- Generated text output linked to token playback.
-- Enriched cluster naming/colors.
-- Receiver-independent emitter signal monitor and mapping matrix.
-- General Signal Explorer for discoverable raw and derived model/runtime probes.
-- Searchable/pinnable/muteable/soloable SAE feature evidence.
-- Local mapping scenes and A/B morphing.
+- **Observe**: prominent prompt/run controls, real transformer anatomy, movable
+  dense residual probe, fixed/labelled SAE site, and focusable structure/dense/
+  sparse views.
+- **Interpret**: discoverable raw and derived probes, selected-signal monitor,
+  mappings, and searchable/pinnable/muteable/soloable SAE/Neuronpedia evidence.
+- **Transform**: optional semantic tonality, browser audio, mapping scenes, A/B
+  morphing, and collapsed colour proof of concept.
+- **Route**: optional OSC v1 configuration and an honest planned—not complete—
+  libossia/OSCQuery boundary.
+- Generated text, token history, pause/replay buffering, loading stages, browser
+  audio, mappings, visualization, WebSocket events, and OSC remain functional.
 
 Avoid reverting to the older archive interface.
 
@@ -286,32 +332,53 @@ Avoid reverting to the older archive interface.
   the selected-layer residual, output-logit, and SAE examples.
 - Which bounded binary transport should carry intentionally selected large raw
   arrays if OSC/libossia is unsuitable for them.
+- Which libossia object tree, units, ranges, and access modes should form the
+  first discoverable Connector namespace. Do not replace the custom model UI
+  with libossia; use it to expose deliberately selected parameters.
+- Which real Interpreto split points, concept-learning methods, attribution
+  methods, datasets, and training checkpoints the researchers want. Do not show
+  an Interpreto panel until the backend returns real, provenance-bearing results.
+- Where the user will restore the report PDF so implementation claims can be
+  audited against the primary source.
 
 ## Handoff Notes
 
 ### Immediate Ubuntu GPU PC emitter handoff
 
-The emitter instrument and general Signal Explorer are implemented and verified
-locally. Start it with `./scripts/start.sh`, open `http://127.0.0.1:8080`, and
-use the Source, Signals, Tonality, and Mappings tabs with OSC disabled. In
-Signals, search model/SAE/semantic probes, use the checkboxes to choose the live
-monitor set, and deliberately opt into raw vectors only when needed. Begin with
-one of the three mapping templates, inspect live values, search or audition SAE
-features, then save useful combinations as scenes. Signal, mapping, and lens
-changes apply to subsequent tokens without a server restart.
+The current verified deliverable is the first general Emitter-workbench slice,
+not a finished definition of every model probe or research workflow. Start it
+with `./scripts/start.sh`, open `http://127.0.0.1:8080`, enter a prompt in the
+large composer, and use **Observe** first with OSC disabled.
 
-After pressing Play, use the preparation panel at the bottom of the controls to
+Select a Dense observation layer from the slider or transformer-block map. The
+teal marker is the movable residual probe; the purple marker is the SAE's actual
+attachment and must not be interpreted as moving with it. During generation,
+focus Structure, Dense state, or Sparse state. Dense and sparse raw streams are
+enabled by the browser workbench on startup; use Interpret to inspect or disable
+them, examine provenance, and browse Neuronpedia evidence.
+
+Use **Transform** only when evaluating an optional mapping. Semantic tonality is
+Experiment 01: choose a root, conventional scale or custom relative intervals,
+and free verbal description. Live description/root/interval changes affect
+subsequent semantic output without restarting. Browser audio, mapping scenes,
+A/B morphing, and the collapsed colour proof of concept are preserved.
+
+Use **Route** only when an external destination is wanted. OSC v1 is available;
+libossia/OSCQuery is explicitly planned and not implemented. No model, SAE, or
+tonality experiment depends on a Connector.
+
+After pressing **Run prompt** (or Play), use the preparation panel at the bottom of the controls to
 see whether the model, SAE, Neuronpedia descriptions, feature organization, and
 semantic lenses are loading or coming from cache. The panel closes when the
 first live token arrives; a preparation failure remains visible with its error.
 
-The color/cluster experiment is intentionally collapsed by default. Use the
-**Visual mapping** disclosure to reveal it during visual mapping evaluation.
+The color/cluster experiment remains collapsed under Transform. It is not a
+primary model view.
 
 Do not expand OSC or change the Windows receiver merely because a new local
-mapping exists. First evaluate which emitter controls are musically useful in
-the browser; a later Connector phase can version and transport the selected
-subset.
+probe or interpretation exists. First determine which signals a research or
+artistic workflow actually needs; a later Connector phase can version and
+transport the selected subset.
 
 ### Immediate integration status and next action
 
@@ -351,3 +418,9 @@ a future Connector contract.
    quantization in Phase 5B.
 6. Keep generated caches, papers, references, runs, and screenshots untracked
    unless the user explicitly asks to save them in Git.
+7. With the researchers, define one evidence-backed Interpreto adapter slice:
+   model/split point, live inference versus dataset/checkpoint source, concept or
+   attribution method, and provenance. Implement the adapter before its UI.
+8. Specify a small libossia/OSCQuery Connector namespace for deliberately
+   selected bounded parameters. Keep dense arrays local or choose a separate
+   bounded transport; do not force them into OSC messages.

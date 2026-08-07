@@ -28,6 +28,10 @@ Status: complete for current report
 - Chose the current app direction as a paper-driven live performance interface
   rather than a static explanatory dashboard.
 
+Audit note: the ignored report file was not present in the current clone during
+the Phase 9 redesign. The bullets above are historical extracted notes, not a
+claim that the source was available or reread in that session.
+
 ## Phase 2: Semantic Tonality Foundation
 
 Status: complete
@@ -148,13 +152,13 @@ Status: in progress; fixture and real-model transport verified
 The focused contract and machine boundaries are in
 `specs/ableton-osc-bridge.md`.
 
-## Phase 6: Receiver-Independent GPU Emitter Instrument
+## Phase 6: Receiver-Independent Local Mapping Experiments
 
 Status: complete; hands-on artistic evaluation next
 
 Goal: make Gemma Scope, SAE, Neuronpedia, and semantic-tonality mappings exist
-and remain playable inside the emitter before exposing more controls through a
-connector.
+locally before exposing more controls through a connector. These experiments
+do not define the Emitter as an instrument.
 
 Implemented:
 
@@ -198,8 +202,9 @@ Implemented:
 - Preserved all 18 established scalar mapping sources and added five lightweight
   selected-layer residual/output-logit summaries.
 - Added opt-in full residual vectors, structured top-k logits, and sparse SAE
-  active-feature streams. High-bandwidth raw streams are disabled by default
-  and are not routed through OSC v1.
+  active-feature streams. Server defaults remain lightweight and no raw stream
+  is routed through OSC v1; the Phase 9 browser workbench enables residual and
+  sparse streams locally on startup for its primary views.
 - Added live session selection that is resolved on each generation step and
   updates subsequent browser payloads without restarting.
 - Added an in-place Signals tab with Available, Active, and Destinations
@@ -253,6 +258,49 @@ Implemented:
 The focused implementation contract and completion record are in
 `specs/emitter-loading-feedback.md`.
 
+## Phase 9: General Emitter Neural Workbench
+
+Status: first vertical slice complete; broader research adapters remain open
+
+Goal: replace the instrument-first information architecture with a general,
+truthful workbench for moving through model observation sites and separating raw
+state, interpretation, artistic transformation, and routing.
+
+Implemented:
+
+- Rebuilt the browser around **Observe**, **Interpret**, **Transform**, and
+  **Route**, with a prominent inference prompt and Observe as the default.
+- Added Gemma architecture metadata, a block-level anatomy navigator, and an
+  independent live `observation_layer` for dense residual probes. The loaded SAE
+  stays attached to its trained layer and both locations travel with token data.
+- Added focusable Structure, Dense state, and Sparse state views. The dense
+  field renders real signed residual coordinates and statistics; the sparse
+  view renders real feature indices, activations, and available Neuronpedia
+  descriptions. Both explicitly reject invented semantic geometry.
+- Moved semantic tonality and colour under optional Transform, kept all existing
+  browser audio/mapping behavior, and moved OSC/libossia discussion under Route.
+- Added real root-key transposition and conventional scale presets to the live
+  verbal-lens editor while preserving custom intervals.
+- Preserved WebSocket events, history, loading feedback, browser audio,
+  visualization, mappings, OSC v1, and Windows Receiver behavior.
+- Verified 75 server tests, JavaScript syntax, the 128-ID browser harness, and
+  headless navigation with no browser errors. A real Gemma 3 1B run observed
+  layer 7 while the SAE remained at layer 22, rendering 1,152 dense coordinates
+  and 48 of 65,000 sparse features. The server was stopped afterward.
+
+Not yet implemented:
+
+- Interpreto attribution/concept adapters or training/checkpoint views. Define
+  real methods and provenance with the researchers before adding UI.
+- libossia/OSCQuery Connector namespace and discovery. OSC v1 remains the only
+  current external Connector.
+- Attention-head, MLP sublayer, gradient, optimizer, training-step, dataset, or
+  arbitrary model-family adapters.
+- Semantic projections of dense or sparse directions. Coordinate/index views
+  are intentionally literal until a justified projection exists.
+
+The focused contract is in `specs/emitter-neural-workbench.md`.
+
 ## Later Candidate Features
 
 Good later steps:
@@ -262,6 +310,10 @@ Good later steps:
 - Deeper feature detail inspection, including cluster/instrument attribution and
   the strongest feature descriptions behind each token.
 - Semantic color/image mapping based on the same lens logic as tonalities.
+- A researcher-defined Interpreto adapter for one real model/split-point/method
+  combination, with provenance and no unsupported live-training claims.
+- A small libossia/OSCQuery namespace for selected bounded signals and controls,
+  leaving large dense arrays on a separate local or binary path.
 
 ## Verification Pattern
 

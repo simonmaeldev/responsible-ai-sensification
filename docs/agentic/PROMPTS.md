@@ -47,7 +47,11 @@ Execution machine: [Ubuntu GPU PC | Ubuntu laptop | Windows laptop]
 Confirm the selected machine and do not imply that local commands changed any
 other machine.
 
-Implement only the requested task. Keep changes scoped. Run the smallest useful verification. Update project state if the result changes future work. Do not commit unless asked.
+Implement only the requested task. Use test-driven development by default and
+keep changes scoped. Run focused and complete relevant verification, update
+project state when the result changes future work, and create a focused commit
+after the slice is green. Do not push or perform branch/history operations
+unless explicitly requested.
 
 Spec/task:
 [paste path or task]

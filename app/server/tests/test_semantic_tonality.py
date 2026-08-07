@@ -283,6 +283,7 @@ def test_coerce_tonality_lenses_accepts_live_editor_payload():
             "name": "bureaucratic pressure",
             "description": "cold procedural legal administrative pressure",
             "intervals": "0, 1, 6, 10",
+            "root": 2,
         },
         {"name": "", "description": "ignored"},
     ])
@@ -290,6 +291,40 @@ def test_coerce_tonality_lenses_accepts_live_editor_payload():
     assert tonality_set.name == "live_performance_lenses"
     assert len(tonality_set.tonalities) == 1
     assert tonality_set.tonalities[0].intervals == [0.0, 1.0, 6.0, 10.0]
+    assert tonality_set.tonalities[0].root == 2
+
+
+def test_lens_root_transposes_the_actual_pitch_target():
+    tonality_set = coerce_tonality_lenses([
+        {
+            "name": "D major idea",
+            "description": "bright feature",
+            "intervals": [0, 4, 7],
+            "root": 2,
+        }
+    ])
+    cache = build_tonality_embedding_cache(
+        tonality_set,
+        embed_model="fake-model",
+        embedder=FakeEmbedder(),
+    )
+    result = match_active_features_to_tonalities(
+        [{"description": "bright feature", "activation": 1.0}],
+        cache,
+        top_k=1,
+        embedder=FakeEmbedder(),
+    )
+
+    biased = apply_tonality_pitch_bias(
+        [{"freq": midi_to_frequency(61), "amplitude": 1.0}],
+        result,
+        pitch_bias=1.0,
+        root_midi=60,
+    )
+
+    assert frequency_to_midi(biased[0]["freq"]) == pytest.approx(62)
+    assert biased[0]["tonality_root"] == 2
+    assert tonality_result_to_payload(result)["matches"][0]["root"] == 2
 
 
 def test_tonality_memory_accumulates_run_level_signal():

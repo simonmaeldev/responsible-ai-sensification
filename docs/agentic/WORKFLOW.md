@@ -74,6 +74,14 @@ The goal is to make agent work persistent, scoped, and easy to restart without l
   Neuronpedia, tonality, audio, and visual mappings are current experiments, not
   a closed list. Establish discoverable signals without requiring them to have
   a predetermined artistic interpretation.
+- Keep four stages explicit in implementation and language: **Observe** raw
+  runtime state, **Interpret** it with evidence/provenance, optionally
+  **Transform** it artistically, and optionally **Route** it. A value must not be
+  presented as raw if it came from a projection, description, or mapping.
+- Every live model view should identify the model/session, observation site,
+  token or training step, and representation type. Do not imply semantic
+  distance from coordinate or feature-index proximity unless a documented
+  projection establishes it.
 - Connectors should preserve access to selected raw data when technically
   feasible. Selection, serialization, chunking, and rate limits may be needed
   for a transport, but artistic transformations may instead be created by a
@@ -83,6 +91,10 @@ The goal is to make agent work persistent, scoped, and easy to restart without l
   independently understandable.
 - Do not use Git as the live transport. Use OSC/OSCQuery over the LAN for runtime
   messages.
+- Treat libossia as a candidate Connector namespace/discovery layer, not as the
+  model-exploration UI. Treat Interpreto as a candidate interpretation adapter,
+  not as proof of live training support. Both need a focused spec and real
+  backend evidence before user-facing claims.
 
 ## Agent Tooling
 

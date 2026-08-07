@@ -3,54 +3,89 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Responsible AI Sensification</title>
+  <title>Responsible AI Sensification · Emitter Workbench</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <div id="app">
-    <!-- Top bar: prompt + transport controls -->
     <header class="top-bar">
-      <input id="prompt" type="text" placeholder="Enter prompt…" />
-      <button id="btn-send" class="btn-send" disabled title="Restart generation with current prompt">↺</button>
-      <button id="btn-prev"  class="btn-transport btn-prev"  disabled title="Previous token">⏮</button>
-      <button id="btn-play"  class="btn-transport btn-play"  title="Play">▶</button>
-      <button id="btn-pause" class="btn-transport btn-pause" disabled title="Pause">⏸</button>
-      <button id="btn-stop"  class="btn-transport btn-stop"  disabled title="Stop">⏹</button>
-      <button id="btn-next"  class="btn-transport btn-next"  disabled title="Next token">⏭</button>
+      <div class="project-mark" aria-label="Responsible AI Sensification">
+        <span class="project-glyph">RAI</span>
+        <span>Emitter<br />Workbench</span>
+      </div>
+      <label class="prompt-composer" for="prompt">
+        <span class="prompt-label">
+          <strong>Inference prompt</strong>
+          <small>The text whose generation and internal activity you want to observe</small>
+        </span>
+        <textarea id="prompt" rows="2" placeholder="Ask the model to continue from here…"></textarea>
+      </label>
+      <div class="transport" aria-label="Generation transport">
+        <button id="btn-send" class="btn-send" disabled title="Run generation with this prompt">Run prompt</button>
+        <div class="transport-row">
+          <button id="btn-prev" class="btn-transport btn-prev" disabled title="Previous token">⏮</button>
+          <button id="btn-play" class="btn-transport btn-play" title="Start generation">▶</button>
+          <button id="btn-pause" class="btn-transport btn-pause" disabled title="Pause">⏸</button>
+          <button id="btn-stop" class="btn-transport btn-stop" disabled title="Stop">⏹</button>
+          <button id="btn-next" class="btn-transport btn-next" disabled title="Next token">⏭</button>
+        </div>
+      </div>
     </header>
 
+    <nav class="workspace-nav" aria-label="Emitter workflow">
+      <button type="button" class="active" data-workspace-tab="observe">
+        <span>01</span><strong>Observe</strong><small>Model + raw state</small>
+      </button>
+      <button type="button" data-workspace-tab="interpret">
+        <span>02</span><strong>Interpret</strong><small>Features + evidence</small>
+      </button>
+      <button type="button" data-workspace-tab="transform">
+        <span>03</span><strong>Transform</strong><small>Optional experiments</small>
+      </button>
+      <button type="button" data-workspace-tab="route">
+        <span>04</span><strong>Route</strong><small>Connect destinations</small>
+      </button>
+      <div class="run-context" aria-live="polite">
+        <span id="context-token">No token yet</span>
+        <span id="context-location">Layer —</span>
+      </div>
+    </nav>
+
     <main class="main-layout">
-      <!-- Left panel: controls -->
       <aside class="controls">
         <div class="emitter-identity">
-          <span>GPU Emitter</span>
-          <small>Model probes · signals · live sensification</small>
+          <span id="workspace-kicker">Observation setup</span>
+          <strong id="workspace-title">Model and run</strong>
+          <small id="workspace-description">Choose a source and the model sites you want to inspect.</small>
         </div>
 
-        <nav class="control-tabs" aria-label="Emitter controls">
-          <button type="button" class="control-tab active" data-control-tab="source">Source</button>
-          <button type="button" class="control-tab" data-control-tab="signals">Signals</button>
-          <button type="button" class="control-tab" data-control-tab="tonality">Tonality</button>
-          <button type="button" class="control-tab" data-control-tab="mapping">Mappings</button>
-          <button type="button" class="control-tab" data-control-tab="output">Connector</button>
-        </nav>
-
-        <div class="control-page" data-control-page="source">
+        <div class="control-page" data-workspace-control="observe">
           <section class="control-group">
             <label>Model</label>
             <select id="model"></select>
           </section>
-          <section class="control-group">
-            <label>Layer</label>
-            <select id="layer"></select>
-          </section>
-          <section class="control-group">
-            <label>Width</label>
-            <select id="width"></select>
+          <div class="source-grid">
+            <section class="control-group">
+              <label>SAE layer</label>
+              <select id="layer"></select>
+              <small class="field-note">Attachment site of the loaded Gemma Scope SAE.</small>
+            </section>
+            <section class="control-group">
+              <label>SAE width</label>
+              <select id="width"></select>
+            </section>
+          </div>
+          <section class="control-group observation-layer-control">
+            <label class="control-label-row">
+              Dense observation layer
+              <span id="observation-layer-value" class="inline-status">22 / 25</span>
+            </label>
+            <input id="observation-layer" type="range" min="0" max="25" step="1" value="22" />
+            <small class="field-note">Moves the residual-stream probe. It does not move the SAE.</small>
           </section>
           <section class="control-group">
             <label class="control-label-row">
-              Strategy
+              Note mapping
               <span class="help-icon" id="strategy-help" data-tooltip="">?</span>
             </label>
             <select id="strategy"></select>
@@ -61,216 +96,133 @@
               <input id="clusters" type="number" min="2" max="128" value="8" />
             </section>
           </div>
-          <section class="control-group">
-            <label class="control-label-row">
-              Max tokens
-              <span class="help-icon" data-tooltip="Set to 0 for unlimited tokens.">?</span>
-            </label>
-            <input id="max-tokens" type="number" min="0" value="200" />
-          </section>
-          <section class="control-group">
-            <label class="control-label-row">
-              Mode
-              <span class="help-icon" id="mode-help" data-tooltip="">?</span>
-            </label>
-            <select id="mode"></select>
-          </section>
+          <div class="source-grid">
+            <section class="control-group">
+              <label class="control-label-row">Max tokens <span class="help-icon" data-tooltip="Set to 0 for unlimited tokens.">?</span></label>
+              <input id="max-tokens" type="number" min="0" value="200" />
+            </section>
+            <section class="control-group">
+              <label class="control-label-row">Pacing <span class="help-icon" id="mode-help" data-tooltip="">?</span></label>
+              <select id="mode"></select>
+            </section>
+          </div>
           <div id="bpm-group" class="hidden">
             <section class="control-group">
-              <label class="control-label-row">
-                BPM
-                <span class="help-icon" data-tooltip="Beats per minute — controls token pacing in timed mode.">?</span>
-              </label>
+              <label class="control-label-row">BPM <span class="help-icon" data-tooltip="Controls token pacing in timed mode.">?</span></label>
               <input id="bpm" type="number" min="1" max="600" value="120" />
             </section>
           </div>
           <section class="control-group source-inline-controls">
-            <label class="checkbox-label">
-              <input id="loop" type="checkbox" />
-              Loop
-            </label>
+            <label class="checkbox-label"><input id="loop" type="checkbox" /> Loop generation</label>
           </section>
           <section class="control-group">
-            <label class="range-label">
-              <span>Master volume</span>
-              <span id="volume-value">70%</span>
-            </label>
+            <label class="range-label"><span>Browser audio</span><span id="volume-value">70%</span></label>
             <input id="volume" type="range" min="0" max="1" step="0.01" value="0.7" />
           </section>
         </div>
 
-        <div class="control-page hidden" data-control-page="signals">
+        <div class="control-page hidden" data-workspace-control="interpret">
           <div class="role-card signal-explorer-intro">
-            <strong>Signal Explorer</strong>
-            <span>Choose what this Emitter observes. Raw probes and artistic interpretations remain distinct.</span>
+            <strong>Probe catalogue</strong>
+            <span>Raw observations and derived interpretations are labelled separately.</span>
           </div>
-
           <section class="signal-explorer-toolbar">
-            <input id="signal-catalogue-search" type="search" placeholder="Search probes, locations, or types…" />
+            <input id="signal-catalogue-search" type="search" placeholder="Search location, value, or probe…" />
             <div class="signal-kind-filters" aria-label="Signal type filter">
               <button type="button" class="active" data-signal-filter="all">All</button>
               <button type="button" data-signal-filter="raw">Raw</button>
               <button type="button" data-signal-filter="derived">Derived</button>
             </div>
           </section>
-
           <section class="instrument-section signal-catalogue-section">
-            <div class="section-title-row">
-              <span>Available probes</span>
-              <span id="signal-active-count" class="inline-status">0 active</span>
-            </div>
-            <div id="signal-catalogue-list" class="signal-catalogue-list empty-monitor">Loading signal catalogue…</div>
+            <div class="section-title-row"><span>Available observations</span><span id="signal-active-count" class="inline-status">0 active</span></div>
+            <div id="signal-catalogue-list" class="signal-catalogue-list empty-monitor">Loading probe catalogue…</div>
             <div class="mini-actions">
               <button id="btn-default-signals" type="button">Recommended</button>
               <button id="btn-clear-signals" type="button">Monitor none</button>
             </div>
           </section>
-
           <section class="instrument-section signal-destinations">
-            <div class="section-title">Destinations</div>
-            <div class="signal-route-card">
-              <span>Local monitor</span>
-              <strong id="signal-local-route-count">0 selected</strong>
-            </div>
-            <div class="signal-route-card">
-              <span>Mapping matrix</span>
-              <strong id="signal-mapping-route-count">0 routes</strong>
-            </div>
-            <div class="signal-route-card connector-route-card">
-              <span>External Connector</span>
-              <strong id="signal-connector-route-status">Not routed</strong>
-              <small>Signal selection does not silently change OSC v1.</small>
-            </div>
+            <div class="section-title">Use of selected data</div>
+            <div class="signal-route-card"><span>Local views</span><strong id="signal-local-route-count">0 selected</strong></div>
+            <div class="signal-route-card"><span>Mapping matrix</span><strong id="signal-mapping-route-count">0 routes</strong></div>
+            <div class="signal-route-card connector-route-card"><span>External Connector</span><strong id="signal-connector-route-status">Not routed</strong><small>Probe selection does not silently alter OSC v1.</small></div>
           </section>
         </div>
 
-        <div class="control-page hidden" data-control-page="tonality">
-          <section class="control-group">
-            <label class="checkbox-label">
-              <input id="tonality-enabled" type="checkbox" checked />
-              Semantic tonality
-            </label>
-          </section>
-          <div id="tonality-controls">
-            <section class="control-group">
-              <label class="range-label">
-                <span>Prompt blend</span>
-                <span id="prompt-influence-value">20%</span>
-              </label>
-              <input id="prompt-influence" type="range" min="0" max="1" step="0.01" value="0.2" />
-            </section>
-            <section class="control-group">
-              <label class="range-label">
-                <span>Raw / interpreted</span>
-                <span id="tonality-pitch-bias-value">55%</span>
-              </label>
-              <input id="tonality-pitch-bias" type="range" min="0" max="1" step="0.01" value="0.55" />
-              <div class="mini-actions">
-                <button id="btn-raw-sound" type="button">Raw</button>
-                <button id="btn-interpreted-sound" type="button">Interpreted</button>
-              </div>
-            </section>
-            <section class="control-group lens-editor-group">
-              <label class="control-label-row">
-                Performance lenses
-                <span id="lens-embedding-status" class="inline-status" data-state="ready">ready</span>
-                <button id="btn-add-lens" class="mini-icon-btn" type="button" title="Add lens">+</button>
-                <button id="btn-reset-lenses" class="mini-icon-btn" type="button" title="Reset lenses">↺</button>
-              </label>
-              <div id="tonality-lens-list"></div>
-            </section>
+        <div class="control-page hidden" data-workspace-control="transform">
+          <div class="role-card transform-boundary">
+            <strong>Optional interpretations</strong>
+            <span>These mappings are experiments built from observations—not definitions of the Emitter.</span>
           </div>
+          <details class="control-disclosure" open>
+            <summary>Semantic tonality experiment</summary>
+            <div class="disclosure-body">
+              <section class="control-group">
+                <label class="checkbox-label"><input id="tonality-enabled" type="checkbox" checked /> Enable verbal tonality lenses</label>
+              </section>
+              <div id="tonality-controls">
+                <section class="control-group">
+                  <label class="range-label"><span>Prompt contribution</span><span id="prompt-influence-value">20%</span></label>
+                  <input id="prompt-influence" type="range" min="0" max="1" step="0.01" value="0.2" />
+                </section>
+                <section class="control-group">
+                  <label class="range-label"><span>Raw / tonal pitch</span><span id="tonality-pitch-bias-value">55%</span></label>
+                  <input id="tonality-pitch-bias" type="range" min="0" max="1" step="0.01" value="0.55" />
+                  <div class="mini-actions"><button id="btn-raw-sound" type="button">Raw</button><button id="btn-interpreted-sound" type="button">Tonal</button></div>
+                </section>
+                <section class="control-group lens-editor-group">
+                  <label class="control-label-row">Verbal + interval lenses <span id="lens-embedding-status" class="inline-status" data-state="ready">ready</span><button id="btn-add-lens" class="mini-icon-btn" type="button" title="Add lens">+</button><button id="btn-reset-lenses" class="mini-icon-btn" type="button" title="Reset lenses">↺</button></label>
+                  <div id="tonality-lens-list"></div>
+                </section>
+              </div>
+            </div>
+          </details>
+          <details class="control-disclosure">
+            <summary>Mapping matrix + scenes</summary>
+            <div class="disclosure-body">
+              <section class="instrument-section">
+                <div class="section-title">Saved configurations</div>
+                <div class="scene-save-row"><input id="scene-name" type="text" placeholder="Configuration name" /><button id="btn-save-scene" type="button">Save</button></div>
+                <div class="scene-load-row"><select id="scene-select"></select><button id="btn-load-scene" type="button">Load</button><button id="btn-delete-scene" class="danger-quiet" type="button">×</button></div>
+                <div class="scene-morph-grid"><select id="scene-a" title="Morph configuration A"></select><select id="scene-b" title="Morph configuration B"></select></div>
+                <label class="range-label morph-label"><span>A/B morph</span><span id="scene-morph-value">0%</span></label>
+                <input id="scene-morph" type="range" min="0" max="1" step="0.01" value="0" />
+              </section>
+              <section class="instrument-section">
+                <div class="section-title-row"><span>Live mappings</span><span id="mapping-count" class="inline-status">0</span></div>
+                <div class="mapping-actions"><select id="mapping-template"><option value="activation">Activation performance</option><option value="semantic">Semantic drift</option><option value="sparse">Sparse detail</option></select><button id="btn-apply-template" type="button">Template</button><button id="btn-add-mapping" type="button">+</button></div>
+                <div id="mapping-list"></div>
+                <div class="mini-actions"><button id="btn-reset-mappings" type="button">Starter mappings</button><button id="btn-clear-mappings" type="button">Clear</button></div>
+              </section>
+            </div>
+          </details>
         </div>
 
-        <div class="control-page hidden" data-control-page="mapping">
-          <section class="instrument-section">
-            <div class="section-title">Instrument scenes</div>
-            <div class="scene-save-row">
-              <input id="scene-name" type="text" placeholder="Scene name" />
-              <button id="btn-save-scene" type="button">Save</button>
-            </div>
-            <div class="scene-load-row">
-              <select id="scene-select"></select>
-              <button id="btn-load-scene" type="button">Load</button>
-              <button id="btn-delete-scene" class="danger-quiet" type="button">×</button>
-            </div>
-            <div class="scene-morph-grid">
-              <select id="scene-a" title="Morph scene A"></select>
-              <select id="scene-b" title="Morph scene B"></select>
-            </div>
-            <label class="range-label morph-label">
-              <span>A/B morph</span>
-              <span id="scene-morph-value">0%</span>
-            </label>
-            <input id="scene-morph" type="range" min="0" max="1" step="0.01" value="0" />
-          </section>
-
-          <section class="instrument-section">
-            <div class="section-title-row">
-              <span>Mapping matrix</span>
-              <span id="mapping-count" class="inline-status">0</span>
-            </div>
-            <div class="mapping-actions">
-              <select id="mapping-template">
-                <option value="activation">Activation performance</option>
-                <option value="semantic">Semantic drift</option>
-                <option value="sparse">Sparse detail</option>
-              </select>
-              <button id="btn-apply-template" type="button">Template</button>
-              <button id="btn-add-mapping" type="button">+</button>
-            </div>
-            <div id="mapping-list"></div>
-            <div class="mini-actions">
-              <button id="btn-reset-mappings" type="button">Starter mappings</button>
-              <button id="btn-clear-mappings" type="button">Clear</button>
-            </div>
-          </section>
-        </div>
-
-        <div class="control-page hidden" data-control-page="output">
+        <div class="control-page hidden" data-workspace-control="route">
           <div class="role-card">
-            <strong>Connector</strong>
-            <span>Moves selected emitter data. It does not define the instrument.</span>
+            <strong>Connector configuration</strong>
+            <span>Transport selected Emitter data without deciding its artistic meaning.</span>
           </div>
           <section class="control-group external-output-heading">
-            <label class="checkbox-label">
-              <input id="osc-enabled" type="checkbox" />
-              OSC v1 output
-            </label>
+            <label class="checkbox-label"><input id="osc-enabled" type="checkbox" /> OSC v1 output</label>
           </section>
           <div id="osc-controls" class="external-output hidden">
-            <section class="control-group">
-              <label>Destination host/IP</label>
-              <input id="osc-host" type="text" value="" placeholder="Host or IP address" autocomplete="off" />
-            </section>
+            <section class="control-group"><label>Destination host / IP</label><input id="osc-host" type="text" value="" placeholder="Host or IP address" autocomplete="off" /></section>
             <div class="external-output-grid">
-              <section class="control-group">
-                <label>UDP port</label>
-                <input id="osc-port" type="number" min="1" max="65535" value="9000" />
-              </section>
-              <section class="control-group">
-                <label>Notes/token</label>
-                <input id="osc-max-notes" type="number" min="1" max="128" value="32" />
-              </section>
+              <section class="control-group"><label>UDP port</label><input id="osc-port" type="number" min="1" max="65535" value="9000" /></section>
+              <section class="control-group"><label>Notes / token</label><input id="osc-max-notes" type="number" min="1" max="128" value="32" /></section>
             </div>
             <div id="osc-status" class="osc-status" data-state="disabled">OSC disabled</div>
           </div>
-          <div class="role-card muted-role">
-            <strong>Receiver</strong>
-            <span>Ableton, TouchDesigner, ossia, hardware, or another destination.</span>
-          </div>
+          <div class="role-card muted-role"><strong>libossia / OSCQuery</strong><span>Planned discoverable parameter namespace. Not implemented in this build.</span></div>
+          <div class="role-card muted-role"><strong>Receivers</strong><span>Ableton, TouchDesigner, ossia, browser, hardware, or a custom research tool.</span></div>
         </div>
 
         <div id="status" class="status">
-          <div class="status-line">
-            <span id="status-text">Ready</span>
-            <span id="loop-count-display" class="loop-counter hidden">Loop: 0</span>
-          </div>
+          <div class="status-line"><span id="status-text">Ready</span><span id="loop-count-display" class="loop-counter hidden">Loop: 0</span></div>
           <section id="loading-panel" class="loading-feedback hidden" data-state="active" role="status" aria-live="polite">
-            <div class="loading-heading">
-              <strong id="loading-title">Preparing Emitter</strong>
-              <span id="loading-percent">0%</span>
-            </div>
+            <div class="loading-heading"><strong id="loading-title">Preparing Emitter</strong><span id="loading-percent">0%</span></div>
             <progress id="loading-progress" max="100" value="0">0%</progress>
             <div id="loading-detail" class="loading-detail">Waiting for the runtime…</div>
             <div class="loading-stage-list" aria-label="Emitter preparation stages">
@@ -285,70 +237,107 @@
         </div>
       </aside>
 
-      <!-- Right panel: visualizations -->
       <section class="visuals">
-        <div class="visuals-right">
-          <div class="live-panels">
-            <div id="tonality-panel">
-              <div class="tonality-header">
-                <span>Semantic Tonality</span>
-                <span id="tonality-state">idle</span>
+        <section class="workspace-panel" data-workspace-panel="observe">
+          <header class="workspace-heading">
+            <div><span>Live model observation</span><h1>Neural atlas</h1><p>Move through real transformer blocks and inspect the current token in dense and sparse coordinates.</p></div>
+            <div class="provenance-badges"><span id="atlas-model">model —</span><span id="atlas-token">token —</span><span id="atlas-probe">residual —</span></div>
+          </header>
+          <div class="atlas-layout">
+            <aside class="model-anatomy-panel">
+              <div class="panel-eyebrow">Transformer blocks</div>
+              <div id="model-anatomy" aria-label="Model layer anatomy"></div>
+              <div class="anatomy-legend"><span><i class="probe-dot"></i>Dense probe</span><span><i class="sae-dot"></i>SAE site</span></div>
+            </aside>
+            <section class="atlas-focus">
+              <nav class="atlas-view-tabs" aria-label="Neural atlas view">
+                <button type="button" class="active" data-atlas-view="anatomy"><span>Structure</span><small>where</small></button>
+                <button type="button" data-atlas-view="dense"><span>Dense state</span><small>residual coordinates</small></button>
+                <button type="button" data-atlas-view="sparse"><span>Sparse state</span><small>SAE features</small></button>
+              </nav>
+              <div class="atlas-stage">
+                <section class="atlas-view" data-atlas-panel="anatomy">
+                  <div class="network-diagram" id="anatomy-overview">
+                    <div class="network-node source-node"><span>Input</span><small>prompt + tokens</small></div>
+                    <div class="network-path"><i></i><i></i><i></i></div>
+                    <div class="network-node stack-node"><span id="anatomy-layer-count">— blocks</span><small>attention · MLP · residual</small><div class="stack-lines"></div></div>
+                    <div class="network-path"><i></i><i></i><i></i></div>
+                    <div class="network-node output-node"><span>LM head</span><small>next-token logits</small></div>
+                  </div>
+                  <div class="observation-readout">
+                    <span>Current observation path</span>
+                    <strong id="anatomy-location">Select a layer or start a run</strong>
+                    <p>Dense residuals can be observed at every listed block. Sparse features come from the separately marked SAE attachment.</p>
+                  </div>
+                </section>
+                <section class="atlas-view hidden" data-atlas-panel="dense">
+                  <header class="data-view-heading"><div><span>Raw model observation</span><h2>Residual coordinate field</h2></div><strong id="dense-state-shape">waiting</strong></header>
+                  <canvas id="dense-state-canvas"></canvas>
+                  <div id="dense-state-stats" class="data-stats"><span>Start a run to receive coordinates.</span></div>
+                  <p class="truth-note">Each cell is one signed residual coordinate. Screen proximity is layout only; it does not claim semantic proximity.</p>
+                </section>
+                <section class="atlas-view hidden" data-atlas-panel="sparse">
+                  <header class="data-view-heading"><div><span>Learned sparse representation</span><h2>Active SAE coordinates</h2></div><strong id="sparse-state-count">waiting</strong></header>
+                  <canvas id="sparse-state-canvas"></canvas>
+                  <div id="sparse-state-top" class="sparse-top-list empty-monitor">Start a run to see active features.</div>
+                  <p class="truth-note">Horizontal position follows feature index, not semantic distance. Descriptions are Neuronpedia evidence where available.</p>
+                </section>
               </div>
+            </section>
+          </div>
+          <section class="token-transcript">
+            <header><span>Generated token stream</span><small>Click transport controls to inspect time</small></header>
+            <div id="cv-text-output"><div id="cv-text-content"></div></div>
+          </section>
+        </section>
+
+        <section class="workspace-panel hidden" data-workspace-panel="interpret">
+          <header class="workspace-heading"><div><span>Evidence and interpretation</span><h1>Feature workbench</h1><p>Inspect what was measured, what was derived, and what external descriptions say.</p></div><div class="provenance-badges"><span>SAE · Gemma Scope</span><span>Descriptions · Neuronpedia</span></div></header>
+          <section id="emitter-inspector">
+            <div class="inspector-column"><div class="inspector-heading"><span>Selected observations</span><span id="signal-token">waiting</span></div><div id="signal-monitor" class="monitor-list empty-monitor">Start a run to inspect normalized signals.</div></div>
+            <div class="inspector-column"><div class="inspector-heading"><span>Mapped controls</span><span id="control-count">0 active</span></div><div id="control-monitor" class="monitor-list empty-monitor">Mappings will appear here.</div></div>
+            <div class="inspector-column feature-browser-column"><div class="inspector-heading"><span>SAE feature evidence</span><span id="feature-count">0 active</span></div><input id="feature-search" type="search" placeholder="Search index, cluster, or Neuronpedia description…" /><div id="feature-browser" class="feature-list empty-monitor">Feature evidence will appear here.</div></div>
+          </section>
+          <div class="method-boundary">
+            <div><span>Available now</span><strong>Live SAE features + Neuronpedia descriptions</strong><p>Every item is attached to a token and the SAE’s actual layer.</p></div>
+            <div><span>Research adapter</span><strong>Interpreto is not yet connected</strong><p>Attribution and concept views will appear only after agreeing on real split points, methods, and provenance with the researchers.</p></div>
+          </div>
+        </section>
+
+        <section data-workspace-panel="transform" class="workspace-panel hidden">
+          <header class="workspace-heading"><div><span>Optional artistic transformations</span><h1>Experiment bench</h1><p>Semantic tonality is one removable mapping among sound, colour, image, and future custom experiments.</p></div><div class="provenance-badges"><span>Derived, not raw</span><span>Live-editable</span></div></header>
+          <div class="experiment-grid">
+            <article id="tonality-panel">
+              <div class="tonality-header"><span>Experiment 01 · Semantic tonality</span><span id="tonality-state">idle</span></div>
               <div id="tonality-primary">—</div>
               <div id="tonality-description">—</div>
               <div id="tonality-bars"></div>
               <div id="tonality-intervals"></div>
-              <div id="tonality-memory"></div>
-              <div id="tonality-evidence"></div>
-              <div class="wave-panel">
-                <canvas id="wave-canvas"></canvas>
-              </div>
-            </div>
+              <div class="tonality-evidence-grid"><div id="tonality-memory"></div><div id="tonality-evidence"></div></div>
+              <div class="wave-panel"><canvas id="wave-canvas"></canvas></div>
+            </article>
+            <aside class="experiment-sidecar">
+              <div class="experiment-card"><span>Input</span><strong>SAE descriptions + prompt language</strong><p>Text embeddings estimate resonance with your verbal lenses.</p></div>
+              <div class="experiment-card"><span>Output</span><strong>Pitch bias + local browser sound</strong><p>The raw feature-to-note result remains available through the blend control.</p></div>
+              <details id="visual-proof-panel">
+                <summary><span>Colour mapping</span><small>Separate proof of concept · reveal</small></summary>
+                <div id="cluster-viz-panel"><div id="cv-token-label">—</div><div id="cv-color-strip"></div><div id="cv-labels"><span id="cv-cluster-label">cluster: —</span><span id="cv-feature-label">feature: —</span></div><canvas id="cluster-canvas"></canvas></div>
+              </details>
+            </aside>
+          </div>
+        </section>
 
-            <details id="visual-proof-panel">
-              <summary>
-                <span>Visual mapping</span>
-                <small>Proof of concept · reveal</small>
-              </summary>
-              <div id="cluster-viz-panel">
-                <div id="cv-token-label">—</div>
-                <div id="cv-color-strip"></div>
-                <div id="cv-labels">
-                  <span id="cv-cluster-label">cluster: —</span>
-                  <span id="cv-feature-label">feature: —</span>
-                </div>
-                <canvas id="cluster-canvas"></canvas>
-              </div>
-            </details>
+        <section class="workspace-panel hidden" data-workspace-panel="route">
+          <header class="workspace-heading"><div><span>Optional external transport</span><h1>Connector map</h1><p>The Emitter remains useful locally. Connectors move chosen data to receivers without owning its meaning.</p></div><div class="provenance-badges"><span>OSC v1 · available</span><span>libossia · planned</span></div></header>
+          <div class="connector-map">
+            <article class="connector-node emitter-node"><span>Emitter</span><strong>Ubuntu GPU PC</strong><p>Model runtime · raw probes · interpretations · mappings</p></article>
+            <div class="connector-link"><span>/rai/v1 OSC</span><i></i><small>Current bounded transport</small></div>
+            <article class="connector-node connector-node-center"><span>Connector layer</span><strong>OSC now</strong><p>libossia / OSCQuery is the next discoverable namespace—not yet implemented.</p></article>
+            <div class="connector-link"><span>typed parameters</span><i></i><small>Future routing</small></div>
+            <article class="connector-node receiver-node"><span>Receiver</span><strong>External contexts</strong><p>Ableton · TouchDesigner · ossia · hardware · custom tools</p></article>
           </div>
-          <div id="cv-text-output">
-            <div id="cv-text-content"></div>
-          </div>
-          <section id="emitter-inspector">
-            <div class="inspector-column">
-              <div class="inspector-heading">
-                <span>Selected signals</span>
-                <span id="signal-token">waiting</span>
-              </div>
-              <div id="signal-monitor" class="monitor-list empty-monitor">Start a run to inspect normalized signals.</div>
-            </div>
-            <div class="inspector-column">
-              <div class="inspector-heading">
-                <span>Mapped controls</span>
-                <span id="control-count">0 active</span>
-              </div>
-              <div id="control-monitor" class="monitor-list empty-monitor">Mappings will appear here.</div>
-            </div>
-            <div class="inspector-column feature-browser-column">
-              <div class="inspector-heading">
-                <span>SAE feature browser</span>
-                <span id="feature-count">0 active</span>
-              </div>
-              <input id="feature-search" type="search" placeholder="Search index, cluster, Neuronpedia description…" />
-              <div id="feature-browser" class="feature-list empty-monitor">Feature evidence will appear here.</div>
-            </div>
-          </section>
-        </div>
+          <div class="route-principles"><div><strong>No hardcoded destination</strong><span>Host and UDP port are live controls.</span></div><div><strong>Failure isolation</strong><span>OSC errors never stop model generation.</span></div><div><strong>Receiver independence</strong><span>The UI does not assume an artistic destination.</span></div></div>
+        </section>
       </section>
     </main>
   </div>

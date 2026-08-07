@@ -27,6 +27,7 @@ class TonalityDescription:
     name: str
     description: str
     intervals: list[float] | None = None
+    root: int = 0
 
 
 @dataclass(frozen=True)
@@ -45,6 +46,7 @@ class TonalityEmbeddingEntry:
     description: str
     embedding: list[float]
     intervals: list[float] | None = None
+    root: int = 0
 
 
 @dataclass(frozen=True)
@@ -63,6 +65,7 @@ class TonalityMatch:
     score: float
     description: str
     intervals: list[float] | None = None
+    root: int = 0
 
 
 @dataclass(frozen=True)
@@ -116,6 +119,7 @@ class TonalityMemory:
                     "score": score_total / weight,
                     "description": entry.description,
                     "intervals": entry.intervals,
+                    "root": entry.root,
                 }
             )
         ranked.sort(key=lambda item: item["score"], reverse=True)
@@ -136,6 +140,14 @@ def _coerce_intervals(raw: Any) -> list[float] | None:
     if not isinstance(raw, list):
         raise ValueError("Tonality intervals must be a list of numbers")
     return [float(item) for item in raw]
+
+
+def _coerce_root(raw: Any) -> int:
+    """Coerce a conventional chromatic root to a pitch class (C=0)."""
+    try:
+        return int(raw or 0) % 12
+    except (TypeError, ValueError):
+        return 0
 
 
 def _coerce_description_set(raw: dict[str, Any]) -> TonalityDescriptionSet:
@@ -174,6 +186,7 @@ def _coerce_description_set(raw: dict[str, Any]) -> TonalityDescriptionSet:
                 name=tonality_name,
                 description=tonality_description,
                 intervals=_coerce_intervals(item.get("intervals")),
+                root=_coerce_root(item.get("root")),
             )
         )
 
@@ -207,6 +220,7 @@ def coerce_tonality_lenses(raw_lenses: list[dict[str, Any]]) -> TonalityDescript
                 "name": name,
                 "description": description,
                 "intervals": raw.get("intervals"),
+                "root": raw.get("root", 0),
             }
         )
 
@@ -269,6 +283,7 @@ def build_tonality_embedding_cache(
             name=entry.name,
             description=entry.description,
             intervals=entry.intervals,
+            root=entry.root,
             embedding=embedding,
         )
         for entry, embedding in zip(tonality_set.tonalities, embeddings, strict=True)
@@ -311,6 +326,7 @@ def load_tonality_embedding_cache(path: str | Path) -> TonalityEmbeddingCache:
             name=str(item["name"]),
             description=str(item["description"]),
             intervals=_coerce_intervals(item.get("intervals")),
+            root=_coerce_root(item.get("root")),
             embedding=_vector(item["embedding"]),
         )
         for item in tonalities_raw
@@ -351,6 +367,7 @@ def rank_tonalities(
             score=cosine_similarity(semantic_embedding, entry.embedding),
             description=entry.description,
             intervals=entry.intervals,
+            root=entry.root,
         )
         for entry in cache.tonalities
     ]
@@ -566,6 +583,7 @@ def tonality_result_to_payload(
                 "score": match.score,
                 "description": match.description,
                 "intervals": match.intervals,
+                "root": match.root,
             }
             for match in result.matches
         ],
@@ -620,13 +638,14 @@ def apply_tonality_pitch_bias(
     bias = _clamp_unit(pitch_bias)
     primary = result.matches[0] if result.matches else None
     intervals = primary.intervals if primary else None
+    tonality_root = primary.root if primary else 0
 
     biased_notes: list[dict[str, Any]] = []
     for note in notes:
         raw_freq = float(note.get("freq") or 440.0)
         raw_midi = frequency_to_midi(raw_freq)
         target_midi = (
-            _nearest_interval_midi(raw_midi, intervals, root_midi=root_midi)
+            _nearest_interval_midi(raw_midi, intervals, root_midi=root_midi + tonality_root)
             if intervals
             else raw_midi
         )
@@ -646,6 +665,7 @@ def apply_tonality_pitch_bias(
                     "tonality_name": primary.name,
                     "tonality_score": primary.score,
                     "tonality_intervals": primary.intervals,
+                    "tonality_root": primary.root,
                 }
             )
         biased_notes.append(biased_note)

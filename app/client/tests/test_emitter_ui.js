@@ -67,7 +67,15 @@ const source = fs.readFileSync(sourcePath, "utf8");
 const htmlIds = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map(match => match[1]));
 const referencedIds = [...source.matchAll(/getElementById\("([^"]+)"\)/g)].map(match => match[1]);
 assert.deepEqual(referencedIds.filter(id => !htmlIds.has(id)), []);
-assert.match(html, /data-control-tab="signals"/);
+assert.match(html, /data-workspace-tab="observe"/);
+assert.match(html, /data-workspace-tab="interpret"/);
+assert.match(html, /data-workspace-tab="transform"/);
+assert.match(html, /data-workspace-tab="route"/);
+assert.match(html, /<textarea[^>]+id="prompt"/);
+assert.match(html, /id="model-anatomy"/);
+assert.match(html, /id="dense-state-canvas"/);
+assert.match(html, /id="sparse-state-canvas"/);
+assert.match(html, /data-workspace-panel="transform"[^>]*class="[^"]*hidden/);
 assert.match(html, /id="signal-catalogue-search"/);
 assert.match(html, /id="signal-catalogue-list"/);
 assert.match(html, /id="loading-panel"/);
@@ -116,7 +124,12 @@ global.fetch = async url => ({
     if (url.endsWith("model-options")) {
       return {
         models: ["test-model"],
-        model_catalogue: { "test-model": { layers: [22], widths: ["65k"] } },
+        model_catalogue: {
+          "test-model": {
+            layers: [22], widths: ["65k"], observation_layers: [0, 1, 2],
+            architecture: { layer_count: 3, hidden_size: 2, intermediate_size: 4 },
+          },
+        },
         strategies: [{ value: "identity", label: "Identity", description: "test" }],
         modes: [{ value: "timed", label: "Timed", description: "test" }],
       };
@@ -166,7 +179,7 @@ global.fetch = async url => ({
   },
 });
 
-const instrumented = `${source}\n;globalThis.__emitterTest = { completeMapping, templateMappings, morphMapping, lerp, filterSignalCatalogue, signalRouteSummary, describeStreamValue, handleMessage, handleLoadingMessage, startLoadingProgress, finishLoadingProgress, setSignalSelection(keys) { sessionActive = true; selectedEmitterSignalKeys = new Set(keys); sendSignalSelectionUpdate(); } };`;
+const instrumented = `${source}\n;globalThis.__emitterTest = { completeMapping, templateMappings, morphMapping, lerp, filterSignalCatalogue, signalRouteSummary, describeStreamValue, residualVectorStats, safeObservationLayer, scalePresetForIntervals, normalizedLens, handleMessage, handleLoadingMessage, startLoadingProgress, finishLoadingProgress, setSignalSelection(keys) { sessionActive = true; selectedEmitterSignalKeys = new Set(keys); sendSignalSelectionUpdate(); } };`;
 vm.runInThisContext(instrumented, { filename: sourcePath });
 
 setTimeout(() => {
@@ -209,6 +222,18 @@ setTimeout(() => {
     api.describeStreamValue({ value_type: "sparse_vector", value: [{ index: 1, activation: 2 }] }),
     "1 active feature",
   );
+  assert.deepEqual(api.residualVectorStats([-2, 0, 2]), {
+    count: 3,
+    minimum: -2,
+    maximum: 2,
+    maxAbs: 2,
+    rms: Math.sqrt(8 / 3),
+  });
+  assert.equal(api.safeObservationLayer(99, [0, 1, 2], 1), 2);
+  assert.equal(api.safeObservationLayer("bad", [0, 1, 2], 1), 1);
+  assert.equal(api.scalePresetForIntervals([0, 2, 4, 5, 7, 9, 11]), "major");
+  assert.equal(api.scalePresetForIntervals([0, 1, 6]), "custom");
+  assert.equal(api.normalizedLens({ name: "D idea", description: "bright", intervals: [0, 4, 7], root: 14 }).root, 2);
   assert.ok(elements.get("signal-catalogue-list").children.length > 0);
   api.setSignalSelection(["activation.max", "model.residual.vector"]);
   assert.deepEqual(global.WebSocket.instances[0].sent.at(-1), {

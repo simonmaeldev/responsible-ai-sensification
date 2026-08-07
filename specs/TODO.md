@@ -24,17 +24,25 @@ priority takes precedence over the older numeric ordering.
 - Emitter loading feedback: six structured preparation stages now report model,
   SAE, Neuronpedia cache/download, feature organization, semantic tonality, and
   first-token generation progress in the existing GUI.
+- General Emitter neural workbench: prompt-first Observe/Interpret/Transform/
+  Route architecture; truthful 26-block Gemma anatomy; independent live dense
+  residual observation; focusable 1,152-coordinate residual and 65k sparse SAE
+  views; optional tonality/colour/OSC workspaces; and real root-key/scale/custom
+  interval editing. Verified with a layer-7 dense probe and layer-22 SAE.
 
-## Current priority: play and evaluate the emitter
+## Current priority: researcher-facing observation workflows
 
-- Use the Signals tab to compare selected-layer residual, output-logit, SAE, and
-  derived semantic signals during real generation.
-- Deliberately activate raw residual/top-k/sparse streams only when their full
-  values are needed; they remain local and are not automatically routed to OSC.
-- Run with OSC disabled and evaluate mappings locally in browser audio/visuals.
-- Save promising mapping/lens combinations as scenes.
-- Choose which proven internal controls belong in a future Connector contract;
-  do not automatically expose every model signal to every Receiver.
+- Use Observe to compare dense residual state across transformer blocks while
+  keeping the layer-22 SAE provenance visible.
+- Use Interpret to compare raw residual/logit/SAE data with derived signals and
+  Neuronpedia descriptions. Raw residual and sparse streams are enabled locally
+  by the workbench but remain outside OSC v1.
+- With the researchers, specify one actual Interpreto adapter: supported model,
+  split point, inference/dataset/checkpoint source, method, and provenance.
+- Specify a small libossia/OSCQuery namespace only for deliberately selected,
+  bounded Connector parameters. Do not force full dense arrays into OSC.
+- Keep Transform experiments removable and evaluate them only when they answer
+  a concrete research or artistic question.
 
 ## Established connector/receiver path: Ableton OSC bridge
 

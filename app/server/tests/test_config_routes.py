@@ -13,8 +13,9 @@ def test_get_tonalities_returns_default_interval_payload():
     assert payload["name"] == "default_artist_tonalities"
     assert payload["tonalities"]
     first = payload["tonalities"][0]
-    assert set(first) == {"name", "description", "intervals"}
+    assert set(first) == {"name", "description", "intervals", "root"}
     assert first["intervals"]
+    assert first["root"] == 0
 
 
 def test_get_emitter_mapping_returns_editor_catalogue():

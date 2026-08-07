@@ -254,6 +254,9 @@ let pinnedFeatures = new Set();
 let mutedFeatures = new Set();
 let soloFeatures = new Set();
 let instrumentScenes = [];
+let activeWorkspace = "observe";
+let activeAtlasView = "anatomy";
+const WORKBENCH_SIGNAL_KEYS = ["model.residual.vector", "sae.active_features"];
 
 // Transport / history state
 let isPaused = false;
@@ -398,6 +401,305 @@ const signalMappingRouteCount = document.getElementById("signal-mapping-route-co
 const btnDefaultSignals = document.getElementById("btn-default-signals");
 const btnClearSignals = document.getElementById("btn-clear-signals");
 const visualProofPanel = document.getElementById("visual-proof-panel");
+const observationLayerIn = document.getElementById("observation-layer");
+const observationLayerValue = document.getElementById("observation-layer-value");
+const contextToken = document.getElementById("context-token");
+const contextLocation = document.getElementById("context-location");
+const workspaceKicker = document.getElementById("workspace-kicker");
+const workspaceTitle = document.getElementById("workspace-title");
+const workspaceDescription = document.getElementById("workspace-description");
+const modelAnatomy = document.getElementById("model-anatomy");
+const atlasModel = document.getElementById("atlas-model");
+const atlasToken = document.getElementById("atlas-token");
+const atlasProbe = document.getElementById("atlas-probe");
+const anatomyLayerCount = document.getElementById("anatomy-layer-count");
+const anatomyLocation = document.getElementById("anatomy-location");
+const denseStateCanvas = document.getElementById("dense-state-canvas");
+const denseStateShape = document.getElementById("dense-state-shape");
+const denseStateStats = document.getElementById("dense-state-stats");
+const sparseStateCanvas = document.getElementById("sparse-state-canvas");
+const sparseStateCount = document.getElementById("sparse-state-count");
+const sparseStateTop = document.getElementById("sparse-state-top");
+
+const WORKSPACE_COPY = {
+  observe: {
+    kicker: "Observation setup",
+    title: "Model and run",
+    description: "Choose a source and the model sites you want to inspect.",
+  },
+  interpret: {
+    kicker: "Interpretation setup",
+    title: "Probes and evidence",
+    description: "Choose observations and inspect how raw values become interpretations.",
+  },
+  transform: {
+    kicker: "Transformation setup",
+    title: "Optional experiments",
+    description: "Configure semantic, sonic, visual, or custom mappings without redefining the source data.",
+  },
+  route: {
+    kicker: "Transport setup",
+    title: "Connector and receivers",
+    description: "Route selected output to external software while keeping the Emitter independent.",
+  },
+};
+
+function setWorkspace(workspace) {
+  if (!WORKSPACE_COPY[workspace]) return;
+  activeWorkspace = workspace;
+  for (const tab of document.querySelectorAll("[data-workspace-tab]")) {
+    tab.classList.toggle("active", tab.dataset.workspaceTab === workspace);
+  }
+  for (const page of document.querySelectorAll("[data-workspace-control]")) {
+    page.classList.toggle("hidden", page.dataset.workspaceControl !== workspace);
+  }
+  for (const panel of document.querySelectorAll("[data-workspace-panel]")) {
+    panel.classList.toggle("hidden", panel.dataset.workspacePanel !== workspace);
+  }
+  const copy = WORKSPACE_COPY[workspace];
+  workspaceKicker.textContent = copy.kicker;
+  workspaceTitle.textContent = copy.title;
+  workspaceDescription.textContent = copy.description;
+  if (workspace === "observe") renderModelAnatomy();
+}
+
+function setAtlasView(view) {
+  if (!new Set(["anatomy", "dense", "sparse"]).has(view)) return;
+  activeAtlasView = view;
+  for (const tab of document.querySelectorAll("[data-atlas-view]")) {
+    tab.classList.toggle("active", tab.dataset.atlasView === view);
+  }
+  for (const panel of document.querySelectorAll("[data-atlas-panel]")) {
+    panel.classList.toggle("hidden", panel.dataset.atlasPanel !== view);
+  }
+  if (view === "dense") renderDenseState(currentEmitterStreams["model.residual.vector"]);
+  if (view === "sparse") renderSparseState(currentEmitterStreams["sae.active_features"]);
+}
+
+function safeObservationLayer(value, availableLayers, fallback = 0) {
+  const layers = (availableLayers || []).map(Number).filter(Number.isFinite);
+  if (!layers.length) return Number.isFinite(Number(fallback)) ? Number(fallback) : 0;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return layers.includes(Number(fallback)) ? Number(fallback) : layers[0];
+  }
+  return layers.reduce((closest, layer) => (
+    Math.abs(layer - numeric) < Math.abs(closest - numeric) ? layer : closest
+  ), layers[0]);
+}
+
+function currentModelInfo() {
+  return catalogue[modelSel.value] || {
+    layers: [],
+    widths: [],
+    observation_layers: [],
+    architecture: {},
+  };
+}
+
+function populateObservationLayer(modelId, preferredValue = observationLayerIn.value) {
+  const info = catalogue[modelId] || {};
+  const architectureCount = Number(info.architecture?.layer_count || 0);
+  const available = info.observation_layers?.length
+    ? info.observation_layers.map(Number)
+    : Array.from({ length: architectureCount }, (_item, index) => index);
+  if (!available.length) return;
+  observationLayerIn.min = String(Math.min(...available));
+  observationLayerIn.max = String(Math.max(...available));
+  observationLayerIn.value = String(safeObservationLayer(preferredValue, available, layerSel.value));
+  updateObservationLayer(false);
+}
+
+function updateObservationLayer(sendLive = true) {
+  const info = currentModelInfo();
+  const available = info.observation_layers || [];
+  const selected = safeObservationLayer(observationLayerIn.value, available, layerSel.value);
+  observationLayerIn.value = String(selected);
+  const lastLayer = available.length ? Math.max(...available.map(Number)) : selected;
+  observationLayerValue.textContent = `${selected} / ${lastLayer}`;
+  contextLocation.textContent = `Dense L${selected} · SAE L${layerSel.value || "—"}`;
+  if (anatomyLocation) {
+    anatomyLocation.textContent = `Block ${selected} residual → dense probes · Block ${layerSel.value || "—"} residual → ${widthSel.value || "—"} SAE`;
+  }
+  renderModelAnatomy();
+  if (sendLive) {
+    sendParamUpdate({ observation_layer: selected });
+    saveParams();
+  }
+}
+
+function renderModelAnatomy(observedLayer = Number(observationLayerIn.value)) {
+  if (!modelAnatomy) return;
+  const info = currentModelInfo();
+  const layers = info.observation_layers || [];
+  const saeLayer = Number(layerSel.value);
+  const selected = safeObservationLayer(observedLayer, layers, saeLayer);
+  modelAnatomy.innerHTML = "";
+  for (const layer of layers) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.layer = String(layer);
+    button.className = "anatomy-layer";
+    button.classList.toggle("is-observed", Number(layer) === selected);
+    button.classList.toggle("has-sae", Number(layer) === saeLayer);
+    button.title = Number(layer) === saeLayer
+      ? `Transformer block ${layer} · dense residual available · SAE attached`
+      : `Transformer block ${layer} · dense residual available`;
+    const label = document.createElement("span");
+    label.textContent = `L${String(layer).padStart(2, "0")}`;
+    const sites = document.createElement("span");
+    sites.className = "layer-sites";
+    if (Number(layer) === selected) {
+      const probe = document.createElement("i");
+      probe.className = "probe-dot";
+      sites.appendChild(probe);
+    }
+    if (Number(layer) === saeLayer) {
+      const sae = document.createElement("i");
+      sae.className = "sae-dot";
+      sites.appendChild(sae);
+    }
+    button.append(label, sites);
+    button.addEventListener("click", () => {
+      observationLayerIn.value = String(layer);
+      updateObservationLayer(true);
+    });
+    modelAnatomy.appendChild(button);
+  }
+  const architecture = info.architecture || {};
+  anatomyLayerCount.textContent = `${architecture.layer_count || layers.length || "—"} blocks`;
+  atlasModel.textContent = architecture.label || modelSel.value || "model —";
+}
+
+function residualVectorStats(values) {
+  const finite = (values || []).map(Number).filter(Number.isFinite);
+  if (!finite.length) return { count: 0, minimum: 0, maximum: 0, maxAbs: 0, rms: 0 };
+  const minimum = Math.min(...finite);
+  const maximum = Math.max(...finite);
+  return {
+    count: finite.length,
+    minimum,
+    maximum,
+    maxAbs: Math.max(Math.abs(minimum), Math.abs(maximum)),
+    rms: Math.sqrt(finite.reduce((sum, value) => sum + (value * value), 0) / finite.length),
+  };
+}
+
+function prepareDataCanvas(canvas) {
+  if (!canvas) return null;
+  const width = Math.max(1, Math.floor(canvas.offsetWidth || 640));
+  const height = Math.max(1, Math.floor(canvas.offsetHeight || 280));
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+  context.clearRect(0, 0, width, height);
+  context.fillStyle = "#101415";
+  context.fillRect(0, 0, width, height);
+  return { context, width, height };
+}
+
+function renderDenseState(stream = currentEmitterStreams["model.residual.vector"]) {
+  const values = stream?.value?.values || [];
+  const canvas = prepareDataCanvas(denseStateCanvas);
+  if (!canvas || !values.length) {
+    denseStateShape.textContent = "waiting";
+    denseStateStats.classList.add("is-empty");
+    denseStateStats.textContent = "Enable the residual vector probe and start a run to receive coordinates.";
+    return;
+  }
+  const stats = residualVectorStats(values);
+  const aspect = canvas.width / Math.max(canvas.height, 1);
+  const columns = Math.max(1, Math.ceil(Math.sqrt(values.length * aspect)));
+  const rows = Math.ceil(values.length / columns);
+  const cellWidth = canvas.width / columns;
+  const cellHeight = canvas.height / rows;
+  values.forEach((rawValue, index) => {
+    const value = Number(rawValue) || 0;
+    const intensity = stats.maxAbs ? Math.min(1, Math.abs(value) / stats.maxAbs) : 0;
+    canvas.context.fillStyle = value >= 0
+      ? `rgba(44, 197, 167, ${0.12 + (intensity * 0.88)})`
+      : `rgba(222, 112, 76, ${0.12 + (intensity * 0.88)})`;
+    const x = (index % columns) * cellWidth;
+    const y = Math.floor(index / columns) * cellHeight;
+    canvas.context.fillRect(x + 0.5, y + 0.5, Math.max(1, cellWidth - 1), Math.max(1, cellHeight - 1));
+  });
+  denseStateShape.textContent = `${stats.count.toLocaleString()} dimensions`;
+  denseStateStats.classList.remove("is-empty");
+  denseStateStats.innerHTML = "";
+  for (const [label, value] of [
+    ["minimum", stats.minimum],
+    ["maximum", stats.maximum],
+    ["RMS", stats.rms],
+    ["peak |x|", stats.maxAbs],
+  ]) {
+    const item = document.createElement("span");
+    item.innerHTML = `<small>${label}</small><strong>${formatSignalValue(value)}</strong>`;
+    denseStateStats.appendChild(item);
+  }
+}
+
+function renderSparseState(stream = currentEmitterStreams["sae.active_features"]) {
+  const features = Array.isArray(stream?.value) ? stream.value : [];
+  const canvas = prepareDataCanvas(sparseStateCanvas);
+  sparseStateTop.innerHTML = "";
+  if (!canvas || !features.length) {
+    sparseStateCount.textContent = "waiting";
+    sparseStateTop.classList.add("empty-monitor");
+    sparseStateTop.textContent = "Enable the sparse SAE probe and start a run to see active features.";
+    return;
+  }
+  const widthMatch = String(widthSel.value || "65k").match(/[\d.]+/);
+  const multiplier = String(widthSel.value || "").toLowerCase().includes("k") ? 1000 : 1;
+  const coordinateCount = Math.max(1, Number(widthMatch?.[0] || 65) * multiplier);
+  const maximum = Math.max(...features.map(item => Number(item.activation) || 0), 1e-9);
+  canvas.context.fillStyle = "rgba(255,255,255,0.08)";
+  canvas.context.fillRect(0, canvas.height - 1, canvas.width, 1);
+  for (const feature of features) {
+    const x = (Number(feature.index) / coordinateCount) * canvas.width;
+    const height = Math.max(2, ((Number(feature.activation) || 0) / maximum) * (canvas.height - 12));
+    canvas.context.fillStyle = "rgba(139, 111, 232, 0.82)";
+    canvas.context.fillRect(Math.max(0, x - 1), canvas.height - height, 3, height);
+  }
+  sparseStateCount.textContent = `${features.length} / ${coordinateCount.toLocaleString()} active`;
+  sparseStateTop.classList.remove("empty-monitor");
+  const strongest = [...features]
+    .sort((left, right) => Number(right.activation) - Number(left.activation))
+    .slice(0, 8);
+  for (const feature of strongest) {
+    const row = document.createElement("div");
+    row.className = "sparse-top-row";
+    const index = document.createElement("strong");
+    index.textContent = `#${feature.index}`;
+    const description = document.createElement("span");
+    description.textContent = feature.description || "No Neuronpedia description in this scope";
+    const activation = document.createElement("span");
+    activation.textContent = formatSignalValue(feature.activation);
+    row.append(index, description, activation);
+    sparseStateTop.appendChild(row);
+  }
+}
+
+function renderNeuralAtlas(msg) {
+  const observation = msg?.observation || {};
+  const observedLayer = Number.isFinite(Number(observation.layer))
+    ? Number(observation.layer)
+    : Number(observationLayerIn.value);
+  const saeLayer = observation.sae_layer ?? layerSel.value;
+  contextToken.textContent = msg?.token ? `Token ${tokenCount} · ${JSON.stringify(msg.token)}` : "No token yet";
+  contextLocation.textContent = `Dense L${observedLayer} · SAE L${saeLayer}`;
+  atlasToken.textContent = msg?.token ? `token · ${JSON.stringify(msg.token)}` : "token —";
+  atlasProbe.textContent = `residual · layer ${observedLayer}`;
+  anatomyLocation.textContent = `Block ${observedLayer} residual → dense probes · Block ${saeLayer} residual → ${observation.sae_width || widthSel.value} SAE`;
+  renderModelAnatomy(observedLayer);
+  renderDenseState();
+  renderSparseState();
+}
+
+function ensureWorkbenchSignalSelection() {
+  for (const key of WORKBENCH_SIGNAL_KEYS) {
+    if (emitterSignalCatalogue.some(spec => spec.key === key)) selectedEmitterSignalKeys.add(key);
+  }
+}
 
 // ── Load options + defaults ─────────────────────────────────────────────────
 async function loadOptions() {
@@ -489,10 +791,13 @@ async function loadOptions() {
 
   const saved = loadSavedParams();
   if (saved) applyParams(saved);
+  ensureWorkbenchSignalSelection();
   renderMappingEditor();
   renderSceneSelectors();
   renderFeatureBrowser();
   renderSignalExplorer();
+  renderModelAnatomy();
+  renderNeuralAtlas(null);
 }
 
 function populateLayerWidth(modelId) {
@@ -513,6 +818,8 @@ function populateLayerWidth(modelId) {
     opt.textContent = w;
     widthSel.appendChild(opt);
   });
+
+  populateObservationLayer(modelId);
 }
 
 function intervalsToText(intervals) {
@@ -528,6 +835,24 @@ function parseIntervals(text) {
     .filter(value => Number.isFinite(value));
 }
 
+const TONAL_ROOTS = ["C", "C♯", "D", "E♭", "E", "F", "F♯", "G", "A♭", "A", "B♭", "B"];
+const SCALE_PRESETS = {
+  custom: null,
+  major: [0, 2, 4, 5, 7, 9, 11],
+  natural_minor: [0, 2, 3, 5, 7, 8, 10],
+  dorian: [0, 2, 3, 5, 7, 9, 10],
+  mixolydian: [0, 2, 4, 5, 7, 9, 10],
+  major_pentatonic: [0, 2, 4, 7, 9],
+  minor_pentatonic: [0, 3, 5, 7, 10],
+  whole_tone: [0, 2, 4, 6, 8, 10],
+  chromatic: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+};
+
+function scalePresetForIntervals(intervals) {
+  const signature = (intervals || []).map(Number).join(",");
+  return Object.entries(SCALE_PRESETS).find(([_key, values]) => values?.join(",") === signature)?.[0] || "custom";
+}
+
 function normalizedLens(entry) {
   return {
     name: String(entry.name || "").trim(),
@@ -536,6 +861,7 @@ function normalizedLens(entry) {
       ? entry.intervals.map(value => Number(value)).filter(value => Number.isFinite(value))
       : parseIntervals(entry.intervals),
     enabled: entry.enabled !== false,
+    root: ((Number(entry.root) || 0) % 12 + 12) % 12,
   };
 }
 
@@ -620,6 +946,33 @@ function renderLensEditor() {
       scheduleLensUpdate();
     });
 
+    const tonalControls = document.createElement("div");
+    tonalControls.className = "lens-tonal-controls";
+
+    const root = document.createElement("select");
+    root.title = "Root key (C = pitch class 0)";
+    for (const [pitchClass, label] of TONAL_ROOTS.entries()) {
+      const option = document.createElement("option");
+      option.value = String(pitchClass);
+      option.textContent = `${label} root`;
+      root.appendChild(option);
+    }
+    root.value = String(lens.root);
+    root.addEventListener("change", () => {
+      tonalityCatalogue[index].root = Number(root.value);
+      scheduleLensUpdate(0);
+    });
+
+    const preset = document.createElement("select");
+    preset.title = "Conventional scale or custom interval set";
+    for (const key of Object.keys(SCALE_PRESETS)) {
+      const option = document.createElement("option");
+      option.value = key;
+      option.textContent = key === "custom" ? "Custom intervals" : key.replaceAll("_", " ");
+      preset.appendChild(option);
+    }
+    preset.value = scalePresetForIntervals(lens.intervals);
+
     const intervals = document.createElement("input");
     intervals.type = "text";
     intervals.value = intervalsToText(lens.intervals);
@@ -627,12 +980,23 @@ function renderLensEditor() {
     intervals.title = "Intervals";
     intervals.addEventListener("input", () => {
       tonalityCatalogue[index].intervals = intervals.value;
+      preset.value = scalePresetForIntervals(parseIntervals(intervals.value));
       scheduleLensUpdate();
     });
 
+    preset.addEventListener("change", () => {
+      const presetIntervals = SCALE_PRESETS[preset.value];
+      if (!presetIntervals) return;
+      tonalityCatalogue[index].intervals = [...presetIntervals];
+      intervals.value = intervalsToText(presetIntervals);
+      scheduleLensUpdate(0);
+    });
+
+    tonalControls.append(root, preset);
+
     item.classList.toggle("is-disabled", !lens.enabled);
     top.append(enabled, name, moveUp, moveDown, duplicate, remove);
-    item.append(top, description, intervals);
+    item.append(top, description, tonalControls, intervals);
     tonalityLensList.appendChild(item);
   });
 }
@@ -665,8 +1029,12 @@ function updateModeHelp() {
 
 function applyParams(p) {
   if (p.prompt     !== undefined) prompt.value       = p.prompt;
-  if (p.model      !== undefined) modelSel.value     = p.model;
+  if (p.model      !== undefined) {
+    modelSel.value = p.model;
+    populateLayerWidth(p.model);
+  }
   if (p.layer      !== undefined) layerSel.value     = p.layer;
+  if (p.observation_layer !== undefined) observationLayerIn.value = p.observation_layer;
   if (p.width      !== undefined) widthSel.value     = p.width;
   if (p.strategy   !== undefined) { strategySel.value = p.strategy; updateStrategyHelp(); }
   if (p.clusters   !== undefined) clustersIn.value   = p.clusters;
@@ -703,6 +1071,7 @@ function applyParams(p) {
   syncTonalityControls();
   updateTonalityControlValues();
   updateVolumeValue();
+  updateObservationLayer(false);
 }
 
 // ── Collect current params ─────────────────────────────────────────────────
@@ -711,6 +1080,7 @@ function collectParams() {
     prompt:     prompt.value,
     model:      modelSel.value,
     layer:      parseInt(layerSel.value),
+    observation_layer: parseInt(observationLayerIn.value),
     width:      widthSel.value,
     strategy:   strategySel.value,
     clusters:   parseInt(clustersIn.value),
@@ -1381,6 +1751,7 @@ function handleMessage(msg) {
     case "ready":
       applyParams(msg.params);
       finishLoadingProgress(true);
+      setIdle();
       setStatus("Connected — ready");
       break;
 
@@ -1482,6 +1853,7 @@ function consumeEmitterPayload(msg) {
   updateFeatureCatalogue(msg.notes || []);
   applyVisualControls();
   renderSignalExplorer();
+  renderNeuralAtlas(msg);
 }
 
 function auditionNotes(notes) {
@@ -1840,7 +2212,7 @@ function renderTonalityPanel(msg) {
   if (tonalityState) {
     const promptPct = Math.round((payload.prompt_influence ?? 0) * 100);
     const pitchPct = Math.round((payload.pitch_bias ?? 0) * 100);
-    tonalityState.textContent = `P${promptPct} / T${pitchPct}`;
+    tonalityState.textContent = `${TONAL_ROOTS[Number(primary.root || 0)]} · P${promptPct} / T${pitchPct}`;
   }
   if (tonalityPrimary) tonalityPrimary.textContent = primary.name;
   if (tonalityDescription) tonalityDescription.textContent = primary.description || "—";
@@ -1871,7 +2243,11 @@ function renderTonalityPanel(msg) {
     tonalityIntervals.innerHTML = "";
     for (const interval of primary.intervals ?? []) {
       const chip = document.createElement("span");
-      chip.textContent = Number.isInteger(interval) ? `${interval}` : `${Number(interval).toFixed(2)}`;
+      const numeric = Number(interval);
+      const pitchClass = Number(primary.root || 0) + numeric;
+      chip.textContent = Number.isInteger(pitchClass)
+        ? `${TONAL_ROOTS[((pitchClass % 12) + 12) % 12]} · +${numeric}`
+        : `+${numeric.toFixed(2)} st`;
       tonalityIntervals.appendChild(chip);
     }
   }
@@ -2070,7 +2446,7 @@ function setIdle() {
   btnStop.disabled  = true;
   btnPrev.disabled  = true;
   btnNext.disabled  = true;
-  btnSend.disabled  = true;
+  btnSend.disabled  = false;
 }
 
 function setRunning() {
@@ -2223,15 +2599,24 @@ function sendParamUpdate(partial) {
 }
 
 prompt.addEventListener("input", () => saveParams());
+prompt.addEventListener("keydown", event => {
+  if ((event.ctrlKey || event.metaKey) && event.key === "Enter") startPipeline();
+});
 
 modelSel.addEventListener("change", () => {
   populateLayerWidth(modelSel.value);
-  sendParamUpdate({ model: modelSel.value });
   saveParams();
 });
 
-layerSel.addEventListener("change", () => { sendParamUpdate({ layer: parseInt(layerSel.value) }); saveParams(); });
-widthSel.addEventListener("change", () => { sendParamUpdate({ width: widthSel.value }); saveParams(); });
+layerSel.addEventListener("change", () => {
+  updateObservationLayer(false);
+  saveParams();
+});
+observationLayerIn.addEventListener("input", () => updateObservationLayer(true));
+widthSel.addEventListener("change", () => {
+  updateObservationLayer(false);
+  saveParams();
+});
 
 strategySel.addEventListener("change", () => {
   updateStrategyHelp();
@@ -2306,6 +2691,7 @@ btnAddLens.addEventListener("click", () => {
     name: "new lens",
     description: "type a sonic-interpretive description",
     intervals: [0, 2, 7],
+    root: 0,
     enabled: true,
   });
   renderLensEditor();
@@ -2328,6 +2714,14 @@ for (const tab of document.querySelectorAll("[data-control-tab]")) {
       page.classList.toggle("hidden", page.dataset.controlPage !== target);
     }
   });
+}
+
+for (const tab of document.querySelectorAll("[data-workspace-tab]")) {
+  tab.addEventListener("click", () => setWorkspace(tab.dataset.workspaceTab));
+}
+
+for (const tab of document.querySelectorAll("[data-atlas-view]")) {
+  tab.addEventListener("click", () => setAtlasView(tab.dataset.atlasView));
 }
 
 btnAddMapping.addEventListener("click", () => {
@@ -2417,6 +2811,13 @@ visualProofPanel.addEventListener("toggle", () => {
     applyVisualControls();
   });
 });
+
+if (window.addEventListener) {
+  window.addEventListener("resize", () => {
+    if (activeAtlasView === "dense") renderDenseState();
+    if (activeAtlasView === "sparse") renderSparseState();
+  });
+}
 
 // ── Init ───────────────────────────────────────────────────────────────────
 loadOptions();
