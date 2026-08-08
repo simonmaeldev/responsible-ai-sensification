@@ -22,6 +22,15 @@ MODEL_CATALOGUE = {
             "layer_count": 26,
             "hidden_size": 1152,
             "intermediate_size": 6912,
+            "attention_heads": 4,
+            "key_value_heads": 1,
+            "head_dim": 256,
+            "sliding_window": 512,
+            "max_position_embeddings": 32768,
+            "layer_types": [
+                "full_attention" if (index + 1) % 6 == 0 else "sliding_attention"
+                for index in range(26)
+            ],
         },
     },
     "google/gemma-3-4b-pt": {
@@ -33,6 +42,10 @@ MODEL_CATALOGUE = {
             "layer_count": 34,
             "hidden_size": 2560,
             "intermediate_size": 10240,
+            "layer_types": [
+                "full_attention" if (index + 1) % 6 == 0 else "sliding_attention"
+                for index in range(34)
+            ],
         },
     },
 }

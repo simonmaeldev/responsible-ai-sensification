@@ -17,7 +17,7 @@ priority takes precedence over the older numeric ordering.
   mapped live to 14 bounded browser audio/visual targets. Includes templates,
   signal/control monitoring, feature search/pin/mute/solo, saved scenes, A/B
   morphing, and visible verbal-lens re-embedding status.
-- General Emitter Signal Explorer: 26 discoverable raw/derived entries across
+- General Emitter Signal Explorer: 27 discoverable raw/derived entries across
   selected-layer residuals, output logits, SAE/Neuronpedia, semantic proofs of
   concept, pitch, and generation. Live selection, opt-in high-bandwidth streams,
   route visibility, and a compact visual-mapping disclosure are implemented.
@@ -28,7 +28,11 @@ priority takes precedence over the older numeric ordering.
   Route architecture; truthful 26-block Gemma anatomy; independent live dense
   residual observation; focusable 1,152-coordinate residual and 65k sparse SAE
   views; optional tonality/colour/OSC workspaces; and real root-key/scale/custom
-  interval editing. Verified with a layer-7 dense probe and layer-22 SAE.
+  interval editing. Gemma traversal adds real local/global block structure,
+  measured per-token residual activity across all 26 blocks, adjacent-layer
+  change metrics, and direct/previous/next navigation while keeping full dense
+  capture at only the selected block. Verified with a layer-7 dense probe and
+  layer-22 SAE.
 
 ## Current priority: researcher-facing observation workflows
 

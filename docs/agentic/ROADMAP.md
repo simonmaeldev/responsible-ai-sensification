@@ -260,7 +260,7 @@ The focused implementation contract and completion record are in
 
 ## Phase 9: General Emitter Neural Workbench
 
-Status: first vertical slice complete; broader research adapters remain open
+Status: two vertical slices complete; broader research adapters remain open
 
 Goal: replace the instrument-first information architecture with a general,
 truthful workbench for moving through model observation sites and separating raw
@@ -281,12 +281,19 @@ Implemented:
   browser audio/mapping behavior, and moved OSC/libossia discussion under Route.
 - Added real root-key transposition and conventional scale presets to the live
   verbal-lens editor while preserving custom intervals.
+- Added an opt-in, vectorized all-block residual profile for the current token.
+  It reports residual RMS/peak, adjacent-block update RMS, and cosine similarity
+  while retaining the full residual vector only for the selected block.
+- Added a runtime-derived Gemma block diagram with the real local/global
+  attention pattern, RMSNorm, self-attention, gated MLP, residual path, measured
+  activity bars, and direct/previous/next navigation through every block.
 - Preserved WebSocket events, history, loading feedback, browser audio,
   visualization, mappings, OSC v1, and Windows Receiver behavior.
-- Verified 75 server tests, JavaScript syntax, the 128-ID browser harness, and
+- Verified 77 server tests, JavaScript syntax, the 137-ID browser harness, and
   headless navigation with no browser errors. A real Gemma 3 1B run observed
-  layer 7 while the SAE remained at layer 22, rendering 1,152 dense coordinates
-  and 48 of 65,000 sparse features. The server was stopped afterward.
+  layer 7 while the SAE remained at layer 22, reported all 26 layer summaries,
+  rendered the selected 1,152-coordinate residual, and produced the inspected
+  live screenshot. The server was stopped afterward.
 
 Not yet implemented:
 

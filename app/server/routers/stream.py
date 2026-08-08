@@ -339,6 +339,17 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
                 "neuronpedia": neuronpedia,
             }
 
+        from app.server.pipeline.extract import describe_model_architecture
+
+        await _send(
+            ws,
+            {
+                "type": "model_structure",
+                "model": params.model,
+                "architecture": describe_model_architecture(model),
+            },
+        )
+
         # Prepare feature organization for local visual and audio mappings.
         enriched_key = (params.model, params.layer, params.width)
         enriched_was_cached = enriched_key in _enriched_cluster_cache

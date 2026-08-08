@@ -13,7 +13,12 @@ from app.server.pipeline.emitter_signals import (
     emitter_signal_catalogue,
     coerce_emitter_signal_keys,
 )
-from app.server.pipeline.extract import capture_model_probe_values, inspect_live
+from app.server.pipeline.extract import (
+    capture_model_probe_values,
+    describe_model_architecture,
+    inspect_live,
+    summarize_layer_residuals,
+)
 
 
 def test_catalogue_preserves_legacy_sources_and_describes_general_probes():
@@ -25,6 +30,7 @@ def test_catalogue_preserves_legacy_sources_and_describes_general_probes():
     assert set(LEGACY_SCALAR_SIGNAL_KEYS) <= set(keys)
     assert len(LEGACY_SCALAR_SIGNAL_KEYS) == 18
     assert {
+        "model.layer_profile",
         "model.residual.vector",
         "model.logits.top_k",
         "sae.active_features",
@@ -43,6 +49,7 @@ def test_catalogue_preserves_legacy_sources_and_describes_general_probes():
     assert raw_streams["model.residual.vector"]["default_active"] is False
     assert raw_streams["model.residual.vector"]["mappable"] is False
     assert raw_streams["model.residual.vector"]["cost"] == "high"
+    assert raw_streams["model.layer_profile"]["cost"] == "medium"
     assert set(default_emitter_signal_keys()) == set(catalogue["default_active"])
     assert not set(raw_streams) & set(catalogue["default_active"])
 
@@ -96,6 +103,62 @@ def test_model_probe_capture_only_materializes_requested_values():
     assert top_k["shape"] == [2]
     assert [item["token_id"] for item in top_k["items"]] == [1, 2]
     assert top_k["items"][0]["logit"] == 2.0
+
+
+def test_layer_profile_measures_real_adjacent_residual_changes():
+    profile = summarize_layer_residuals(
+        [
+            torch.tensor([3.0, 4.0]),
+            torch.tensor([6.0, 8.0]),
+            torch.tensor([-6.0, -8.0]),
+        ]
+    )
+
+    assert profile[0] == {
+        "layer": 0,
+        "rms": pytest.approx(math.sqrt(12.5)),
+        "max_abs": 4.0,
+        "delta_rms": None,
+        "cosine_to_previous": None,
+    }
+    assert profile[1]["rms"] == pytest.approx(math.sqrt(50.0))
+    assert profile[1]["delta_rms"] == pytest.approx(math.sqrt(12.5))
+    assert profile[1]["cosine_to_previous"] == pytest.approx(1.0)
+    assert profile[2]["delta_rms"] == pytest.approx(math.sqrt(200.0))
+    assert profile[2]["cosine_to_previous"] == pytest.approx(-1.0)
+
+
+def test_runtime_architecture_description_uses_loaded_model_config():
+    config = SimpleNamespace(
+        model_type="gemma3_text",
+        hidden_size=1152,
+        intermediate_size=6912,
+        num_attention_heads=4,
+        num_key_value_heads=1,
+        head_dim=256,
+        sliding_window=512,
+        max_position_embeddings=32768,
+        layer_types=["sliding_attention", "full_attention"],
+    )
+    model = SimpleNamespace(
+        config=config,
+        model=SimpleNamespace(layers=[object(), object()]),
+    )
+
+    structure = describe_model_architecture(model)
+
+    assert structure == {
+        "model_type": "gemma3_text",
+        "layer_count": 2,
+        "hidden_size": 1152,
+        "intermediate_size": 6912,
+        "attention_heads": 4,
+        "key_value_heads": 1,
+        "head_dim": 256,
+        "sliding_window": 512,
+        "max_position_embeddings": 32768,
+        "layer_types": ["sliding_attention", "full_attention"],
+    }
 
 
 def test_live_probe_key_callback_changes_the_next_generated_token():
@@ -226,7 +289,7 @@ def test_dense_probe_can_move_layers_without_moving_the_sae():
             1,
             SimpleNamespace(explanations={1: "test feature"}),
             max_new_tokens=2,
-            probe_keys={"model.residual.vector"},
+            probe_keys={"model.residual.vector", "model.layer_profile"},
             observation_layer=lambda: next(observation_layers),
         )
     )
@@ -234,6 +297,10 @@ def test_dense_probe_can_move_layers_without_moving_the_sae():
     assert [token.probe_layer for token, _elapsed in generated] == [0, 2]
     assert generated[0][0].probe_values["model.residual.vector"]["values"] == [1.0, 1.0]
     assert generated[1][0].probe_values["model.residual.vector"]["values"] == [3.0, 3.0]
+    profile = generated[0][0].probe_values["model.layer_profile"]
+    assert profile["shape"] == [3]
+    assert [entry["layer"] for entry in profile["layers"]] == [0, 1, 2]
+    assert profile["layers"][1]["delta_rms"] == pytest.approx(1.0)
     assert [item.tolist() for item in sae.inputs] == [[[2.0, 2.0]], [[2.0, 2.0]]]
 
 
@@ -337,18 +404,24 @@ def test_raw_streams_are_only_added_to_payload_when_selected():
                 "values": [0.25, -0.5],
                 "shape": [2],
                 "dtype": "float32",
-            }
+            },
+            "model.layer_profile": {
+                "layers": [{"layer": 0, "rms": 1.0}],
+                "shape": [1],
+                "dtype": "layer_profile",
+            },
         },
     }
 
     default_payload = runtime.build_payload(**common)
     selected_payload = runtime.build_payload(
         **common,
-        selected_signal_keys=["model.residual.vector", "sae.active_features"],
+        selected_signal_keys=["model.layer_profile", "model.residual.vector", "sae.active_features"],
     )
 
     assert default_payload["streams"] == {}
     assert selected_payload["streams"]["model.residual.vector"]["value"]["shape"] == [2]
+    assert selected_payload["streams"]["model.layer_profile"]["value"]["shape"] == [1]
     assert selected_payload["streams"]["sae.active_features"]["value"] == [
         {"index": 3, "activation": 1.0, "description": "edge"}
     ]

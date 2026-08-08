@@ -246,8 +246,13 @@
           <div class="atlas-layout">
             <aside class="model-anatomy-panel">
               <div class="panel-eyebrow">Transformer blocks</div>
+              <div class="layer-browser-controls" aria-label="Move observation layer">
+                <button id="btn-layer-prev" type="button" aria-label="Previous transformer block">←</button>
+                <strong id="layer-browser-position">L—</strong>
+                <button id="btn-layer-next" type="button" aria-label="Next transformer block">→</button>
+              </div>
               <div id="model-anatomy" aria-label="Model layer anatomy"></div>
-              <div class="anatomy-legend"><span><i class="probe-dot"></i>Dense probe</span><span><i class="sae-dot"></i>SAE site</span></div>
+              <div class="anatomy-legend"><span><i class="activity-dot"></i>Measured update</span><span><i class="probe-dot"></i>Dense probe</span><span><i class="sae-dot"></i>SAE site</span></div>
             </aside>
             <section class="atlas-focus">
               <nav class="atlas-view-tabs" aria-label="Neural atlas view">
@@ -257,17 +262,28 @@
               </nav>
               <div class="atlas-stage">
                 <section class="atlas-view" data-atlas-panel="anatomy">
-                  <div class="network-diagram" id="anatomy-overview">
-                    <div class="network-node source-node"><span>Input</span><small>prompt + tokens</small></div>
-                    <div class="network-path"><i></i><i></i><i></i></div>
-                    <div class="network-node stack-node"><span id="anatomy-layer-count">— blocks</span><small>attention · MLP · residual</small><div class="stack-lines"></div></div>
-                    <div class="network-path"><i></i><i></i><i></i></div>
-                    <div class="network-node output-node"><span>LM head</span><small>next-token logits</small></div>
+                  <div id="gemma-block-diagram" class="gemma-block-diagram">
+                    <header class="gemma-diagram-heading">
+                      <div><span id="anatomy-layer-count">— blocks</span><strong id="gemma-block-number">Transformer block —</strong></div>
+                      <div><span id="layer-attention-type">attention —</span><small id="gemma-attention-summary">runtime structure pending</small></div>
+                    </header>
+                    <div class="residual-flow" aria-label="Selected Gemma decoder block">
+                      <div class="residual-rail"><span>residual stream in</span><i></i><span>residual stream out</span></div>
+                      <div class="gemma-operation norm-operation"><small>01</small><strong>RMSNorm</strong><span>attention input</span></div>
+                      <div class="flow-arrow">→</div>
+                      <div class="gemma-operation attention-operation"><small>02</small><strong>Self-attention</strong><span id="gemma-attention-operation">Q · K · V · O → post RMSNorm</span></div>
+                      <div class="flow-arrow">＋</div>
+                      <div class="gemma-operation norm-operation"><small>03</small><strong>RMSNorm</strong><span>feed-forward input</span></div>
+                      <div class="flow-arrow">→</div>
+                      <div class="gemma-operation mlp-operation"><small>04</small><strong>Gated MLP</strong><span id="gemma-mlp-summary">GELU(gate) × up → down → post RMSNorm</span></div>
+                      <div class="flow-arrow">＋</div>
+                    </div>
+                    <div id="layer-profile-metrics" class="layer-profile-metrics"><span>Run a prompt to measure this token across the network.</span></div>
                   </div>
                   <div class="observation-readout">
                     <span>Current observation path</span>
                     <strong id="anatomy-location">Select a layer or start a run</strong>
-                    <p>Dense residuals can be observed at every listed block. Sparse features come from the separately marked SAE attachment.</p>
+                    <p>Bars compare the same residual coordinate basis across adjacent blocks for this token; they are not firing rates or a semantic projection. The selected block streams its full residual vector; sparse features still come only from the trained SAE attachment.</p>
                   </div>
                 </section>
                 <section class="atlas-view hidden" data-atlas-panel="dense">

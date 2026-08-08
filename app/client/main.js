@@ -256,7 +256,9 @@ let soloFeatures = new Set();
 let instrumentScenes = [];
 let activeWorkspace = "observe";
 let activeAtlasView = "anatomy";
-const WORKBENCH_SIGNAL_KEYS = ["model.residual.vector", "sae.active_features"];
+let currentLayerProfile = [];
+let lastCapturedObservationLayer = null;
+const WORKBENCH_SIGNAL_KEYS = ["model.layer_profile", "model.residual.vector", "sae.active_features"];
 
 // Transport / history state
 let isPaused = false;
@@ -414,6 +416,15 @@ const atlasToken = document.getElementById("atlas-token");
 const atlasProbe = document.getElementById("atlas-probe");
 const anatomyLayerCount = document.getElementById("anatomy-layer-count");
 const anatomyLocation = document.getElementById("anatomy-location");
+const btnLayerPrev = document.getElementById("btn-layer-prev");
+const btnLayerNext = document.getElementById("btn-layer-next");
+const layerBrowserPosition = document.getElementById("layer-browser-position");
+const gemmaBlockNumber = document.getElementById("gemma-block-number");
+const layerAttentionType = document.getElementById("layer-attention-type");
+const gemmaAttentionSummary = document.getElementById("gemma-attention-summary");
+const gemmaAttentionOperation = document.getElementById("gemma-attention-operation");
+const gemmaMlpSummary = document.getElementById("gemma-mlp-summary");
+const layerProfileMetrics = document.getElementById("layer-profile-metrics");
 const denseStateCanvas = document.getElementById("dense-state-canvas");
 const denseStateShape = document.getElementById("dense-state-shape");
 const denseStateStats = document.getElementById("dense-state-stats");
@@ -488,6 +499,28 @@ function safeObservationLayer(value, availableLayers, fallback = 0) {
   ), layers[0]);
 }
 
+function layerProfileEntry(profile, layer) {
+  return (profile || []).find(entry => Number(entry?.layer) === Number(layer)) || null;
+}
+
+function normalizedLayerActivity(entry, profile) {
+  const value = Number(entry?.delta_rms);
+  if (!Number.isFinite(value) || value < 0) return 0;
+  const maximum = Math.max(
+    0,
+    ...(profile || []).map(item => Number(item?.delta_rms)).filter(Number.isFinite),
+  );
+  return maximum > 0 ? Math.min(1, value / maximum) : 0;
+}
+
+function stepObservationLayer(current, direction, availableLayers) {
+  const layers = (availableLayers || []).map(Number).filter(Number.isFinite).sort((a, b) => a - b);
+  if (!layers.length) return Number(current) || 0;
+  const selected = safeObservationLayer(current, layers, layers[0]);
+  const index = Math.max(0, layers.indexOf(selected));
+  return layers[Math.min(layers.length - 1, Math.max(0, index + Math.sign(Number(direction) || 0)))];
+}
+
 function currentModelInfo() {
   return catalogue[modelSel.value] || {
     layers: [],
@@ -522,9 +555,72 @@ function updateObservationLayer(sendLive = true) {
     anatomyLocation.textContent = `Block ${selected} residual → dense probes · Block ${layerSel.value || "—"} residual → ${widthSel.value || "—"} SAE`;
   }
   renderModelAnatomy();
+  renderGemmaBlock(selected);
   if (sendLive) {
     sendParamUpdate({ observation_layer: selected });
     saveParams();
+  }
+}
+
+function selectObservationLayer(layer, sendLive = true) {
+  observationLayerIn.value = String(layer);
+  updateObservationLayer(sendLive);
+}
+
+function humanAttentionType(value) {
+  const type = String(value || "unknown");
+  if (type.includes("sliding")) return "Local sliding attention";
+  if (type.includes("full")) return "Global full attention";
+  return type === "unknown" ? "Attention type unavailable" : type.replaceAll("_", " ");
+}
+
+function renderGemmaBlock(observedLayer = Number(observationLayerIn.value)) {
+  const info = currentModelInfo();
+  const architecture = info.architecture || {};
+  const layers = info.observation_layers || [];
+  const selected = safeObservationLayer(observedLayer, layers, layerSel.value);
+  const lastLayer = layers.length ? Math.max(...layers.map(Number)) : selected;
+  const attentionType = architecture.layer_types?.[selected] || "unknown";
+  const profileEntry = layerProfileEntry(currentLayerProfile, selected);
+  const hiddenSize = Number(architecture.hidden_size) || "—";
+  const intermediateSize = Number(architecture.intermediate_size) || "—";
+  const attentionHeads = Number(architecture.attention_heads) || "—";
+  const keyValueHeads = Number(architecture.key_value_heads) || "—";
+  const headDimension = Number(architecture.head_dim) || "—";
+
+  layerBrowserPosition.textContent = `L${selected} / ${lastLayer}`;
+  btnLayerPrev.disabled = selected <= Math.min(...layers.map(Number));
+  btnLayerNext.disabled = selected >= lastLayer;
+  gemmaBlockNumber.textContent = `Transformer block ${selected}`;
+  layerAttentionType.textContent = humanAttentionType(attentionType);
+  gemmaAttentionSummary.textContent = `${attentionHeads} query heads · ${keyValueHeads} KV head${keyValueHeads === 1 ? "" : "s"} · ${headDimension}d/head`;
+  gemmaAttentionOperation.textContent = attentionType.includes("sliding")
+    ? `Q · K · V · O → post RMSNorm · ${architecture.sliding_window || "—"}-token window`
+    : "Q · K · V · O → post RMSNorm · full context";
+  gemmaMlpSummary.textContent = `GELU(gate) × up → down → post RMSNorm · ${hiddenSize} → ${intermediateSize} → ${hiddenSize}`;
+  layerProfileMetrics.innerHTML = "";
+
+  if (!profileEntry) {
+    const waiting = document.createElement("span");
+    waiting.className = "profile-waiting";
+    waiting.textContent = "Run a prompt to measure this token across every transformer block.";
+    layerProfileMetrics.appendChild(waiting);
+    return;
+  }
+  const metricEntries = [
+    ["residual RMS", profileEntry.rms],
+    ["peak |x|", profileEntry.max_abs],
+    ["update RMS", profileEntry.delta_rms],
+    ["similarity to L−1", profileEntry.cosine_to_previous],
+  ];
+  for (const [label, value] of metricEntries) {
+    const item = document.createElement("span");
+    const small = document.createElement("small");
+    const strong = document.createElement("strong");
+    small.textContent = label;
+    strong.textContent = value === null || value === undefined ? "input boundary" : formatSignalValue(value);
+    item.append(small, strong);
+    layerProfileMetrics.appendChild(item);
   }
 }
 
@@ -542,11 +638,21 @@ function renderModelAnatomy(observedLayer = Number(observationLayerIn.value)) {
     button.className = "anatomy-layer";
     button.classList.toggle("is-observed", Number(layer) === selected);
     button.classList.toggle("has-sae", Number(layer) === saeLayer);
+    const profileEntry = layerProfileEntry(currentLayerProfile, layer);
+    const activity = normalizedLayerActivity(profileEntry, currentLayerProfile);
+    button.style.setProperty("--layer-activity", String(activity));
     button.title = Number(layer) === saeLayer
       ? `Transformer block ${layer} · dense residual available · SAE attached`
       : `Transformer block ${layer} · dense residual available`;
     const label = document.createElement("span");
     label.textContent = `L${String(layer).padStart(2, "0")}`;
+    const attention = document.createElement("small");
+    const attentionType = String(info.architecture?.layer_types?.[Number(layer)] || "unknown");
+    attention.textContent = attentionType.includes("full")
+      ? "global"
+      : (attentionType.includes("sliding") ? "local" : "unknown");
+    const activityBar = document.createElement("b");
+    activityBar.className = "layer-activity";
     const sites = document.createElement("span");
     sites.className = "layer-sites";
     if (Number(layer) === selected) {
@@ -559,16 +665,16 @@ function renderModelAnatomy(observedLayer = Number(observationLayerIn.value)) {
       sae.className = "sae-dot";
       sites.appendChild(sae);
     }
-    button.append(label, sites);
+    button.append(activityBar, label, attention, sites);
     button.addEventListener("click", () => {
-      observationLayerIn.value = String(layer);
-      updateObservationLayer(true);
+      selectObservationLayer(layer, true);
     });
     modelAnatomy.appendChild(button);
   }
   const architecture = info.architecture || {};
   anatomyLayerCount.textContent = `${architecture.layer_count || layers.length || "—"} blocks`;
   atlasModel.textContent = architecture.label || modelSel.value || "model —";
+  renderGemmaBlock(selected);
 }
 
 function residualVectorStats(values) {
@@ -623,7 +729,10 @@ function renderDenseState(stream = currentEmitterStreams["model.residual.vector"
     const y = Math.floor(index / columns) * cellHeight;
     canvas.context.fillRect(x + 0.5, y + 0.5, Math.max(1, cellWidth - 1), Math.max(1, cellHeight - 1));
   });
-  denseStateShape.textContent = `${stats.count.toLocaleString()} dimensions`;
+  const captured = Number.isFinite(Number(lastCapturedObservationLayer))
+    ? `captured L${lastCapturedObservationLayer} · `
+    : "";
+  denseStateShape.textContent = `${captured}${stats.count.toLocaleString()} dimensions`;
   denseStateStats.classList.remove("is-empty");
   denseStateStats.innerHTML = "";
   for (const [label, value] of [
@@ -685,6 +794,11 @@ function renderNeuralAtlas(msg) {
     ? Number(observation.layer)
     : Number(observationLayerIn.value);
   const saeLayer = observation.sae_layer ?? layerSel.value;
+  const profileStream = currentEmitterStreams["model.layer_profile"];
+  currentLayerProfile = Array.isArray(profileStream?.value?.layers)
+    ? profileStream.value.layers
+    : currentLayerProfile;
+  if (Number.isFinite(Number(observation.layer))) lastCapturedObservationLayer = Number(observation.layer);
   contextToken.textContent = msg?.token ? `Token ${tokenCount} · ${JSON.stringify(msg.token)}` : "No token yet";
   contextLocation.textContent = `Dense L${observedLayer} · SAE L${saeLayer}`;
   atlasToken.textContent = msg?.token ? `token · ${JSON.stringify(msg.token)}` : "token —";
@@ -1199,6 +1313,10 @@ function signalRouteSummary(spec, selectedKeys, mappings) {
 
 function describeStreamValue(stream) {
   const value = stream?.value;
+  if (stream?.value_type === "layer_profile") {
+    const count = Number(value?.shape?.[0] ?? value?.layers?.length ?? 0);
+    return `${count} transformer block${count === 1 ? "" : "s"}`;
+  }
   if (stream?.value_type === "vector") {
     const length = Number(value?.shape?.[0] ?? value?.values?.length ?? 0);
     return `${length} ${value?.dtype || "numeric"} values`;
@@ -1763,6 +1881,24 @@ function handleMessage(msg) {
       cvPalette = msg.palette || [];
       renderColorStrip();
       break;
+
+    case "model_structure": {
+      const modelId = msg.model || modelSel.value;
+      if (!catalogue[modelId]) catalogue[modelId] = { layers: [], widths: [] };
+      catalogue[modelId].architecture = {
+        ...(catalogue[modelId].architecture || {}),
+        ...(msg.architecture || {}),
+      };
+      const layerCount = Number(catalogue[modelId].architecture.layer_count || 0);
+      if (layerCount > 0) {
+        catalogue[modelId].observation_layers = Array.from({ length: layerCount }, (_item, index) => index);
+      }
+      if (modelId === modelSel.value) {
+        populateObservationLayer(modelId, observationLayerIn.value);
+        renderModelAnatomy();
+      }
+      break;
+    }
 
     case "token":
       finishLoadingProgress();
@@ -2613,6 +2749,18 @@ layerSel.addEventListener("change", () => {
   saveParams();
 });
 observationLayerIn.addEventListener("input", () => updateObservationLayer(true));
+btnLayerPrev.addEventListener("click", () => {
+  selectObservationLayer(
+    stepObservationLayer(observationLayerIn.value, -1, currentModelInfo().observation_layers),
+    true,
+  );
+});
+btnLayerNext.addEventListener("click", () => {
+  selectObservationLayer(
+    stepObservationLayer(observationLayerIn.value, 1, currentModelInfo().observation_layers),
+    true,
+  );
+});
 widthSel.addEventListener("change", () => {
   updateObservationLayer(false);
   saveParams();

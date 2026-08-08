@@ -73,6 +73,10 @@ assert.match(html, /data-workspace-tab="transform"/);
 assert.match(html, /data-workspace-tab="route"/);
 assert.match(html, /<textarea[^>]+id="prompt"/);
 assert.match(html, /id="model-anatomy"/);
+assert.match(html, /id="btn-layer-prev"/);
+assert.match(html, /id="btn-layer-next"/);
+assert.match(html, /id="gemma-block-diagram"/);
+assert.match(html, /id="layer-profile-metrics"/);
 assert.match(html, /id="dense-state-canvas"/);
 assert.match(html, /id="sparse-state-canvas"/);
 assert.match(html, /data-workspace-panel="transform"[^>]*class="[^"]*hidden/);
@@ -127,7 +131,12 @@ global.fetch = async url => ({
         model_catalogue: {
           "test-model": {
             layers: [22], widths: ["65k"], observation_layers: [0, 1, 2],
-            architecture: { layer_count: 3, hidden_size: 2, intermediate_size: 4 },
+            architecture: {
+              layer_count: 3, hidden_size: 2, intermediate_size: 4,
+              attention_heads: 2, key_value_heads: 1, head_dim: 1,
+              sliding_window: 8, max_position_embeddings: 32,
+              layer_types: ["sliding_attention", "sliding_attention", "full_attention"],
+            },
           },
         },
         strategies: [{ value: "identity", label: "Identity", description: "test" }],
@@ -158,6 +167,12 @@ global.fetch = async url => ({
         default_active: ["activation.max", "model.residual.rms"],
         signals: [
           {
+            key: "model.layer_profile", label: "Layer profile", group: "Model",
+            location: "decoder.layers.residual", kind: "derived", value_type: "layer_profile",
+            description: "layer summaries", default_active: false, mappable: false,
+            cost: "medium",
+          },
+          {
             key: "activation.max", label: "Maximum activation", group: "SAE",
             location: "sae.output", kind: "derived", value_type: "scalar",
             description: "strongest feature", default_active: true, mappable: true,
@@ -179,7 +194,7 @@ global.fetch = async url => ({
   },
 });
 
-const instrumented = `${source}\n;globalThis.__emitterTest = { completeMapping, templateMappings, morphMapping, lerp, filterSignalCatalogue, signalRouteSummary, describeStreamValue, residualVectorStats, safeObservationLayer, scalePresetForIntervals, normalizedLens, handleMessage, handleLoadingMessage, startLoadingProgress, finishLoadingProgress, setSignalSelection(keys) { sessionActive = true; selectedEmitterSignalKeys = new Set(keys); sendSignalSelectionUpdate(); } };`;
+const instrumented = `${source}\n;globalThis.__emitterTest = { completeMapping, templateMappings, morphMapping, lerp, filterSignalCatalogue, signalRouteSummary, describeStreamValue, residualVectorStats, safeObservationLayer, normalizedLayerActivity, layerProfileEntry, stepObservationLayer, scalePresetForIntervals, normalizedLens, handleMessage, handleLoadingMessage, startLoadingProgress, finishLoadingProgress, setSignalSelection(keys) { sessionActive = true; selectedEmitterSignalKeys = new Set(keys); sendSignalSelectionUpdate(); } };`;
 vm.runInThisContext(instrumented, { filename: sourcePath });
 
 setTimeout(() => {
@@ -222,6 +237,10 @@ setTimeout(() => {
     api.describeStreamValue({ value_type: "sparse_vector", value: [{ index: 1, activation: 2 }] }),
     "1 active feature",
   );
+  assert.equal(
+    api.describeStreamValue({ value_type: "layer_profile", value: { layers: [{}, {}, {}], shape: [3] } }),
+    "3 transformer blocks",
+  );
   assert.deepEqual(api.residualVectorStats([-2, 0, 2]), {
     count: 3,
     minimum: -2,
@@ -231,6 +250,31 @@ setTimeout(() => {
   });
   assert.equal(api.safeObservationLayer(99, [0, 1, 2], 1), 2);
   assert.equal(api.safeObservationLayer("bad", [0, 1, 2], 1), 1);
+  const profile = [
+    { layer: 0, delta_rms: null },
+    { layer: 1, delta_rms: 2 },
+    { layer: 2, delta_rms: 4 },
+  ];
+  assert.equal(api.normalizedLayerActivity(profile[1], profile), 0.5);
+  assert.equal(api.normalizedLayerActivity(profile[2], profile), 1);
+  assert.deepEqual(api.layerProfileEntry(profile, 1), profile[1]);
+  assert.equal(api.stepObservationLayer(0, -1, [0, 1, 2]), 0);
+  assert.equal(api.stepObservationLayer(1, 1, [0, 1, 2]), 2);
+  api.handleMessage({
+    type: "model_structure",
+    model: "test-model",
+    architecture: {
+      layer_count: 3,
+      hidden_size: 2,
+      intermediate_size: 4,
+      attention_heads: 2,
+      key_value_heads: 1,
+      head_dim: 1,
+      sliding_window: 8,
+      layer_types: ["sliding_attention", "sliding_attention", "full_attention"],
+    },
+  });
+  assert.equal(elements.get("anatomy-layer-count").textContent, "3 blocks");
   assert.equal(api.scalePresetForIntervals([0, 2, 4, 5, 7, 9, 11]), "major");
   assert.equal(api.scalePresetForIntervals([0, 1, 6]), "custom");
   assert.equal(api.normalizedLens({ name: "D idea", description: "bright", intervals: [0, 4, 7], root: 14 }).root, 2);

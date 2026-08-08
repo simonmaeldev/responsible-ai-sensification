@@ -1,6 +1,6 @@
 # Project State
 
-Last updated: 2026-08-06
+Last updated: 2026-08-08
 
 ## Branch
 
@@ -34,6 +34,16 @@ the residual from its actual trained layer. WebSocket token events identify both
 locations. The interface does not claim semantic geometry for neighbouring
 dense dimensions or SAE feature indices.
 
+Observe now supports real token traversal through the full Gemma decoder. An
+optional `model.layer_profile` captures a compact final-position residual
+summary at every block in one forward pass: magnitude, peak, adjacent-block
+update magnitude, and cosine similarity. The browser renders measured activity
+across all 26 blocks, previous/next/direct navigation, the loaded model's real
+local-versus-global attention pattern, and the selected Gemma block's RMSNorm,
+self-attention, residual, gated-MLP, and residual path. Only the selected block's
+complete 1,152-value residual is sent; the SAE remains fixed at its trained
+layer and no semantic geometry is inferred.
+
 The semantic-tonality experiment remains available under Transform. Verbal
 descriptions and active SAE feature descriptions share the MiniLM space, and
 each live lens now combines a conventional root key, a scale preset or custom
@@ -65,7 +75,7 @@ them into 14 bounded browser audio/visual targets without modifying raw feature
 evidence or final post-tonality notes.
 
 The in-place probe catalogue is complete. A generic ordered registry
-describes 26 signals across model residuals, model logits, SAE activations,
+describes 27 signals across model residuals, model logits, SAE activations,
 Neuronpedia coverage, clusters, semantic experiments, final pitches, and
 generation timing. The original 18 mapping sources remain compatible; five
 lightweight model summaries are available as scalar mapping sources; and full
@@ -286,6 +296,17 @@ OSC/OSCQuery moves live performance data.
   SAE at layer 22. The live browser rendered 1,152 residual coordinates and 48
   active SAE features out of 65,000 for token ` of`, with no browser error. The
   server was stopped after screenshots were captured.
+- Added the second neural-workbench slice: runtime-derived Gemma structure,
+  optional all-block residual profiling, measured layer activity bars,
+  previous/next/direct block traversal, and an explicit selected-block diagram.
+  Profile math is vectorized to avoid repeated per-block GPU synchronization;
+  full dense data is still captured only for the selected block.
+- Verified the traversal slice with 77 server tests, `node --check`, the 137-ID
+  browser DOM/behavior harness, and a real Gemma 3 1B GPU/browser run. The run
+  reported 26 structure/profile rows, a 1,152-value layer-7 residual, RMS
+  `67.5254`, update RMS `7.8591`, and adjacent-layer cosine `0.9970`. Headless
+  Chromium rendered the live diagram with no page errors and captured
+  `runs/emitter-gemma-traversal-live.png`; the server was stopped afterward.
 
 ## Local Reference Material
 
@@ -345,12 +366,15 @@ Avoid reverting to the older archive interface.
 
 ### Immediate Ubuntu GPU PC emitter handoff
 
-The current verified deliverable is the first general Emitter-workbench slice,
-not a finished definition of every model probe or research workflow. Start it
+The current verified deliverable is two general Emitter-workbench slices, not a
+finished definition of every model probe or research workflow. Start it
 with `./scripts/start.sh`, open `http://127.0.0.1:8080`, enter a prompt in the
 large composer, and use **Observe** first with OSC disabled.
 
-Select a Dense observation layer from the slider or transformer-block map. The
+Select a Dense observation layer from the slider, previous/next buttons, or
+transformer-block map. The layer list shows the latest token's measured update
+magnitude and local/global attention type. Structure expands the selected real
+Gemma decoder block and its residual metrics. The
 teal marker is the movable residual probe; the purple marker is the SAE's actual
 attachment and must not be interpreted as moving with it. During generation,
 focus Structure, Dense state, or Sparse state. Dense and sparse raw streams are

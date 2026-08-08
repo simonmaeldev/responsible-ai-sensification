@@ -216,6 +216,87 @@ def _safe_layer_index(value: object, layer_count: int, fallback: int) -> int:
     return min(max(selected, 0), max(layer_count - 1, 0))
 
 
+def summarize_layer_residuals(
+    residuals: Collection[torch.Tensor],
+) -> list[dict[str, float | int | None]]:
+    """Describe how one token's residual stream changes across decoder blocks.
+
+    The compact profile intentionally keeps only aggregate measurements. Full
+    residual vectors remain available for the independently selected layer.
+    """
+    vectors = [tensor.detach().float().reshape(-1) for tensor in residuals]
+    if not vectors:
+        return []
+    matrix = torch.stack(vectors)
+    root_mean_squares = torch.sqrt(torch.mean(matrix.square(), dim=1))
+    maximums = matrix.abs().amax(dim=1)
+    if len(vectors) > 1:
+        previous = matrix[:-1]
+        current = matrix[1:]
+        deltas = torch.sqrt(torch.mean((current - previous).square(), dim=1))
+        denominators = torch.linalg.vector_norm(current, dim=1) * torch.linalg.vector_norm(previous, dim=1)
+        cosines = torch.where(
+            denominators > 0,
+            torch.sum(current * previous, dim=1) / denominators,
+            torch.zeros_like(denominators),
+        ).clamp(-1.0, 1.0)
+        delta_values = deltas.cpu().tolist()
+        cosine_values = cosines.cpu().tolist()
+    else:
+        delta_values = []
+        cosine_values = []
+    rms_values = root_mean_squares.cpu().tolist()
+    maximum_values = maximums.cpu().tolist()
+    return [
+        {
+            "layer": layer_index,
+            "rms": rms_values[layer_index],
+            "max_abs": maximum_values[layer_index],
+            "delta_rms": None if layer_index == 0 else delta_values[layer_index - 1],
+            "cosine_to_previous": None if layer_index == 0 else cosine_values[layer_index - 1],
+        }
+        for layer_index in range(len(vectors))
+    ]
+
+
+def describe_model_architecture(model) -> dict[str, object]:
+    """Return browser-safe decoder facts from the model that was loaded."""
+    decoder_layers = _get_decoder_layers(model)
+    config = model.config
+    text_config = getattr(config, "text_config", config)
+
+    def _integer(name: str) -> int | None:
+        value = getattr(text_config, name, None)
+        try:
+            return int(value) if value is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    raw_layer_types = getattr(text_config, "layer_types", None)
+    if isinstance(raw_layer_types, (tuple, list)) and len(raw_layer_types) == len(decoder_layers):
+        layer_types = [str(value) for value in raw_layer_types]
+    else:
+        layer_types = []
+        for decoder_layer in decoder_layers:
+            layer_type = getattr(decoder_layer, "attention_type", None)
+            if layer_type is None:
+                layer_type = getattr(getattr(decoder_layer, "self_attn", None), "layer_type", None)
+            layer_types.append(str(layer_type or "unknown"))
+
+    return {
+        "model_type": str(getattr(text_config, "model_type", "unknown")),
+        "layer_count": len(decoder_layers),
+        "hidden_size": _integer("hidden_size"),
+        "intermediate_size": _integer("intermediate_size"),
+        "attention_heads": _integer("num_attention_heads"),
+        "key_value_heads": _integer("num_key_value_heads"),
+        "head_dim": _integer("head_dim"),
+        "sliding_window": _integer("sliding_window"),
+        "max_position_embeddings": _integer("max_position_embeddings"),
+        "layer_types": layer_types,
+    }
+
+
 def capture_model_probe_values(
     residual_last: torch.Tensor,
     logits_last: torch.Tensor,
@@ -333,24 +414,27 @@ def inspect_live(
             len(decoder_layers),
             layer,
         )
-        captured_sae: list[torch.Tensor] = []
-        captured_probe: list[torch.Tensor] = []
+        requested_probe_keys = probe_keys() if callable(probe_keys) else (probe_keys or ())
+        capture_layers = (
+            range(len(decoder_layers))
+            if "model.layer_profile" in requested_probe_keys
+            else {layer, probe_layer}
+        )
+        captured_residuals: dict[int, torch.Tensor] = {}
 
-        def _hidden_tensor(output):
-            return (output[0] if isinstance(output, (tuple, list)) else output).detach()
+        def make_residual_hook(layer_index: int):
+            def residual_hook(_module, _input, output):
+                hidden = output[0] if isinstance(output, (tuple, list)) else output
+                captured_residuals[layer_index] = hidden.detach().squeeze(0)[-1, :]
 
-        def sae_hook_fn(_module, _input, output):
-            hidden = _hidden_tensor(output)
-            captured_sae.append(hidden)
-            if probe_layer == layer:
-                captured_probe.append(hidden)
+            return residual_hook
 
-        def probe_hook_fn(_module, _input, output):
-            captured_probe.append(_hidden_tensor(output))
-
-        hooks = [decoder_layers[layer].register_forward_hook(sae_hook_fn)]
-        if probe_layer != layer:
-            hooks.append(decoder_layers[probe_layer].register_forward_hook(probe_hook_fn))
+        hooks = [
+            decoder_layers[layer_index].register_forward_hook(
+                make_residual_hook(layer_index)
+            )
+            for layer_index in sorted(capture_layers)
+        ]
         try:
             outputs = model(input_ids)
         finally:
@@ -359,17 +443,25 @@ def inspect_live(
         if step == 0:
             print("[inspect_live] First forward pass complete.", file=sys.stderr, flush=True)
 
-        sae_residual_last = captured_sae[0].squeeze(0)[-1, :]
-        probe_residual_last = captured_probe[0].squeeze(0)[-1, :]
+        sae_residual_last = captured_residuals[layer]
+        probe_residual_last = captured_residuals[probe_layer]
 
         next_token_id = int(outputs.logits[0, -1].argmax().item())
 
-        requested_probe_keys = probe_keys() if callable(probe_keys) else (probe_keys or ())
         probe_values = capture_model_probe_values(
             probe_residual_last,
             outputs.logits[0, -1],
             requested_probe_keys,
         )
+        if "model.layer_profile" in requested_probe_keys:
+            layer_profile = summarize_layer_residuals(
+                [captured_residuals[index] for index in range(len(decoder_layers))]
+            )
+            probe_values["model.layer_profile"] = {
+                "layers": layer_profile,
+                "shape": [len(layer_profile)],
+                "dtype": "layer_profile",
+            }
 
         sae_acts = sae.encode(sae_residual_last.float().unsqueeze(0)).squeeze(0)
 

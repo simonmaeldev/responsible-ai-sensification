@@ -101,6 +101,7 @@ MODEL_SCALAR_SIGNAL_SPECS = (
 )
 
 RAW_STREAM_SIGNAL_SPECS = (
+    EmitterSignalSpec("model.layer_profile", "Transformer layer profile", "Model", "decoder.layers.residual", "derived", "layer_profile", "Compact per-layer residual magnitude and adjacent-layer change measurements for traversing the current token through the decoder.", default_active=False, mappable=False, cost="medium"),
     EmitterSignalSpec("model.residual.vector", "Residual vector", "Model", "decoder.layer.selected.residual", "raw", "vector", "Full residual vector captured at the selected decoder layer for the current token.", default_active=False, mappable=False, cost="high"),
     EmitterSignalSpec("model.logits.top_k", "Top-k logits", "Model", "model.output.logits", "raw", "structured", "Highest model-output logits with token IDs and probabilities.", default_active=False, mappable=False, cost="medium"),
     EmitterSignalSpec("sae.active_features", "Sparse SAE activations", "SAE", "sae.output", "raw", "sparse_vector", "Active SAE feature indices, activations, and available descriptions.", default_active=False, mappable=False, cost="high"),

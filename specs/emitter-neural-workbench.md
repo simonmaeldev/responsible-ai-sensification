@@ -90,3 +90,53 @@ backend returns real results with provenance.
 - A real local GPU smoke run produces dense and sparse data in the workbench.
 - Screenshots are captured and the server is stopped afterward.
 
+## Second slice: Gemma traversal
+
+The first anatomy view proves that a selected residual can come from a real
+transformer block, but a layer picker alone does not reveal how one token changes
+through the network. The next slice adds a truthful, bounded traversal view.
+
+### Runtime profile
+
+- When selected, capture the final-position residual at every decoder block for
+  the same forward pass.
+- Emit one compact profile row per block: residual RMS, maximum absolute value,
+  RMS of the update from the previous block, and cosine similarity with the
+  previous block.
+- Continue emitting the complete residual vector for only the requested dense
+  observation layer. Do not send every full hidden vector to the browser.
+- Continue encoding the SAE from its trained attachment layer only.
+- Profile capture must remain optional through the Emitter signal registry and
+  must not extend OSC v1.
+
+### Gemma representation
+
+- Runtime architecture metadata must come from the loaded model configuration
+  where possible: layer count/types, hidden and MLP widths, attention/KV heads,
+  head width, sliding window, and context length.
+- Show the actual repeated Gemma decoder structure: RMSNorm, local or full
+  multi-query/grouped-query self-attention, residual addition, RMSNorm, gated
+  MLP, and residual addition.
+- The selected block can be changed with direct click, previous/next controls,
+  or the layer slider. All controls use the same `observation_layer` parameter.
+- Each block shows its real attention type and current profile activity. A
+  selected profile row can be inspected immediately; the complete dense vector
+  remains labelled with the layer at which it was actually captured.
+- The UI must explain that profile metrics compare the same residual-stream
+  coordinate basis across adjacent blocks; they are not neuron firing rates or
+  a semantic projection.
+
+### Completion record (2026-08-08)
+
+Implemented on the Ubuntu GPU PC. `model.layer_profile` is an optional local
+WebSocket stream and does not alter OSC v1 or the Windows Receiver. Runtime
+Gemma metadata comes from the loaded configuration; the browser provides
+direct, previous, next, and slider navigation through measured blocks. The full
+residual vector remains restricted to the selected block and the SAE remains at
+its trained attachment.
+
+Verification: 77 server tests, `node --check app/client/main.js`, and the 137-ID
+browser harness passed. A real Gemma 3 1B run returned 26 profile rows and a
+1,152-value layer-7 residual. Headless Chromium rendered four live profile
+metrics and the local-attention block diagram without page errors; the inspected
+screenshot is `runs/emitter-gemma-traversal-live.png`. The server was stopped.
