@@ -255,6 +255,7 @@ let mutedFeatures = new Set();
 let soloFeatures = new Set();
 let instrumentScenes = [];
 let activeWorkspace = "model";
+let expandedLensIndex = 0;
 let currentLayerProfile = [];
 let lastCapturedObservationLayer = null;
 const WORKBENCH_SIGNAL_KEYS = ["model.layer_profile", "model.residual.vector", "sae.active_features"];
@@ -350,6 +351,13 @@ const oscPortIn       = document.getElementById("osc-port");
 const oscMaxNotesIn   = document.getElementById("osc-max-notes");
 const oscStatus       = document.getElementById("osc-status");
 const oscSummaryState = document.getElementById("osc-summary-state");
+const controlDrawer = document.getElementById("control-drawer");
+const tonalityDrawer = document.getElementById("tonality-drawer");
+const drawerBackdrop = document.getElementById("drawer-backdrop");
+const btnControlsToggle = document.getElementById("btn-controls-toggle");
+const btnControlsClose = document.getElementById("btn-controls-close");
+const btnTonalityToggle = document.getElementById("btn-tonality-toggle");
+const btnTonalityClose = document.getElementById("btn-tonality-close");
 const volumeIn        = document.getElementById("volume");
 const volumeValue     = document.getElementById("volume-value");
 const tonalityEnabledCb = document.getElementById("tonality-enabled");
@@ -429,9 +437,11 @@ const gemmaMlpSummary = document.getElementById("gemma-mlp-summary");
 const layerProfileMetrics = document.getElementById("layer-profile-metrics");
 const denseStateCanvas = document.getElementById("dense-state-canvas");
 const denseStateShape = document.getElementById("dense-state-shape");
+const denseStateSummary = document.getElementById("dense-state-summary");
 const denseStateStats = document.getElementById("dense-state-stats");
 const sparseStateCanvas = document.getElementById("sparse-state-canvas");
 const sparseStateCount = document.getElementById("sparse-state-count");
+const sparseStateSummary = document.getElementById("sparse-state-summary");
 const sparseStateTop = document.getElementById("sparse-state-top");
 
 const WORKSPACE_COPY = {
@@ -442,18 +452,27 @@ const WORKSPACE_COPY = {
   },
   signals: {
     kicker: "Gemma data",
-    title: "Signals",
+    title: "Map",
     description: "Choose what is extracted, inspected, and mapped.",
-  },
-  tonality: {
-    kicker: "Live experiment",
-    title: "Verbal tonality",
-    description: "Edit harmonic language and pitch material while Gemma generates.",
   },
 };
 
+function setInterfaceDrawer(drawerName, isOpen) {
+  const controlsOpen = drawerName === "controls" && isOpen;
+  const tonalityOpen = drawerName === "tonality" && isOpen;
+  controlDrawer.classList.toggle("is-open", controlsOpen);
+  controlDrawer.setAttribute("aria-hidden", String(!controlsOpen));
+  tonalityDrawer.classList.toggle("is-open", tonalityOpen);
+  tonalityDrawer.setAttribute("aria-hidden", String(!tonalityOpen));
+  btnControlsToggle.setAttribute("aria-expanded", String(controlsOpen));
+  btnTonalityToggle.setAttribute("aria-expanded", String(tonalityOpen));
+  drawerBackdrop.hidden = !(controlsOpen || tonalityOpen);
+  if (tonalityOpen) renderLensEditor();
+}
+
 function setWorkspace(workspace) {
   if (!WORKSPACE_COPY[workspace]) return;
+  setInterfaceDrawer(null, false);
   activeWorkspace = workspace;
   document.querySelector(".visuals")?.scrollTo({ top: 0, behavior: "instant" });
   for (const tab of document.querySelectorAll("[data-workspace-tab]")) {
@@ -470,7 +489,6 @@ function setWorkspace(workspace) {
   workspaceTitle.textContent = copy.title;
   workspaceDescription.textContent = copy.description;
   if (workspace === "model") renderModelAnatomy();
-  if (workspace === "tonality") renderLensEditor();
 }
 
 function safeObservationLayer(value, availableLayers, fallback = 0) {
@@ -729,6 +747,7 @@ function renderDenseState(stream = currentEmitterStreams["model.residual.vector"
   const canvas = prepareDataCanvas(denseStateCanvas);
   if (!canvas || !values.length) {
     denseStateShape.textContent = "waiting";
+    denseStateSummary.textContent = "dense waiting";
     denseStateStats.classList.add("is-empty");
     denseStateStats.textContent = "Enable the residual vector probe and start a run to receive coordinates.";
     return;
@@ -756,6 +775,7 @@ function renderDenseState(stream = currentEmitterStreams["model.residual.vector"
     ? `captured L${lastCapturedObservationLayer} · `
     : "";
   denseStateShape.textContent = `${captured}${stats.count.toLocaleString()} dimensions`;
+  denseStateSummary.textContent = `dense ${stats.count.toLocaleString()}`;
   denseStateStats.classList.remove("is-empty");
   denseStateStats.innerHTML = "";
   for (const [label, value] of [
@@ -776,6 +796,7 @@ function renderSparseState(stream = currentEmitterStreams["sae.active_features"]
   sparseStateTop.innerHTML = "";
   if (!canvas || !features.length) {
     sparseStateCount.textContent = "waiting";
+    sparseStateSummary.textContent = "sparse waiting";
     sparseStateTop.classList.add("empty-monitor");
     sparseStateTop.textContent = "Enable the sparse SAE probe and start a run to see active features.";
     return;
@@ -793,6 +814,7 @@ function renderSparseState(stream = currentEmitterStreams["sae.active_features"]
     canvas.context.fillRect(Math.max(0, x - 1), canvas.height - height, 3, height);
   }
   sparseStateCount.textContent = `${features.length} / ${coordinateCount.toLocaleString()} active`;
+  sparseStateSummary.textContent = `sparse ${features.length}`;
   sparseStateTop.classList.remove("empty-monitor");
   const strongest = [...features]
     .sort((left, right) => Number(right.activation) - Number(left.activation))
@@ -1011,11 +1033,28 @@ function collectTonalityLenses() {
 function renderLensEditor() {
   if (!tonalityLensList) return;
   tonalityLensList.innerHTML = "";
+  expandedLensIndex = Math.max(0, Math.min(expandedLensIndex, tonalityCatalogue.length - 1));
 
   tonalityCatalogue.forEach((entry, index) => {
     const lens = normalizedLens(entry);
-    const item = document.createElement("div");
+    const item = document.createElement("details");
     item.className = "lens-editor-item";
+    item.open = index === expandedLensIndex;
+
+    const summary = document.createElement("summary");
+    summary.className = "lens-editor-summary";
+    const summaryName = document.createElement("strong");
+    summaryName.textContent = lens.name || "Untitled lens";
+    const summaryPitch = document.createElement("small");
+    summaryPitch.textContent = `${TONAL_ROOTS[lens.root]} · ${intervalsToText(lens.intervals)}`;
+    summary.append(summaryName, summaryPitch);
+    item.addEventListener("toggle", () => {
+      if (!item.open) return;
+      expandedLensIndex = index;
+      for (const sibling of tonalityLensList.children) {
+        if (sibling !== item) sibling.open = false;
+      }
+    });
 
     const top = document.createElement("div");
     top.className = "lens-editor-top";
@@ -1037,6 +1076,7 @@ function renderLensEditor() {
     name.title = "Lens name";
     name.addEventListener("input", () => {
       tonalityCatalogue[index].name = name.value;
+      summaryName.textContent = name.value || "Untitled lens";
       scheduleLensUpdate();
     });
 
@@ -1052,23 +1092,27 @@ function renderLensEditor() {
     const moveUp = makeAction("↑", "Move lens up", () => {
       if (index <= 0) return;
       [tonalityCatalogue[index - 1], tonalityCatalogue[index]] = [tonalityCatalogue[index], tonalityCatalogue[index - 1]];
+      expandedLensIndex = index - 1;
       renderLensEditor();
       scheduleLensUpdate(0);
     });
     const moveDown = makeAction("↓", "Move lens down", () => {
       if (index >= tonalityCatalogue.length - 1) return;
       [tonalityCatalogue[index + 1], tonalityCatalogue[index]] = [tonalityCatalogue[index], tonalityCatalogue[index + 1]];
+      expandedLensIndex = index + 1;
       renderLensEditor();
       scheduleLensUpdate(0);
     });
     const duplicate = makeAction("⧉", "Duplicate lens", () => {
       const copy = { ...normalizedLens(tonalityCatalogue[index]), name: `${lens.name} copy` };
       tonalityCatalogue.splice(index + 1, 0, copy);
+      expandedLensIndex = index + 1;
       renderLensEditor();
       scheduleLensUpdate(0);
     });
     const remove = makeAction("×", "Remove lens", () => {
       tonalityCatalogue.splice(index, 1);
+      expandedLensIndex = Math.min(index, tonalityCatalogue.length - 1);
       renderLensEditor();
       scheduleLensUpdate(0);
     });
@@ -1097,6 +1141,7 @@ function renderLensEditor() {
     root.value = String(lens.root);
     root.addEventListener("change", () => {
       tonalityCatalogue[index].root = Number(root.value);
+      summaryPitch.textContent = `${TONAL_ROOTS[Number(root.value)]} · ${intervalsToText(parseIntervals(intervals.value))}`;
       scheduleLensUpdate(0);
     });
 
@@ -1118,6 +1163,7 @@ function renderLensEditor() {
     intervals.addEventListener("input", () => {
       tonalityCatalogue[index].intervals = intervals.value;
       preset.value = scalePresetForIntervals(parseIntervals(intervals.value));
+      summaryPitch.textContent = `${TONAL_ROOTS[Number(root.value)]} · ${intervalsToText(parseIntervals(intervals.value))}`;
       scheduleLensUpdate();
     });
 
@@ -1126,6 +1172,7 @@ function renderLensEditor() {
       if (!presetIntervals) return;
       tonalityCatalogue[index].intervals = [...presetIntervals];
       intervals.value = intervalsToText(presetIntervals);
+      summaryPitch.textContent = `${TONAL_ROOTS[Number(root.value)]} · ${intervalsToText(presetIntervals)}`;
       scheduleLensUpdate(0);
     });
 
@@ -1133,7 +1180,7 @@ function renderLensEditor() {
 
     item.classList.toggle("is-disabled", !lens.enabled);
     top.append(enabled, name, moveUp, moveDown, duplicate, remove);
-    item.append(top, description, tonalControls, intervals);
+    item.append(summary, top, description, tonalControls, intervals);
     tonalityLensList.appendChild(item);
   });
 }
@@ -2869,12 +2916,14 @@ btnAddLens.addEventListener("click", () => {
     root: 0,
     enabled: true,
   });
+  expandedLensIndex = tonalityCatalogue.length - 1;
   renderLensEditor();
   scheduleLensUpdate(0);
 });
 
 btnResetLenses.addEventListener("click", () => {
   tonalityCatalogue = structuredClone(defaultTonalityCatalogue);
+  expandedLensIndex = 0;
   renderLensEditor();
   scheduleLensUpdate(0);
 });
@@ -2882,6 +2931,19 @@ btnResetLenses.addEventListener("click", () => {
 for (const tab of document.querySelectorAll("[data-workspace-tab]")) {
   tab.addEventListener("click", () => setWorkspace(tab.dataset.workspaceTab));
 }
+
+btnControlsToggle.addEventListener("click", () => {
+  setInterfaceDrawer("controls", btnControlsToggle.getAttribute("aria-expanded") !== "true");
+});
+btnControlsClose.addEventListener("click", () => setInterfaceDrawer(null, false));
+btnTonalityToggle.addEventListener("click", () => {
+  setInterfaceDrawer("tonality", btnTonalityToggle.getAttribute("aria-expanded") !== "true");
+});
+btnTonalityClose.addEventListener("click", () => setInterfaceDrawer(null, false));
+drawerBackdrop.addEventListener("click", () => setInterfaceDrawer(null, false));
+document.addEventListener?.("keydown", event => {
+  if (event.key === "Escape") setInterfaceDrawer(null, false);
+});
 
 btnAddMapping.addEventListener("click", () => {
   const maximum = mappingCatalogue.max_mappings || 32;

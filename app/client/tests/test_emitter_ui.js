@@ -44,6 +44,8 @@ class FakeElement {
     return child;
   }
   addEventListener(type, handler) { this.listeners[type] = handler; }
+  setAttribute(name, value) { this.attributes = this.attributes || {}; this.attributes[name] = String(value); }
+  getAttribute(name) { return this.attributes?.[name] ?? null; }
   querySelector() { return null; }
   querySelectorAll() { return []; }
   scrollTo(options) { this.lastScrollOptions = options; }
@@ -68,10 +70,11 @@ const source = fs.readFileSync(sourcePath, "utf8");
 const htmlIds = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map(match => match[1]));
 const referencedIds = [...source.matchAll(/getElementById\("([^"]+)"\)/g)].map(match => match[1]);
 assert.deepEqual(referencedIds.filter(id => !htmlIds.has(id)), []);
-assert.equal((html.match(/data-workspace-tab=/g) || []).length, 3);
+assert.equal((html.match(/data-workspace-tab=/g) || []).length, 2);
 assert.match(html, /data-workspace-tab="model"/);
 assert.match(html, /data-workspace-tab="signals"/);
-assert.match(html, /data-workspace-tab="tonality"/);
+assert.doesNotMatch(html, /data-workspace-tab="tonality"/);
+assert.match(html, /data-workspace-tab="signals"[^>]*>\s*<strong>Map<\/strong>/);
 assert.doesNotMatch(html, /data-workspace-tab="(?:observe|interpret|transform|route)"/);
 assert.match(html, /<textarea[^>]+id="prompt"/);
 assert.match(html, /id="model-anatomy"/);
@@ -80,6 +83,13 @@ assert.match(html, /id="gemma-activity-plot"/);
 assert.match(html, /id="model-layer-readout"/);
 assert.match(html, /id="tonality-lens-workspace"/);
 assert.match(html, /id="osc-popover"/);
+assert.match(html, /id="btn-controls-toggle"[^>]+aria-expanded="false"/);
+assert.match(html, /id="btn-tonality-toggle"[^>]+aria-expanded="false"/);
+assert.match(html, /id="control-drawer"[^>]+aria-hidden="true"/);
+assert.match(html, /id="tonality-drawer"[^>]+aria-hidden="true"/);
+assert.match(html, /id="drawer-backdrop"[^>]+hidden/);
+assert.match(html, /<details\s+id="representation-disclosure"(?![^>]*\sopen)[^>]*>/);
+assert.match(html, /<details\s+id="mapping-editor-disclosure"(?![^>]*\sopen)[^>]*>/);
 assert.match(html, /id="btn-layer-prev"/);
 assert.match(html, /id="btn-layer-next"/);
 assert.match(html, /id="gemma-block-diagram"/);
@@ -87,7 +97,6 @@ assert.match(html, /id="layer-profile-metrics"/);
 assert.match(html, /id="dense-state-canvas"/);
 assert.match(html, /id="sparse-state-canvas"/);
 assert.match(html, /data-workspace-panel="signals"[^>]*class="[^"]*hidden/);
-assert.match(html, /data-workspace-panel="tonality"[^>]*class="[^"]*hidden/);
 assert.doesNotMatch(html, /class="atlas-view-tabs"/);
 assert.match(html, /id="signal-catalogue-search"/);
 assert.match(html, /id="signal-catalogue-list"/);
@@ -208,7 +217,7 @@ global.fetch = async url => ({
   },
 });
 
-const instrumented = `${source}\n;globalThis.__emitterTest = { completeMapping, templateMappings, morphMapping, lerp, filterSignalCatalogue, signalRouteSummary, describeStreamValue, residualVectorStats, safeObservationLayer, normalizedLayerActivity, layerProfileEntry, layerProfilePoints, stepObservationLayer, scalePresetForIntervals, normalizedLens, handleMessage, handleLoadingMessage, startLoadingProgress, finishLoadingProgress, setWorkspace, setSignalSelection(keys) { sessionActive = true; selectedEmitterSignalKeys = new Set(keys); sendSignalSelectionUpdate(); } };`;
+const instrumented = `${source}\n;globalThis.__emitterTest = { completeMapping, templateMappings, morphMapping, lerp, filterSignalCatalogue, signalRouteSummary, describeStreamValue, residualVectorStats, safeObservationLayer, normalizedLayerActivity, layerProfileEntry, layerProfilePoints, stepObservationLayer, scalePresetForIntervals, normalizedLens, handleMessage, handleLoadingMessage, startLoadingProgress, finishLoadingProgress, setWorkspace, setInterfaceDrawer, setSignalSelection(keys) { sessionActive = true; selectedEmitterSignalKeys = new Set(keys); sendSignalSelectionUpdate(); } };`;
 vm.runInThisContext(instrumented, { filename: sourcePath });
 
 setTimeout(() => {
@@ -279,6 +288,16 @@ setTimeout(() => {
   ]);
   api.setWorkspace("signals");
   assert.deepEqual(visualsViewport.lastScrollOptions, { top: 0, behavior: "instant" });
+  api.setInterfaceDrawer("controls", true);
+  assert.equal(elements.get("control-drawer").classList.contains("is-open"), true);
+  assert.equal(elements.get("control-drawer").getAttribute("aria-hidden"), "false");
+  assert.equal(elements.get("tonality-drawer").getAttribute("aria-hidden"), "true");
+  assert.equal(elements.get("btn-controls-toggle").getAttribute("aria-expanded"), "true");
+  assert.equal(elements.get("drawer-backdrop").hidden, false);
+  api.setInterfaceDrawer("tonality", true);
+  assert.equal(elements.get("control-drawer").getAttribute("aria-hidden"), "true");
+  assert.equal(elements.get("tonality-drawer").classList.contains("is-open"), true);
+  assert.equal(elements.get("btn-tonality-toggle").getAttribute("aria-expanded"), "true");
   assert.equal(api.stepObservationLayer(0, -1, [0, 1, 2]), 0);
   assert.equal(api.stepObservationLayer(1, 1, [0, 1, 2]), 2);
   api.handleMessage({

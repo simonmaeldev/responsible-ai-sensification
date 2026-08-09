@@ -19,14 +19,15 @@ sensifying model/runtime data. The current Gemma 3, Gemma Scope, SAE,
 Neuronpedia, semantic-tonality, browser audio, and visualization system is a
 substantial proof of concept, not the definition or limit of the Emitter.
 
-The browser now has three direct workspaces: **Model**, **Signals**, and
-**Tonality**. The inference prompt and transport remain continuously visible;
-OSC is a compact optional output popover. Model is the default and makes the
-loaded Gemma path, selected transformer block, dense residual coordinates,
-sparse SAE coordinates, token, and provenance primary. Signals owns probe
-selection, evidence, and live mappings. Tonality owns the verbal harmonic proof
-of concept. Observation, interpretation, transformation, and routing remain
-important provenance distinctions, but they no longer create four visible tabs.
+The browser now has two primary destinations: **Model** and **Map**. The
+inference prompt and transport remain continuously visible; OSC is a compact
+optional output popover. Model is the default and makes the loaded Gemma path,
+selected transformer block, token, and provenance primary. Map owns probe
+evidence and mapping. Run/signal controls and verbal Tonality are mutually
+exclusive, closed-by-default drawers. Dense/sparse representations and the full
+mapping matrix are closed disclosures. Observation, interpretation,
+transformation, and routing remain important provenance distinctions, but they
+do not create permanent screen regions.
 
 Dense observation is now independent of the SAE attachment. The live
 `observation_layer` parameter can move residual probes across all advertised
@@ -83,7 +84,7 @@ lightweight model summaries are available as scalar mapping sources; and full
 residual vectors, top-k logits, and sparse SAE feature streams are explicit
 opt-in raw signals. The browser workbench enables the residual-vector and sparse
 SAE streams on startup so its primary views have real data; they can still be
-disabled in Signals. Live selection affects subsequent tokens without
+disabled through Map's Controls drawer. Live selection affects subsequent tokens without
 extending OSC v1 or requiring an artistic transformation.
 
 Emitter preparation now has structured browser feedback. A compact progress
@@ -329,6 +330,22 @@ OSC/OSCQuery moves live performance data.
   updated Tonality with no browser errors. Inspected screenshots were captured
   at `runs/gemma-focused-{model,signals,tonality}-live.png`; the server was
   stopped afterward.
+- Replaced the three permanent workspaces and persistent control sidebar with
+  two primary destinations, Model and Map. Controls and Tonality now open as
+  mutually exclusive drawers; workspace changes, close buttons, the backdrop,
+  and Escape return to the primary surface.
+- Put dense/sparse inspection and the full mapping matrix behind
+  closed-by-default disclosures. Tonality now shows a compact eight-lens
+  accordion with one editor open while preserving live enable, edit, reorder,
+  duplicate, remove, root, preset, custom-interval, and re-embedding behavior.
+- Verified the decluttered interface with 77 server tests, JavaScript syntax,
+  the 149-ID browser harness, and headless drawer/disclosure checks. The model
+  path was 1,376 px wide at a 1,440 px desktop viewport; mapping rows stayed out
+  of layout while closed. A real one-token GPU run measured all 26 blocks,
+  selected layer 7, rendered 1,152 dense coordinates and 54/65,000 active SAE
+  features, and updated `luminous resolve` Tonality without browser errors.
+  Inspected screenshots were captured at
+  `runs/emitter-decluttered-{model,map,tonality}-live.png`; the server was stopped.
 
 ## Local Reference Material
 
@@ -344,13 +361,17 @@ background only; do not import from it directly unless asked.
 
 Use the workbench interface already present in this repo:
 
-- **Model**: prominent prompt/run controls, one continuous clickable Gemma path,
-  movable dense residual probe, fixed/labelled SAE site, selected-block
-  structure, and simultaneous dense/sparse views.
-- **Signals**: discoverable raw and derived probes, selected-signal monitor,
-  mappings, and searchable/pinnable/muteable/soloable SAE/Neuronpedia evidence.
-- **Tonality**: optional live verbal descriptions, root/scale/custom intervals,
-  resonance evidence, browser waveform, and collapsed colour proof of concept.
+- **Model**: the continuously visible prompt/run controls, one clickable Gemma
+  path, movable dense probe, fixed/labelled SAE site, and selected-block
+  structure. Dense/sparse details open only when requested.
+- **Map**: selected raw and derived observations plus searchable SAE/Neuronpedia
+  evidence. Signal selection is in Controls; mapped controls, mappings, and
+  scenes open only when requested.
+- **Controls drawer**: model/run settings in Model and the signal catalogue in
+  Map. It is closed by default and never occupies permanent canvas space.
+- **Tonality drawer**: optional live verbal descriptions,
+  root/scale/custom-interval editing, resonance evidence, browser waveform, and
+  collapsed colour proof of concept. One lens editor is open at a time.
 - **OSC output popover**: optional OSC v1 configuration. libossia/OSCQuery is a
   planned—not complete—Connector boundary and is not presented as an app view.
 - Generated text, token history, pause/replay buffering, loading stages, browser
@@ -388,7 +409,7 @@ Avoid reverting to the older archive interface.
 
 ### Immediate Ubuntu GPU PC emitter handoff
 
-The current verified deliverable is three general Emitter-workbench slices, not a
+The current verified deliverable is four general Emitter-workbench slices, not a
 finished definition of every model probe or research workflow. Start it
 with `./scripts/start.sh`, open `http://127.0.0.1:8080`, enter a prompt in the
 large composer, and use **Model** first with OSC disabled.
@@ -400,10 +421,12 @@ residual metrics appear directly below it. The
 teal marker is the movable residual probe; the purple marker is the SAE's actual
 attachment and must not be interpreted as moving with it. During generation,
 the dense and sparse representations remain visible together. Dense and sparse
-raw streams are enabled by the browser workbench on startup; use **Signals** to
-inspect or disable them, examine provenance, and browse Neuronpedia evidence.
+raw streams are enabled by the browser workbench on startup; use **Map** to
+inspect their values and evidence, or open **Controls** from Map to change the
+selection.
 
-Use **Tonality** when evaluating the optional harmonic experiment: choose a
+Open the **Tonality** drawer when evaluating the optional harmonic experiment:
+choose a
 root, conventional scale or custom relative intervals, and free verbal
 description. Live description/root/interval changes affect subsequent semantic
 output without restarting. Browser audio, mapping scenes, A/B morphing, and the

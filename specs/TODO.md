@@ -24,10 +24,12 @@ priority takes precedence over the older numeric ordering.
 - Emitter loading feedback: six structured preparation stages now report model,
   SAE, Neuronpedia cache/download, feature organization, semantic tonality, and
   first-token generation progress in the existing GUI.
-- Focused Gemma Emitter workbench: prompt-first **Model**, **Signals**, and
-  **Tonality** views; truthful clickable 26-block Gemma anatomy; independent live
+- Focused Gemma Emitter workbench: prompt-first **Model** and **Map** views;
+  truthful clickable 26-block Gemma anatomy; independent live
   dense residual observation; simultaneous 1,152-coordinate residual and 65k
-  sparse SAE views; and real root-key/scale/custom-interval editing. The model
+  sparse SAE inspection; and real root-key/scale/custom-interval editing. Run
+  controls and Tonality are mutually exclusive on-demand drawers; dense/sparse
+  representations and the mapping matrix are closed disclosures. The model
   map distinguishes real local/global attention, measured per-token residual
   change, the movable dense probe, and fixed layer-22 SAE while keeping full
   dense capture at only the selected block. OSC is a compact optional output,
@@ -37,7 +39,7 @@ priority takes precedence over the older numeric ordering.
 
 - Use Model to compare dense residual state across transformer blocks while
   keeping the layer-22 SAE provenance visible.
-- Use Signals to compare raw residual/logit/SAE data with derived signals and
+- Use Map to compare raw residual/logit/SAE data with derived signals and
   Neuronpedia descriptions. Raw residual and sparse streams are enabled locally
   by the workbench but remain outside OSC v1.
 - With the researchers, specify one actual Interpreto adapter: supported model,

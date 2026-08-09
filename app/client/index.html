@@ -47,14 +47,22 @@
     </header>
 
     <nav class="workspace-nav" aria-label="Emitter views">
-      <button type="button" class="active" data-workspace-tab="model"><strong>Model</strong><small>Where we observe</small></button>
-      <button type="button" data-workspace-tab="signals"><strong>Signals</strong><small>What we extract and map</small></button>
-      <button type="button" data-workspace-tab="tonality"><strong>Tonality</strong><small>Live verbal experiment</small></button>
+      <div class="workspace-tabs">
+        <button type="button" class="active" data-workspace-tab="model"><strong>Model</strong><small>Choose an observation site</small></button>
+        <button type="button" data-workspace-tab="signals"><strong>Map</strong><small>Select data and connect it</small></button>
+      </div>
       <div class="run-context" aria-live="polite"><span id="context-token">No token yet</span><span id="context-location">Layer —</span></div>
+      <div class="workspace-tools" aria-label="Emitter tools">
+        <button id="btn-controls-toggle" type="button" aria-expanded="false" aria-controls="control-drawer">Controls</button>
+        <button id="btn-tonality-toggle" type="button" aria-expanded="false" aria-controls="tonality-drawer">Tonality</button>
+      </div>
     </nav>
 
+    <button id="drawer-backdrop" class="drawer-backdrop" type="button" aria-label="Close open panel" hidden></button>
+
     <main class="main-layout">
-      <aside class="controls">
+      <aside id="control-drawer" class="controls interface-drawer" aria-hidden="true">
+        <button id="btn-controls-close" class="drawer-close" type="button" aria-label="Close controls">×</button>
         <div class="emitter-identity">
           <span id="workspace-kicker">Gemma location</span>
           <strong id="workspace-title">Model and run</strong>
@@ -101,28 +109,19 @@
           </section>
         </div>
 
-        <div class="control-page hidden" data-workspace-control="tonality">
-          <p class="control-intro">Compare active Gemma Scope feature descriptions with your own verbal ideas, then pull the note mapping toward their intervals.</p>
-          <section class="control-group"><label class="checkbox-label"><input id="tonality-enabled" type="checkbox" checked /> Enable semantic tonality</label></section>
-          <div id="tonality-controls">
-            <section class="control-group"><label class="range-label"><span>Prompt contribution</span><span id="prompt-influence-value">20%</span></label><input id="prompt-influence" type="range" min="0" max="1" step="0.01" value="0.2" /></section>
-            <section class="control-group"><label class="range-label"><span>Raw / tonal pitch</span><span id="tonality-pitch-bias-value">55%</span></label><input id="tonality-pitch-bias" type="range" min="0" max="1" step="0.01" value="0.55" /><div class="mini-actions"><button id="btn-raw-sound" type="button">Raw</button><button id="btn-interpreted-sound" type="button">Tonal</button></div></section>
-          </div>
-          <div class="tonality-method"><span>Semantic space</span><strong>MiniLM</strong><small>Prompt + Neuronpedia descriptions ↔ your verbal lenses</small></div>
-        </div>
-
-        <div id="status" class="status">
-          <div class="status-line"><span id="status-text">Ready</span><span id="loop-count-display" class="loop-counter hidden">Loop: 0</span></div>
-          <section id="loading-panel" class="loading-feedback hidden" data-state="active" role="status" aria-live="polite">
-            <div class="loading-heading"><strong id="loading-title">Preparing Emitter</strong><span id="loading-percent">0%</span></div>
-            <progress id="loading-progress" max="100" value="0">0%</progress>
-            <div id="loading-detail" class="loading-detail">Waiting for the runtime…</div>
-            <div class="loading-stage-list" aria-label="Emitter preparation stages">
-              <span data-loading-stage="model" data-state="pending">Model</span><span data-loading-stage="sae" data-state="pending">SAE</span><span data-loading-stage="neuronpedia" data-state="pending">Neuronpedia</span><span data-loading-stage="features" data-state="pending">Features</span><span data-loading-stage="tonality" data-state="pending">Tonality</span><span data-loading-stage="generation" data-state="pending">Generate</span>
-            </div>
-          </section>
-        </div>
       </aside>
+
+      <div id="status" class="status status-toast">
+        <div class="status-line"><span id="status-text">Ready</span><span id="loop-count-display" class="loop-counter hidden">Loop: 0</span></div>
+        <section id="loading-panel" class="loading-feedback hidden" data-state="active" role="status" aria-live="polite">
+          <div class="loading-heading"><strong id="loading-title">Preparing Emitter</strong><span id="loading-percent">0%</span></div>
+          <progress id="loading-progress" max="100" value="0">0%</progress>
+          <div id="loading-detail" class="loading-detail">Waiting for the runtime…</div>
+          <div class="loading-stage-list" aria-label="Emitter preparation stages">
+            <span data-loading-stage="model" data-state="pending">Model</span><span data-loading-stage="sae" data-state="pending">SAE</span><span data-loading-stage="neuronpedia" data-state="pending">Neuronpedia</span><span data-loading-stage="features" data-state="pending">Features</span><span data-loading-stage="tonality" data-state="pending">Tonality</span><span data-loading-stage="generation" data-state="pending">Generate</span>
+          </div>
+        </section>
+      </div>
 
       <section class="visuals">
         <section class="workspace-panel model-workspace" data-workspace-panel="model">
@@ -162,10 +161,13 @@
             <div class="observation-readout"><span>Actual observation sites</span><strong id="anatomy-location">Select a layer or start a run</strong><p>The trace compares adjacent residuals in the same coordinate basis. It is not a firing-rate or semantic projection.</p></div>
           </section>
 
-          <section class="representation-grid">
-            <article class="data-view dense-view"><header class="data-view-heading"><div><span>Selected block</span><h2>Dense residual trace</h2></div><strong id="dense-state-shape">waiting</strong></header><canvas id="dense-state-canvas"></canvas><div id="dense-state-stats" class="data-stats"><span>Start a run to receive coordinates.</span></div><p class="truth-note">Literal coordinate index on x; signed activation on y. No semantic neighbourhood is implied.</p></article>
-            <article class="data-view sparse-view"><header class="data-view-heading"><div><span>Gemma Scope 2 · trained layer</span><h2>Sparse active features</h2></div><strong id="sparse-state-count">waiting</strong></header><canvas id="sparse-state-canvas"></canvas><div id="sparse-state-top" class="sparse-top-list empty-monitor">Start a run to see active features.</div><p class="truth-note">Feature index is literal. Descriptions are external Neuronpedia evidence.</p></article>
-          </section>
+          <details id="representation-disclosure" class="secondary-disclosure">
+            <summary><span><strong>Inspect representations</strong><small>Dense residual and Gemma Scope features</small></span><span class="disclosure-state"><i id="dense-state-summary">dense waiting</i><i id="sparse-state-summary">sparse waiting</i></span></summary>
+            <section class="representation-grid">
+              <article class="data-view dense-view"><header class="data-view-heading"><div><span>Selected block</span><h2>Dense residual trace</h2></div><strong id="dense-state-shape">waiting</strong></header><canvas id="dense-state-canvas"></canvas><div id="dense-state-stats" class="data-stats"><span>Start a run to receive coordinates.</span></div><p class="truth-note">Literal coordinate index on x; signed activation on y. No semantic neighbourhood is implied.</p></article>
+              <article class="data-view sparse-view"><header class="data-view-heading"><div><span>Gemma Scope 2 · trained layer</span><h2>Sparse active features</h2></div><strong id="sparse-state-count">waiting</strong></header><canvas id="sparse-state-canvas"></canvas><div id="sparse-state-top" class="sparse-top-list empty-monitor">Start a run to see active features.</div><p class="truth-note">Feature index is literal. Descriptions are external Neuronpedia evidence.</p></article>
+            </section>
+          </details>
 
           <section class="token-transcript"><header><span>Generated tokens</span><small>Use transport to move through time</small></header><div id="cv-text-output"><div id="cv-text-content"></div></div></section>
         </section>
@@ -174,22 +176,35 @@
           <header class="workspace-heading"><div><span>Gemma / Gemma Scope 2 data</span><h1>Signals and mappings</h1><p>Select observations, inspect evidence, and map scalar signals without changing the raw data.</p></div><div class="provenance-badges"><span>Raw stays raw</span><span>Live on next token</span></div></header>
           <section id="emitter-inspector">
             <div class="inspector-column"><div class="inspector-heading"><span>Selected observations</span><span id="signal-token">waiting</span></div><div id="signal-monitor" class="monitor-list empty-monitor">Start a run to inspect signals.</div></div>
-            <div class="inspector-column"><div class="inspector-heading"><span>Mapped controls</span><span id="control-count">0 active</span></div><div id="control-monitor" class="monitor-list empty-monitor">Mappings will appear here.</div></div>
             <div class="inspector-column feature-browser-column"><div class="inspector-heading"><span>SAE + Neuronpedia evidence</span><span id="feature-count">0 active</span></div><input id="feature-search" type="search" placeholder="Search feature index or description…" /><div id="feature-browser" class="feature-list empty-monitor">Feature evidence will appear here.</div></div>
           </section>
-          <section class="mapping-workspace">
-            <div class="mapping-editor-panel">
-              <header><div><span>Transformation</span><h2>Live mapping matrix</h2></div><span id="mapping-count" class="inline-status">0</span></header>
-              <div class="mapping-actions"><select id="mapping-template"><option value="activation">Activation performance</option><option value="semantic">Semantic drift</option><option value="sparse">Sparse detail</option></select><button id="btn-apply-template" type="button">Apply</button><button id="btn-add-mapping" type="button">Add mapping</button></div>
-              <div id="mapping-list"></div>
-              <div class="mini-actions"><button id="btn-reset-mappings" type="button">Starter mappings</button><button id="btn-clear-mappings" type="button">Clear</button></div>
-            </div>
-            <details class="scene-panel"><summary>Saved mapping scenes</summary><div class="scene-panel-body"><div class="scene-save-row"><input id="scene-name" type="text" placeholder="Scene name" /><button id="btn-save-scene" type="button">Save</button></div><div class="scene-load-row"><select id="scene-select"></select><button id="btn-load-scene" type="button">Load</button><button id="btn-delete-scene" class="danger-quiet" type="button">×</button></div><div class="scene-morph-grid"><select id="scene-a"></select><select id="scene-b"></select></div><label class="range-label"><span>A/B morph</span><span id="scene-morph-value">0%</span></label><input id="scene-morph" type="range" min="0" max="1" step="0.01" value="0" /></div></details>
-          </section>
+          <details id="mapping-editor-disclosure" class="secondary-disclosure mapping-disclosure">
+            <summary><span><strong>Open mapping editor</strong><small>Transform selected signals into local controls</small></span><span class="disclosure-state"><i id="control-count">0 active</i><i id="mapping-count">0 routes</i></span></summary>
+            <div class="mapped-control-monitor"><div class="inspector-heading"><span>Mapped controls</span><span>live</span></div><div id="control-monitor" class="monitor-list empty-monitor">Mappings will appear here.</div></div>
+            <section class="mapping-workspace">
+              <div class="mapping-editor-panel">
+                <header><div><span>Transformation</span><h2>Live mapping matrix</h2></div></header>
+                <div class="mapping-actions"><select id="mapping-template"><option value="activation">Activation performance</option><option value="semantic">Semantic drift</option><option value="sparse">Sparse detail</option></select><button id="btn-apply-template" type="button">Apply</button><button id="btn-add-mapping" type="button">Add mapping</button></div>
+                <div id="mapping-list"></div>
+                <div class="mini-actions"><button id="btn-reset-mappings" type="button">Starter mappings</button><button id="btn-clear-mappings" type="button">Clear</button></div>
+              </div>
+              <details class="scene-panel"><summary>Saved mapping scenes</summary><div class="scene-panel-body"><div class="scene-save-row"><input id="scene-name" type="text" placeholder="Scene name" /><button id="btn-save-scene" type="button">Save</button></div><div class="scene-load-row"><select id="scene-select"></select><button id="btn-load-scene" type="button">Load</button><button id="btn-delete-scene" class="danger-quiet" type="button">×</button></div><div class="scene-morph-grid"><select id="scene-a"></select><select id="scene-b"></select></div><label class="range-label"><span>A/B morph</span><span id="scene-morph-value">0%</span></label><input id="scene-morph" type="range" min="0" max="1" step="0.01" value="0" /></div></details>
+            </section>
+          </details>
         </section>
 
-        <section data-workspace-panel="tonality" class="workspace-panel hidden tonality-workspace">
-          <header class="workspace-heading"><div><span>Paper-derived experiment</span><h1>Verbal tonality</h1><p>Describe harmonic ideas in language, choose their pitch material, and edit them while Gemma generates.</p></div><div class="provenance-badges"><span>MiniLM similarity</span><span>Live editable</span></div></header>
+        <section id="tonality-drawer" class="workspace-panel tonality-workspace interface-drawer" aria-hidden="true">
+          <button id="btn-tonality-close" class="drawer-close" type="button" aria-label="Close tonality">×</button>
+          <header class="workspace-heading"><div><span>Optional live experiment</span><h1>Verbal tonality</h1><p>Describe a harmonic idea, choose its pitch material, and edit it while Gemma generates.</p></div><div class="provenance-badges"><span>MiniLM similarity</span><span>Live editable</span></div></header>
+          <section class="tonality-performance-controls">
+            <label class="checkbox-label"><input id="tonality-enabled" type="checkbox" checked /> Enable tonality</label>
+            <div id="tonality-controls">
+              <label class="compact-range"><span>Prompt <i id="prompt-influence-value">20%</i></span><input id="prompt-influence" type="range" min="0" max="1" step="0.01" value="0.2" /></label>
+              <label class="compact-range"><span>Raw / tonal <i id="tonality-pitch-bias-value">55%</i></span><input id="tonality-pitch-bias" type="range" min="0" max="1" step="0.01" value="0.55" /></label>
+              <div class="mini-actions"><button id="btn-raw-sound" type="button">Raw</button><button id="btn-interpreted-sound" type="button">Tonal</button></div>
+            </div>
+            <div class="tonality-method"><span>Semantic space</span><strong>MiniLM</strong><small>Prompt + Neuronpedia descriptions ↔ verbal lenses</small></div>
+          </section>
           <div class="tonality-workspace-grid">
             <section id="tonality-lens-workspace" class="tonality-lens-workspace">
               <header><div><span>Your harmonic vocabulary</span><h2>Tonality lenses</h2></div><div class="lens-actions"><span id="lens-embedding-status" class="inline-status" data-state="ready">ready</span><button id="btn-add-lens" type="button">Add lens</button><button id="btn-reset-lenses" type="button">Reset</button></div></header>

@@ -228,3 +228,80 @@ residual, measured all 26 blocks, exposed 54 active layer-22 SAE features out of
 inspected screenshots are `runs/gemma-focused-model-live.png`,
 `runs/gemma-focused-signals-live.png`, and
 `runs/gemma-focused-tonality-live.png`. The server was stopped afterward.
+
+## Fourth slice: progressive-disclosure correction
+
+The three-workspace correction still places too many controls, cards, metrics,
+and experiments on screen simultaneously. The next correction must reduce the
+default cognitive load without deleting working capabilities.
+
+### Visible hierarchy
+
+- Use exactly two primary destinations: **Model** and **Map**. Model remains the
+  default. `Map` is the user-facing name for the existing signal-selection and
+  mapping workflow.
+- Keep the prompt, Run button, transport, token, and observation location
+  continuously available.
+- Move run/model/signal settings into one closed-by-default **Controls** drawer.
+- Move verbal tonality into one closed-by-default **Tonality** drawer. It is an
+  on-demand experiment, not a third primary destination.
+- Keep OSC in its existing compact opt-in popover.
+
+### Progressive disclosure
+
+- The whole-model path and selected real Gemma block are the only large Model
+  surfaces visible initially.
+- Dense and sparse representations remain functional together inside one
+  closed-by-default disclosure.
+- The Map view initially shows selected observations and SAE/Neuronpedia
+  evidence. Mapped controls and the full mapping matrix remain functional inside
+  one closed-by-default disclosure.
+- Tonality lenses render as a compact accordion with only one lens editor open
+  initially. Every existing lens action and live update remains available.
+
+### Behavior and boundaries
+
+- Opening Controls closes Tonality and opening Tonality closes Controls. A
+  backdrop, close buttons, and Escape return focus to the primary workspace.
+- Workspace changes close transient drawers and reset the main viewport.
+- Preserve model generation, loading feedback, browser audio, visualization,
+  WebSocket payloads, mappings/scenes, live lens updates, and OSC behavior.
+- No server, Connector-contract, or Windows Receiver change is part of this
+  correction.
+
+### Acceptance checks
+
+- Browser tests first fail against the three-tab/persistent-sidebar interface.
+- The default DOM has two primary workspace tabs and closed Controls, Tonality,
+  representation, and mapping disclosures.
+- Browser behavior tests cover mutual drawer exclusion and workspace reset.
+- At desktop width the primary model path is wider than 1,000 pixels and the
+  initial viewport does not contain the dense/sparse canvases or mapping rows.
+- JavaScript syntax, the browser harness, complete server suite, and a real
+  Gemma/Gemma Scope GPU smoke run pass. Screenshots are inspected and the server
+  is stopped afterward.
+
+### Completion record (2026-08-08)
+
+Implemented on the Ubuntu GPU PC. Model and Map are now the only primary
+destinations. The persistent sidebar was replaced with a workspace-aware
+Controls drawer, and Tonality moved from a primary tab to a mutually exclusive
+right drawer. Both are closed initially and can be dismissed by their close
+button, the backdrop, Escape, or a workspace change. Loading feedback remains a
+small independent status toast. The model path and selected block remain
+visible initially; dense/sparse representations and the mapping matrix are
+closed disclosures. Tonality retains eight live lenses but renders them as an
+accordion with one editor open.
+
+TDD began with the previous three-tab/persistent-sidebar DOM failing the new
+two-destination and drawer contract. Verification passed with 77 server tests,
+`node --check app/client/main.js`, and the 149-ID browser DOM/behavior harness.
+At a 1,440 px viewport, the actual model map was 1,376 px wide, both drawers and
+both secondary disclosures started closed, drawer exclusion worked, only one of
+eight lens editors was open, and closed mapping rows had zero rendered height.
+A real Gemma 3 1B/Gemma Scope 2 run selected block 7, measured all 26 blocks,
+returned a 1,152-coordinate residual and 54 active SAE features out of 65,000,
+and updated the live `luminous resolve` match without a browser error. The
+inspected screenshots are `runs/emitter-decluttered-model-live.png`,
+`runs/emitter-decluttered-map-live.png`, and
+`runs/emitter-decluttered-tonality-live.png`. The server was stopped afterward.

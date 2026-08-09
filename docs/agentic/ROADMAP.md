@@ -260,7 +260,7 @@ The focused implementation contract and completion record are in
 
 ## Phase 9: General Emitter Neural Workbench
 
-Status: three vertical slices complete; broader research adapters remain open
+Status: four vertical slices complete; broader research adapters remain open
 
 Goal: replace the instrument-first information architecture with a general,
 truthful workbench for moving through model observation sites and separating raw
@@ -298,6 +298,12 @@ Implemented:
 - Expanded the live tonality workspace so verbal descriptions, roots, scale
   presets, and custom intervals can be edited beside the current match and
   evidence without nested navigation.
+- Reduced the primary navigation to **Model** and **Map**. Run/signal controls
+  now use a closed-by-default left drawer; Tonality uses a mutually exclusive
+  right drawer; OSC remains a compact header popover.
+- Put dense/sparse representations and the full mapping matrix behind clear
+  closed disclosures. Tonality lenses use an accordion with one editor open,
+  keeping every live action without placing eight editors on screen at once.
 - Preserved WebSocket events, history, loading feedback, browser audio,
   visualization, mappings, OSC v1, and Windows Receiver behavior.
 - Verified 77 server tests, JavaScript syntax, the 140-ID browser harness, and
@@ -306,6 +312,13 @@ Implemented:
   rendered the selected 1,152-coordinate residual and 54 active SAE features,
   updated live tonality, and produced inspected Model, Signals, and Tonality
   screenshots. The server was stopped afterward.
+- Verified the progressive-disclosure correction with the same 77-test server
+  suite, JavaScript syntax, the 149-ID browser harness, and headless interaction
+  checks. At 1440 px the model map measured 1,376 px wide; drawers were mutually
+  exclusive; only one of eight lenses was open; and the mapping rows had zero
+  rendered height while closed. A real GPU run again measured all 26 blocks,
+  selected layer 7, rendered 1,152 dense coordinates and 54 active SAE features,
+  and updated Tonality without a page error. The server was stopped.
 
 Not yet implemented:
 
