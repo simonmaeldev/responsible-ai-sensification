@@ -260,7 +260,7 @@ The focused implementation contract and completion record are in
 
 ## Phase 9: General Emitter Neural Workbench
 
-Status: two vertical slices complete; broader research adapters remain open
+Status: three vertical slices complete; broader research adapters remain open
 
 Goal: replace the instrument-first information architecture with a general,
 truthful workbench for moving through model observation sites and separating raw
@@ -268,8 +268,9 @@ state, interpretation, artistic transformation, and routing.
 
 Implemented:
 
-- Rebuilt the browser around **Observe**, **Interpret**, **Transform**, and
-  **Route**, with a prominent inference prompt and Observe as the default.
+- First separated observation, interpretation, transformation, and routing as
+  explicit provenance concepts. The later focused-interface slice retained
+  those distinctions without forcing one primary tab per concept.
 - Added Gemma architecture metadata, a block-level anatomy navigator, and an
   independent live `observation_layer` for dense residual probes. The loaded SAE
   stays attached to its trained layer and both locations travel with token data.
@@ -287,13 +288,24 @@ Implemented:
 - Added a runtime-derived Gemma block diagram with the real local/global
   attention pattern, RMSNorm, self-attention, gated MLP, residual path, measured
   activity bars, and direct/previous/next navigation through every block.
+- Replaced the crowded stage and nested-atlas navigation with exactly three
+  direct workspaces: **Model**, **Signals**, and **Tonality**. The prompt and
+  transport remain continuously visible, while OSC is a compact optional output
+  popover rather than a primary workspace.
+- Added a full-width Gemma residual-path map with every real block clickable and
+  the measured layer-update profile drawn as a restrained trace. Dense and
+  sparse representations now remain visible together below the selected block.
+- Expanded the live tonality workspace so verbal descriptions, roots, scale
+  presets, and custom intervals can be edited beside the current match and
+  evidence without nested navigation.
 - Preserved WebSocket events, history, loading feedback, browser audio,
   visualization, mappings, OSC v1, and Windows Receiver behavior.
-- Verified 77 server tests, JavaScript syntax, the 137-ID browser harness, and
+- Verified 77 server tests, JavaScript syntax, the 140-ID browser harness, and
   headless navigation with no browser errors. A real Gemma 3 1B run observed
   layer 7 while the SAE remained at layer 22, reported all 26 layer summaries,
-  rendered the selected 1,152-coordinate residual, and produced the inspected
-  live screenshot. The server was stopped afterward.
+  rendered the selected 1,152-coordinate residual and 54 active SAE features,
+  updated live tonality, and produced inspected Model, Signals, and Tonality
+  screenshots. The server was stopped afterward.
 
 Not yet implemented:
 

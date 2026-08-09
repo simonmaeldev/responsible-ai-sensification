@@ -74,10 +74,12 @@ The goal is to make agent work persistent, scoped, and easy to restart without l
   Neuronpedia, tonality, audio, and visual mappings are current experiments, not
   a closed list. Establish discoverable signals without requiring them to have
   a predetermined artistic interpretation.
-- Keep four stages explicit in implementation and language: **Observe** raw
-  runtime state, **Interpret** it with evidence/provenance, optionally
-  **Transform** it artistically, and optionally **Route** it. A value must not be
-  presented as raw if it came from a projection, description, or mapping.
+- Keep four epistemic distinctions explicit in implementation and language:
+  observation of raw runtime state, interpretation with evidence/provenance,
+  optional artistic transformation, and optional external routing. They do not
+  require one visible tab each. The current focused UI uses **Model**,
+  **Signals**, and **Tonality**, with OSC in a compact popover. A value must not
+  be presented as raw if it came from a projection, description, or mapping.
 - Every live model view should identify the model/session, observation site,
   token or training step, and representation type. Do not imply semantic
   distance from coordinate or feature-index proximity unless a documented

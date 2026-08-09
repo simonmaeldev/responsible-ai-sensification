@@ -2,7 +2,7 @@
 
 ## Status
 
-Implementation specification for the August 2026 interface correction.
+Implemented specification for the August 2026 interface correction.
 
 ## Purpose
 
@@ -11,7 +11,9 @@ interpreting model activity. It is not inherently a musical instrument. Sound,
 semantic tonality, colour, OSC, and external receivers are optional experiments
 or destinations built from model observations.
 
-The interface must keep four epistemic stages visibly distinct:
+The implementation must keep four epistemic distinctions truthful in its
+labels and provenance, but the third slice supersedes the requirement that each
+distinction occupy a primary workspace:
 
 1. **Observe** — model, prompt, token, layer, and raw model/SAE values.
 2. **Interpret** — feature descriptions, Neuronpedia evidence, projections, and
@@ -140,3 +142,89 @@ browser harness passed. A real Gemma 3 1B run returned 26 profile rows and a
 1,152-value layer-7 residual. Headless Chromium rendered four live profile
 metrics and the local-attention block diagram without page errors; the inspected
 screenshot is `runs/emitter-gemma-traversal-live.png`. The server was stopped.
+
+## Third slice: focused Gemma interface correction
+
+The four-stage workbench and nested atlas tabs made the implemented ideas harder
+to use. For the current research sessions, optimize the visible interface for
+Gemma 3 and Gemma Scope 2 while retaining model adapters and generic signal keys
+behind the UI.
+
+### Information architecture
+
+- Use exactly three primary workspaces: **Model**, **Signals**, and
+  **Tonality**.
+- Model answers “where are we observing Gemma?” Signals answers “what data is
+  selected and what does it control?” Tonality provides the paper-derived live
+  verbal/interval experiment.
+- OSC remains available in a compact output popover. It is not a primary
+  workspace, and libossia planning is not presented as an interactive feature.
+- Keep the inference prompt and transport continuously visible, following the
+  directness of Maël Simon's original browser layout.
+
+### Gemma map
+
+- The primary screen shows the entire loaded Gemma decoder from token embedding
+  through every transformer block to logits on one continuous residual path.
+- Every block is a real clickable observation site. The map distinguishes local
+  and global attention, the selected dense probe, and the fixed Gemma Scope 2
+  SAE attachment.
+- The latest real all-layer profile appears as a restrained mathematical trace
+  over the path. Do not animate invented neurons or imply semantic geometry.
+- Keep the selected block's real structure and measurements directly below the
+  whole-model path. Dense and sparse representations remain simultaneously
+  visible instead of being hidden behind more tabs.
+
+### Live tonality
+
+- Give the lens editor enough horizontal space to edit name, verbal
+  description, root, scale preset, and custom intervals without navigating a
+  narrow nested disclosure.
+- Add, duplicate, reorder, remove, enable, re-embed, prompt contribution, and
+  raw/tonal blend behavior remains live for subsequent tokens.
+- The live tonality match, evidence, interval output, and browser waveform stay
+  visible beside the editor.
+
+### Boundaries
+
+- No new model backend, fake projection, arbitrary-hook editor, Connector
+  contract, or Windows Receiver change is part of this correction.
+- The absent `Rai_Report.pdf` cannot be claimed as reread. Use only the durable
+  paper-derived notes already recorded in the roadmap until the PDF is restored.
+- Preserve generation, WebSocket payloads, history, loading feedback, browser
+  audio, mappings, feature evidence, scenes, color disclosure, and optional OSC.
+
+### Acceptance checks
+
+- Browser tests first fail on the old four-workspace/nested-atlas DOM and pass
+  with the three-workspace Gemma interface.
+- Layer-profile plotting and bounded layer navigation have focused behavior
+  tests.
+- The complete server suite, browser harness, and JavaScript syntax check pass.
+- A real Gemma 3/Gemma Scope 2 GPU run populates the whole-model path, selected
+  layer trace, dense residual, sparse features, and live tonality interface.
+- Inspect screenshots at desktop width and stop the server afterward.
+
+### Completion record (2026-08-08)
+
+Implemented on the Ubuntu GPU PC. The visible interface now has exactly three
+workspaces: Model, Signals, and Tonality. The inference prompt and transport
+remain fixed above them, and OSC is an optional compact popover. The Model view
+uses the loaded Gemma metadata to render the full 26-block residual path, real
+local/global attention types, a clickable observation site at every block, the
+movable dense probe, fixed layer-22 SAE attachment, selected-block internals,
+and the measured all-layer update trace. Dense and sparse representations are
+shown together. Signals owns selection, evidence, and the live mapping matrix.
+Tonality owns the full-width editable verbal/root/scale/custom-interval lenses
+and live resonance evidence. Workspace changes reset the content viewport so a
+new view opens at its beginning.
+
+TDD began with the old four-workspace/nested-atlas DOM failing the new browser
+contract. Verification then passed with 77 server tests, JavaScript syntax
+checking, and the 140-ID browser DOM/behavior harness. A real one-token Gemma 3
+1B/Gemma Scope 2 GPU run selected block 7, returned a 1,152-coordinate dense
+residual, measured all 26 blocks, exposed 54 active layer-22 SAE features out of
+65,000, and updated the live tonality view without a browser error. The
+inspected screenshots are `runs/gemma-focused-model-live.png`,
+`runs/gemma-focused-signals-live.png`, and
+`runs/gemma-focused-tonality-live.png`. The server was stopped afterward.

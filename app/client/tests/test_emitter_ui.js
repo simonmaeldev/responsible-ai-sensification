@@ -46,6 +46,7 @@ class FakeElement {
   addEventListener(type, handler) { this.listeners[type] = handler; }
   querySelector() { return null; }
   querySelectorAll() { return []; }
+  scrollTo(options) { this.lastScrollOptions = options; }
   scrollIntoView() {}
   getContext() {
     return {
@@ -67,19 +68,27 @@ const source = fs.readFileSync(sourcePath, "utf8");
 const htmlIds = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map(match => match[1]));
 const referencedIds = [...source.matchAll(/getElementById\("([^"]+)"\)/g)].map(match => match[1]);
 assert.deepEqual(referencedIds.filter(id => !htmlIds.has(id)), []);
-assert.match(html, /data-workspace-tab="observe"/);
-assert.match(html, /data-workspace-tab="interpret"/);
-assert.match(html, /data-workspace-tab="transform"/);
-assert.match(html, /data-workspace-tab="route"/);
+assert.equal((html.match(/data-workspace-tab=/g) || []).length, 3);
+assert.match(html, /data-workspace-tab="model"/);
+assert.match(html, /data-workspace-tab="signals"/);
+assert.match(html, /data-workspace-tab="tonality"/);
+assert.doesNotMatch(html, /data-workspace-tab="(?:observe|interpret|transform|route)"/);
 assert.match(html, /<textarea[^>]+id="prompt"/);
 assert.match(html, /id="model-anatomy"/);
+assert.match(html, /id="gemma-model-map"/);
+assert.match(html, /id="gemma-activity-plot"/);
+assert.match(html, /id="model-layer-readout"/);
+assert.match(html, /id="tonality-lens-workspace"/);
+assert.match(html, /id="osc-popover"/);
 assert.match(html, /id="btn-layer-prev"/);
 assert.match(html, /id="btn-layer-next"/);
 assert.match(html, /id="gemma-block-diagram"/);
 assert.match(html, /id="layer-profile-metrics"/);
 assert.match(html, /id="dense-state-canvas"/);
 assert.match(html, /id="sparse-state-canvas"/);
-assert.match(html, /data-workspace-panel="transform"[^>]*class="[^"]*hidden/);
+assert.match(html, /data-workspace-panel="signals"[^>]*class="[^"]*hidden/);
+assert.match(html, /data-workspace-panel="tonality"[^>]*class="[^"]*hidden/);
+assert.doesNotMatch(html, /class="atlas-view-tabs"/);
 assert.match(html, /id="signal-catalogue-search"/);
 assert.match(html, /id="signal-catalogue-list"/);
 assert.match(html, /id="loading-panel"/);
@@ -100,9 +109,14 @@ const loadingBadges = new Map(
     return [stage, element];
   }),
 );
+const visualsViewport = new FakeElement("section");
 global.document = {
   getElementById(id) { return elements.get(id) || new FakeElement(); },
   createElement(tag) { return new FakeElement(tag); },
+  querySelector(selector) {
+    if (selector === ".visuals") return visualsViewport;
+    return null;
+  },
   querySelectorAll(selector) {
     if (selector === "[data-loading-stage]") return [...loadingBadges.values()];
     return [];
@@ -194,7 +208,7 @@ global.fetch = async url => ({
   },
 });
 
-const instrumented = `${source}\n;globalThis.__emitterTest = { completeMapping, templateMappings, morphMapping, lerp, filterSignalCatalogue, signalRouteSummary, describeStreamValue, residualVectorStats, safeObservationLayer, normalizedLayerActivity, layerProfileEntry, stepObservationLayer, scalePresetForIntervals, normalizedLens, handleMessage, handleLoadingMessage, startLoadingProgress, finishLoadingProgress, setSignalSelection(keys) { sessionActive = true; selectedEmitterSignalKeys = new Set(keys); sendSignalSelectionUpdate(); } };`;
+const instrumented = `${source}\n;globalThis.__emitterTest = { completeMapping, templateMappings, morphMapping, lerp, filterSignalCatalogue, signalRouteSummary, describeStreamValue, residualVectorStats, safeObservationLayer, normalizedLayerActivity, layerProfileEntry, layerProfilePoints, stepObservationLayer, scalePresetForIntervals, normalizedLens, handleMessage, handleLoadingMessage, startLoadingProgress, finishLoadingProgress, setWorkspace, setSignalSelection(keys) { sessionActive = true; selectedEmitterSignalKeys = new Set(keys); sendSignalSelectionUpdate(); } };`;
 vm.runInThisContext(instrumented, { filename: sourcePath });
 
 setTimeout(() => {
@@ -258,6 +272,13 @@ setTimeout(() => {
   assert.equal(api.normalizedLayerActivity(profile[1], profile), 0.5);
   assert.equal(api.normalizedLayerActivity(profile[2], profile), 1);
   assert.deepEqual(api.layerProfileEntry(profile, 1), profile[1]);
+  assert.deepEqual(api.layerProfilePoints(profile, 100, 40), [
+    { layer: 0, x: 0, y: 40, value: 0 },
+    { layer: 1, x: 50, y: 20, value: 2 },
+    { layer: 2, x: 100, y: 0, value: 4 },
+  ]);
+  api.setWorkspace("signals");
+  assert.deepEqual(visualsViewport.lastScrollOptions, { top: 0, behavior: "instant" });
   assert.equal(api.stepObservationLayer(0, -1, [0, 1, 2]), 0);
   assert.equal(api.stepObservationLayer(1, 1, [0, 1, 2]), 2);
   api.handleMessage({

@@ -254,8 +254,7 @@ let pinnedFeatures = new Set();
 let mutedFeatures = new Set();
 let soloFeatures = new Set();
 let instrumentScenes = [];
-let activeWorkspace = "observe";
-let activeAtlasView = "anatomy";
+let activeWorkspace = "model";
 let currentLayerProfile = [];
 let lastCapturedObservationLayer = null;
 const WORKBENCH_SIGNAL_KEYS = ["model.layer_profile", "model.residual.vector", "sae.active_features"];
@@ -350,6 +349,7 @@ const oscHostIn       = document.getElementById("osc-host");
 const oscPortIn       = document.getElementById("osc-port");
 const oscMaxNotesIn   = document.getElementById("osc-max-notes");
 const oscStatus       = document.getElementById("osc-status");
+const oscSummaryState = document.getElementById("osc-summary-state");
 const volumeIn        = document.getElementById("volume");
 const volumeValue     = document.getElementById("volume-value");
 const tonalityEnabledCb = document.getElementById("tonality-enabled");
@@ -416,6 +416,8 @@ const atlasToken = document.getElementById("atlas-token");
 const atlasProbe = document.getElementById("atlas-probe");
 const anatomyLayerCount = document.getElementById("anatomy-layer-count");
 const anatomyLocation = document.getElementById("anatomy-location");
+const gemmaActivityPlot = document.getElementById("gemma-activity-plot");
+const modelLayerReadout = document.getElementById("model-layer-readout");
 const btnLayerPrev = document.getElementById("btn-layer-prev");
 const btnLayerNext = document.getElementById("btn-layer-next");
 const layerBrowserPosition = document.getElementById("layer-browser-position");
@@ -433,31 +435,27 @@ const sparseStateCount = document.getElementById("sparse-state-count");
 const sparseStateTop = document.getElementById("sparse-state-top");
 
 const WORKSPACE_COPY = {
-  observe: {
-    kicker: "Observation setup",
+  model: {
+    kicker: "Gemma location",
     title: "Model and run",
-    description: "Choose a source and the model sites you want to inspect.",
+    description: "Choose where data is observed in the current Gemma model.",
   },
-  interpret: {
-    kicker: "Interpretation setup",
-    title: "Probes and evidence",
-    description: "Choose observations and inspect how raw values become interpretations.",
+  signals: {
+    kicker: "Gemma data",
+    title: "Signals",
+    description: "Choose what is extracted, inspected, and mapped.",
   },
-  transform: {
-    kicker: "Transformation setup",
-    title: "Optional experiments",
-    description: "Configure semantic, sonic, visual, or custom mappings without redefining the source data.",
-  },
-  route: {
-    kicker: "Transport setup",
-    title: "Connector and receivers",
-    description: "Route selected output to external software while keeping the Emitter independent.",
+  tonality: {
+    kicker: "Live experiment",
+    title: "Verbal tonality",
+    description: "Edit harmonic language and pitch material while Gemma generates.",
   },
 };
 
 function setWorkspace(workspace) {
   if (!WORKSPACE_COPY[workspace]) return;
   activeWorkspace = workspace;
+  document.querySelector(".visuals")?.scrollTo({ top: 0, behavior: "instant" });
   for (const tab of document.querySelectorAll("[data-workspace-tab]")) {
     tab.classList.toggle("active", tab.dataset.workspaceTab === workspace);
   }
@@ -471,20 +469,8 @@ function setWorkspace(workspace) {
   workspaceKicker.textContent = copy.kicker;
   workspaceTitle.textContent = copy.title;
   workspaceDescription.textContent = copy.description;
-  if (workspace === "observe") renderModelAnatomy();
-}
-
-function setAtlasView(view) {
-  if (!new Set(["anatomy", "dense", "sparse"]).has(view)) return;
-  activeAtlasView = view;
-  for (const tab of document.querySelectorAll("[data-atlas-view]")) {
-    tab.classList.toggle("active", tab.dataset.atlasView === view);
-  }
-  for (const panel of document.querySelectorAll("[data-atlas-panel]")) {
-    panel.classList.toggle("hidden", panel.dataset.atlasPanel !== view);
-  }
-  if (view === "dense") renderDenseState(currentEmitterStreams["model.residual.vector"]);
-  if (view === "sparse") renderSparseState(currentEmitterStreams["sae.active_features"]);
+  if (workspace === "model") renderModelAnatomy();
+  if (workspace === "tonality") renderLensEditor();
 }
 
 function safeObservationLayer(value, availableLayers, fallback = 0) {
@@ -511,6 +497,22 @@ function normalizedLayerActivity(entry, profile) {
     ...(profile || []).map(item => Number(item?.delta_rms)).filter(Number.isFinite),
   );
   return maximum > 0 ? Math.min(1, value / maximum) : 0;
+}
+
+function layerProfilePoints(profile, width = 1000, height = 150) {
+  const entries = (profile || []).map(entry => ({
+    layer: Number(entry?.layer),
+    value: Math.max(0, Number(entry?.delta_rms) || 0),
+  })).filter(entry => Number.isFinite(entry.layer));
+  if (!entries.length) return [];
+  const maximumLayer = Math.max(1, ...entries.map(entry => entry.layer));
+  const maximumValue = Math.max(0, ...entries.map(entry => entry.value));
+  return entries.map(entry => ({
+    layer: entry.layer,
+    x: (entry.layer / maximumLayer) * width,
+    y: maximumValue > 0 ? height - ((entry.value / maximumValue) * height) : height,
+    value: entry.value,
+  }));
 }
 
 function stepObservationLayer(current, direction, availableLayers) {
@@ -589,6 +591,7 @@ function renderGemmaBlock(observedLayer = Number(observationLayerIn.value)) {
   const headDimension = Number(architecture.head_dim) || "—";
 
   layerBrowserPosition.textContent = `L${selected} / ${lastLayer}`;
+  modelLayerReadout.textContent = `Residual after block ${selected} · SAE fixed at block ${layerSel.value || "—"}`;
   btnLayerPrev.disabled = selected <= Math.min(...layers.map(Number));
   btnLayerNext.disabled = selected >= lastLayer;
   gemmaBlockNumber.textContent = `Transformer block ${selected}`;
@@ -624,6 +627,21 @@ function renderGemmaBlock(observedLayer = Number(observationLayerIn.value)) {
   }
 }
 
+function renderModelActivityPlot(profile = currentLayerProfile) {
+  if (!gemmaActivityPlot) return;
+  const points = layerProfilePoints(profile, 1000, 112);
+  if (!points.length) {
+    gemmaActivityPlot.innerHTML = '<path class="model-baseline" d="M0 112 L1000 112"></path><text x="500" y="58" text-anchor="middle">run a prompt to trace residual updates</text>';
+    return;
+  }
+  const pointText = points.map(point => `${point.x.toFixed(2)},${point.y.toFixed(2)}`).join(" ");
+  const areaText = `0,112 ${pointText} 1000,112`;
+  gemmaActivityPlot.innerHTML = `
+    <polyline class="model-activity-area" points="${areaText}"></polyline>
+    <polyline class="model-activity-line" points="${pointText}"></polyline>
+  `;
+}
+
 function renderModelAnatomy(observedLayer = Number(observationLayerIn.value)) {
   if (!modelAnatomy) return;
   const info = currentModelInfo();
@@ -648,6 +666,7 @@ function renderModelAnatomy(observedLayer = Number(observationLayerIn.value)) {
     label.textContent = `L${String(layer).padStart(2, "0")}`;
     const attention = document.createElement("small");
     const attentionType = String(info.architecture?.layer_types?.[Number(layer)] || "unknown");
+    button.classList.toggle("is-global", attentionType.includes("full"));
     attention.textContent = attentionType.includes("full")
       ? "global"
       : (attentionType.includes("sliding") ? "local" : "unknown");
@@ -674,6 +693,7 @@ function renderModelAnatomy(observedLayer = Number(observationLayerIn.value)) {
   const architecture = info.architecture || {};
   anatomyLayerCount.textContent = `${architecture.layer_count || layers.length || "—"} blocks`;
   atlasModel.textContent = architecture.label || modelSel.value || "model —";
+  renderModelActivityPlot();
   renderGemmaBlock(selected);
 }
 
@@ -714,21 +734,24 @@ function renderDenseState(stream = currentEmitterStreams["model.residual.vector"
     return;
   }
   const stats = residualVectorStats(values);
-  const aspect = canvas.width / Math.max(canvas.height, 1);
-  const columns = Math.max(1, Math.ceil(Math.sqrt(values.length * aspect)));
-  const rows = Math.ceil(values.length / columns);
-  const cellWidth = canvas.width / columns;
-  const cellHeight = canvas.height / rows;
+  const centerY = canvas.height / 2;
+  canvas.context.strokeStyle = "rgba(255,255,255,0.12)";
+  canvas.context.lineWidth = 1;
+  canvas.context.beginPath();
+  canvas.context.moveTo(0, centerY);
+  canvas.context.lineTo(canvas.width, centerY);
+  canvas.context.stroke();
+  canvas.context.strokeStyle = "rgba(79, 214, 197, 0.92)";
+  canvas.context.lineWidth = 1.25;
+  canvas.context.beginPath();
   values.forEach((rawValue, index) => {
-    const value = Number(rawValue) || 0;
-    const intensity = stats.maxAbs ? Math.min(1, Math.abs(value) / stats.maxAbs) : 0;
-    canvas.context.fillStyle = value >= 0
-      ? `rgba(44, 197, 167, ${0.12 + (intensity * 0.88)})`
-      : `rgba(222, 112, 76, ${0.12 + (intensity * 0.88)})`;
-    const x = (index % columns) * cellWidth;
-    const y = Math.floor(index / columns) * cellHeight;
-    canvas.context.fillRect(x + 0.5, y + 0.5, Math.max(1, cellWidth - 1), Math.max(1, cellHeight - 1));
+    const x = values.length > 1 ? (index / (values.length - 1)) * canvas.width : canvas.width / 2;
+    const normalized = stats.maxAbs ? (Number(rawValue) || 0) / stats.maxAbs : 0;
+    const y = centerY - (normalized * (canvas.height * 0.43));
+    if (index === 0) canvas.context.moveTo(x, y);
+    else canvas.context.lineTo(x, y);
   });
+  canvas.context.stroke();
   const captured = Number.isFinite(Number(lastCapturedObservationLayer))
     ? `captured L${lastCapturedObservationLayer} · `
     : "";
@@ -1239,6 +1262,10 @@ function setOscStatus(message, state) {
   if (!oscStatus) return;
   oscStatus.textContent = message;
   oscStatus.dataset.state = state;
+  if (oscSummaryState) {
+    oscSummaryState.textContent = state === "ready" ? "on" : (state === "error" ? "error" : "off");
+    oscSummaryState.dataset.state = state;
+  }
 }
 
 function syncOscControls() {
@@ -2852,24 +2879,8 @@ btnResetLenses.addEventListener("click", () => {
   scheduleLensUpdate(0);
 });
 
-for (const tab of document.querySelectorAll("[data-control-tab]")) {
-  tab.addEventListener("click", () => {
-    const target = tab.dataset.controlTab;
-    for (const item of document.querySelectorAll("[data-control-tab]")) {
-      item.classList.toggle("active", item === tab);
-    }
-    for (const page of document.querySelectorAll("[data-control-page]")) {
-      page.classList.toggle("hidden", page.dataset.controlPage !== target);
-    }
-  });
-}
-
 for (const tab of document.querySelectorAll("[data-workspace-tab]")) {
   tab.addEventListener("click", () => setWorkspace(tab.dataset.workspaceTab));
-}
-
-for (const tab of document.querySelectorAll("[data-atlas-view]")) {
-  tab.addEventListener("click", () => setAtlasView(tab.dataset.atlasView));
 }
 
 btnAddMapping.addEventListener("click", () => {
@@ -2962,8 +2973,8 @@ visualProofPanel.addEventListener("toggle", () => {
 
 if (window.addEventListener) {
   window.addEventListener("resize", () => {
-    if (activeAtlasView === "dense") renderDenseState();
-    if (activeAtlasView === "sparse") renderSparseState();
+    renderDenseState();
+    renderSparseState();
   });
 }
 
