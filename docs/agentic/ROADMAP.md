@@ -306,6 +306,9 @@ Implemented:
   keeping every live action without placing eight editors on screen at once.
 - Preserved WebSocket events, history, loading feedback, browser audio,
   visualization, mappings, OSC v1, and Windows Receiver behavior.
+- Updated the Ubuntu desktop launcher to open the Emitter automatically only
+  after the HTTP endpoint is ready, with an explicit `--no-browser` escape hatch
+  and non-fatal handling when no graphical launcher is available.
 - Verified 77 server tests, JavaScript syntax, the 140-ID browser harness, and
   headless navigation with no browser errors. A real Gemma 3 1B run observed
   layer 7 while the SAE remained at layer 22, reported all 26 layer summaries,

@@ -5,6 +5,9 @@ priority takes precedence over the older numeric ordering.
 
 ## Completed
 
+- Ubuntu desktop launcher: `./scripts/start.sh` waits for the Emitter endpoint
+  and opens it in the default browser; `--no-browser` keeps headless starts
+  explicit, and launch failures do not stop the server.
 - Live waveform: the browser audio graph now connects through a Web Audio API
   `AnalyserNode`, and the new GUI waveform canvas renders
   `getFloatTimeDomainData()` in real time.

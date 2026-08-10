@@ -10,12 +10,13 @@ Sensification of the output of Gemma 3 — turns SAE feature activations into li
 # Install system dependency for audio (only needed for CLI --live flag)
 sudo apt install libportaudio2
 
-# Start the server
+# Start the server and open the Emitter in the default browser
 ./scripts/start.sh
-
-# Open in browser
-http://localhost:8080
 ```
+
+The launcher waits for the server, then opens `http://127.0.0.1:8080`. For a
+headless or remote session, use `./scripts/start.sh --no-browser` and open that
+address manually.
 
 ```bash
 # Stop the server
@@ -75,7 +76,7 @@ app/
       config.py    # GET /api/config/defaults, GET /api/config/model-options
       stream.py    # WS /ws/stream
 scripts/
-  start.sh         # Start uvicorn on port 8080
+  start.sh         # Start uvicorn and open the browser on port 8080
   stop.sh          # Kill uvicorn on port 8080
 specs/             # Feature specs + TODO backlog
 ```

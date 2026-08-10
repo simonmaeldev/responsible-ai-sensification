@@ -407,12 +407,40 @@ Avoid reverting to the older archive interface.
 
 ## Handoff Notes
 
+### Ubuntu launcher and ossia setup (2026-08-10)
+
+- `./scripts/start.sh` now polls the local HTTP endpoint and opens the Emitter
+  in the desktop's default browser once it is ready. `--no-browser` or
+  `OPEN_BROWSER=0` preserves an explicit headless workflow, and browser-launch
+  failures cannot terminate the FastAPI process.
+- The initial Ubuntu audit found neither libossia nor ossia score. The official
+  libossia 1.2.4 Linux library is now installed user-locally at
+  `~/.local/opt/libossia`, including headers, `libossia.so`, and CMake metadata.
+  A compiled C++ smoke test loaded that exact shared library successfully.
+- The verified official ossia score 3.8.2 x86-64 AppImage was extracted to
+  `~/.local/opt/ossia-score-3.8.2`. `~/.local/bin/ossia-score` launches it, and
+  `~/.local/share/applications/ossia-score.desktop` exposes it to the Ubuntu app
+  menu. Extraction avoids requiring `libfuse2`, which remains uninstalled
+  because this agent session could not answer the interactive sudo prompt.
+- The current custom `/rai/v1` OSC sender still does not depend on libossia or
+  score. They are local Connector research tools, not Emitter prerequisites;
+  the repository's Max receiver and documented Windows installations remain
+  separate.
+- Verification: the two launcher tests passed, all 79 server tests passed,
+  `bash -n scripts/start.sh` and `node --check app/client/main.js` passed, and a
+  real desktop start opened the page and established its WebSocket. The server
+  was then stopped. `ossia-score --version` reports 3.8.2, and its desktop GUI
+  completed a startup smoke test before being stopped. It reported optional NDI
+  and JACK services as unavailable; neither blocks the planned OSC experiments.
+
 ### Immediate Ubuntu GPU PC emitter handoff
 
 The current verified deliverable is four general Emitter-workbench slices, not a
 finished definition of every model probe or research workflow. Start it
-with `./scripts/start.sh`, open `http://127.0.0.1:8080`, enter a prompt in the
-large composer, and use **Model** first with OSC disabled.
+with `./scripts/start.sh`; the launcher waits for readiness and opens
+`http://127.0.0.1:8080` in the default browser. Use `--no-browser` for a remote
+or headless session. Enter a prompt in the large composer, and use **Model**
+first with OSC disabled.
 
 Select a Dense observation layer from the slider, previous/next buttons, or
 transformer-block map. The path shows the latest token's measured update trace

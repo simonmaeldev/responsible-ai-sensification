@@ -145,7 +145,9 @@ Begin behavior changes with a failing focused test, then use both focused and
 complete relevant checks for confidence:
 
 - Python server behavior: `cd app/server && uv run pytest`
-- UI behavior: run `./scripts/start.sh`, then manually or browser-test the relevant workflow.
+- UI behavior: run `./scripts/start.sh` to open the local UI automatically, or
+  use `./scripts/start.sh --no-browser` for automated/headless checks, then
+  manually or browser-test the relevant workflow.
 - Streaming/model behavior: expect HuggingFace/model cache/API constraints and document what was or was not exercised.
 - Cross-machine OSC behavior: first verify the Ubuntu sender against a loopback
   receiver; verify Ableton/Max reception separately on Windows; then run one LAN

@@ -110,7 +110,8 @@ code, while OSC/OSCQuery carries live performance data between machines.
 
 ## Commands
 
-- Start app: `./scripts/start.sh`
+- Start app and open its browser UI: `./scripts/start.sh`
+- Start without opening a browser: `./scripts/start.sh --no-browser`
 - Start verbose: `./scripts/start.sh --verbose`
 - Stop app: `./scripts/stop.sh`
 - Reset enriched cluster cache on start: `./scripts/start.sh --reset-cache`
