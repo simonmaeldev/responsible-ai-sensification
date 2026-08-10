@@ -260,7 +260,7 @@ The focused implementation contract and completion record are in
 
 ## Phase 9: General Emitter Neural Workbench
 
-Status: four vertical slices complete; broader research adapters remain open
+Status: five vertical slices complete; broader research adapters remain open
 
 Goal: replace the instrument-first information architecture with a general,
 truthful workbench for moving through model observation sites and separating raw
@@ -309,6 +309,14 @@ Implemented:
 - Updated the Ubuntu desktop launcher to open the Emitter automatically only
   after the HTTP endpoint is ready, with an explicit `--no-browser` escape hatch
   and non-fatal handling when no graphical launcher is available.
+- Replaced the remaining Model/Map dashboard with one live inspector. Exact
+  tokens, selectable token history, a compact measured block grid, and strongest
+  active SAE directions are now the default view. Setup, mappings, Tonality,
+  raw representations, colour, and OSC remain available only when requested.
+- Decoupled generated-token history from the colour/cluster experiment and made
+  whitespace tokens legible. Timeline selection restores the synchronized token
+  evidence, while SAE rows expose literal indices, exact activation, relative
+  strength, and Neuronpedia descriptions.
 - Verified 77 server tests, JavaScript syntax, the 140-ID browser harness, and
   headless navigation with no browser errors. A real Gemma 3 1B run observed
   layer 7 while the SAE remained at layer 22, reported all 26 layer summaries,
@@ -322,6 +330,11 @@ Implemented:
   rendered height while closed. A real GPU run again measured all 26 blocks,
   selected layer 7, rendered 1,152 dense coordinates and 54 active SAE features,
   and updated Tonality without a page error. The server was stopped.
+- Verified the single-surface live inspector with 79 server tests, JavaScript
+  syntax, the 153-ID browser harness, and a real three-token GPU/browser run.
+  The final token exposed 53 active SAE directions beside all 26 measured model
+  blocks; token-history selection worked, the 1,440 px page did not overflow,
+  and the browser reported no errors. The server was stopped.
 
 Not yet implemented:
 
@@ -334,7 +347,8 @@ Not yet implemented:
 - Semantic projections of dense or sparse directions. Coordinate/index views
   are intentionally literal until a justified projection exists.
 
-The focused contract is in `specs/emitter-neural-workbench.md`.
+The cumulative workbench contract is in `specs/emitter-neural-workbench.md`;
+the latest single-surface correction is in `specs/emitter-live-inspector.md`.
 
 ## Later Candidate Features
 

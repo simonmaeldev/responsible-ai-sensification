@@ -5,6 +5,11 @@ priority takes precedence over the older numeric ordering.
 
 ## Completed
 
+- Focused live inspector: one primary screen now keeps the exact current token,
+  selectable token history, 26-block measured Gemma grid, selected block, and
+  strongest active SAE/Neuronpedia directions visible together. Generated
+  tokens no longer depend on colour metadata; setup and experiments are
+  secondary.
 - Ubuntu desktop launcher: `./scripts/start.sh` waits for the Emitter endpoint
   and opens it in the default browser; `--no-browser` keeps headless starts
   explicit, and launch failures do not stop the server.

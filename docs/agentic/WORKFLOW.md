@@ -77,10 +77,10 @@ The goal is to make agent work persistent, scoped, and easy to restart without l
 - Keep four epistemic distinctions explicit in implementation and language:
   observation of raw runtime state, interpretation with evidence/provenance,
   optional artistic transformation, and optional external routing. They do not
-  require one visible tab each. The current focused UI uses **Model** and
-  **Map** as its only primary destinations. Controls and Tonality are on-demand
-  drawers, and OSC is a compact popover. A value must not be presented as raw
-  if it came from a projection, description, or mapping.
+  require one visible tab each. The current focused UI uses one synchronized
+  live-inspection surface for tokens, model depth, and SAE directions. Setup and
+  Tonality are on-demand drawers, and OSC is a compact popover. A value must not
+  be presented as raw if it came from a projection, description, or mapping.
 - Every live model view should identify the model/session, observation site,
   token or training step, and representation type. Do not imply semantic
   distance from coordinate or feature-index proximity unless a documented

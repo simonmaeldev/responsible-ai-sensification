@@ -25,7 +25,12 @@ address manually.
 ./scripts/stop.sh
 ```
 
-The browser UI is the primary interface. Set a prompt, choose model/strategy/layer/width/clusters/mode/BPM, then click **Play (▶)**. Use **Pause (⏸)** to freeze playback and step through tokens with **⏮ / ⏭**. Parameters can be tweaked mid-generation without restarting.
+The browser UI is the primary interface. Enter a prompt and click **Run prompt**.
+The live surface keeps the exact current token, selectable token history, all
+Gemma blocks, and the strongest active SAE/Neuronpedia directions together.
+Open **Setup** for model, observation, sound, signal, and mapping controls;
+optional Tonality and OSC remain separate. Live parameters affect subsequent
+tokens without restarting.
 
 Passive external-observer tooling is available for TouchDesigner and other
 WebSocket clients. The server can mirror complete sparse activation events at

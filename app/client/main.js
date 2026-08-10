@@ -443,6 +443,12 @@ const sparseStateCanvas = document.getElementById("sparse-state-canvas");
 const sparseStateCount = document.getElementById("sparse-state-count");
 const sparseStateSummary = document.getElementById("sparse-state-summary");
 const sparseStateTop = document.getElementById("sparse-state-top");
+const liveTokenCurrent = document.getElementById("live-token-current");
+const liveTokenPosition = document.getElementById("live-token-position");
+const liveFeatureDirections = document.getElementById("live-feature-directions");
+const liveFeatureCount = document.getElementById("live-feature-count");
+const liveFeatureToken = document.getElementById("live-feature-token");
+const liveFeatureLayer = document.getElementById("live-feature-layer");
 
 const WORKSPACE_COPY = {
   model: {
@@ -833,6 +839,113 @@ function renderSparseState(stream = currentEmitterStreams["sae.active_features"]
   }
 }
 
+function featureDirectionRows(features, limit = 12) {
+  const ordered = (Array.isArray(features) ? features : [])
+    .map(feature => ({
+      index: Number(feature?.index),
+      activation: Number(feature?.activation),
+      description: String(feature?.description || ""),
+    }))
+    .filter(feature => Number.isFinite(feature.index) && Number.isFinite(feature.activation) && feature.activation > 0)
+    .sort((left, right) => right.activation - left.activation);
+  const strongest = ordered[0]?.activation || 1;
+  return ordered.slice(0, Math.max(0, Number(limit) || 0)).map(feature => ({
+    ...feature,
+    relative: feature.activation / strongest,
+  }));
+}
+
+function liveSparseFeatures(stream = currentEmitterStreams["sae.active_features"]) {
+  if (Array.isArray(stream?.value)) return stream.value;
+  return [...featureCatalogue.values()]
+    .filter(feature => feature.active)
+    .map(feature => ({
+      index: feature.index,
+      activation: feature.activation,
+      description: feature.description,
+    }));
+}
+
+function renderLiveFeatureDirections(stream = currentEmitterStreams["sae.active_features"]) {
+  if (!liveFeatureDirections) return;
+  const features = liveSparseFeatures(stream);
+  const rows = featureDirectionRows(features);
+  liveFeatureCount.textContent = `${features.filter(feature => Number(feature?.activation) > 0).length} active`;
+  liveFeatureLayer.textContent = `Gemma Scope 2 · layer ${layerSel.value || "—"}`;
+  liveFeatureDirections.innerHTML = "";
+  liveFeatureDirections.classList.remove("empty-monitor");
+
+  for (const feature of rows) {
+    const row = document.createElement("div");
+    row.className = "live-feature-row";
+    row.style.setProperty("--direction-strength", String(feature.relative));
+
+    const index = document.createElement("strong");
+    index.className = "live-feature-index";
+    index.textContent = `#${feature.index}`;
+
+    const evidence = document.createElement("div");
+    evidence.className = "live-feature-evidence";
+    const description = document.createElement("span");
+    description.textContent = feature.description || "No Neuronpedia description for this coordinate";
+    const bar = document.createElement("i");
+    bar.setAttribute("aria-hidden", "true");
+    evidence.append(description, bar);
+
+    const activation = document.createElement("span");
+    activation.className = "live-feature-activation";
+    activation.textContent = formatSignalValue(feature.activation);
+    activation.title = "Exact SAE activation";
+
+    row.append(index, evidence, activation);
+    liveFeatureDirections.appendChild(row);
+  }
+
+  if (!rows.length) {
+    liveFeatureDirections.classList.add("empty-monitor");
+    liveFeatureDirections.textContent = "No active SAE directions were reported for this token.";
+  }
+}
+
+function renderLiveToken(msg, index = historyIndex) {
+  const token = String(msg?.token ?? "");
+  liveTokenCurrent.textContent = token ? JSON.stringify(token) : "∅";
+  liveTokenPosition.textContent = index >= 0
+    ? `Token ${index + 1} of ${tokenHistory.length}`
+    : "Waiting for generation";
+  liveFeatureToken.textContent = index >= 0
+    ? `Directions active for token ${index + 1} · ${token ? JSON.stringify(token) : "∅"}`
+    : "Waiting for a token";
+}
+
+function visibleTokenLabel(token) {
+  const exact = String(token ?? "");
+  if (!exact) return "∅";
+  return exact
+    .replaceAll("\r\n", "↵")
+    .replaceAll("\n", "↵")
+    .replaceAll("\r", "↵")
+    .replaceAll("\t", "⇥")
+    .replaceAll(" ", "␠");
+}
+
+function appendTokenToTimeline(msg, index) {
+  const textContent = document.getElementById("cv-text-content");
+  if (!textContent || textContent.querySelector(`[data-idx="${index}"]`)) return null;
+  const token = String(msg?.token ?? "");
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "token-chip";
+  button.dataset.idx = String(index);
+  button.textContent = visibleTokenLabel(token);
+  button.title = `Inspect token ${index + 1}: ${token ? JSON.stringify(token) : "empty token"}`;
+  button.addEventListener("click", () => inspectHistoryToken(index));
+  textContent.appendChild(button);
+  const textBox = document.getElementById("cv-text-output");
+  if (textBox) textBox.scrollLeft = textBox.scrollWidth;
+  return button;
+}
+
 function renderNeuralAtlas(msg) {
   const observation = msg?.observation || {};
   const observedLayer = Number.isFinite(Number(observation.layer))
@@ -849,6 +962,8 @@ function renderNeuralAtlas(msg) {
   atlasToken.textContent = msg?.token ? `token · ${JSON.stringify(msg.token)}` : "token —";
   atlasProbe.textContent = `residual · layer ${observedLayer}`;
   anatomyLocation.textContent = `Block ${observedLayer} residual → dense probes · Block ${saeLayer} residual → ${observation.sae_width || widthSel.value} SAE`;
+  renderLiveToken(msg);
+  renderLiveFeatureDirections();
   renderModelAnatomy(observedLayer);
   renderDenseState();
   renderSparseState();
@@ -1977,6 +2092,7 @@ function handleMessage(msg) {
     case "token":
       finishLoadingProgress();
       tokenHistory.push(msg);
+      appendTokenToTimeline(msg, tokenHistory.length - 1);
       if (isPaused) {
         pendingBuffer.push(msg);
         btnNext.disabled = false;
@@ -2312,17 +2428,6 @@ function renderClusterViz(msg) {
 
   // Draw sorted bar chart
   if (clusterCanvas) drawClusterBars(clusterCanvas, enrichedNotes);
-
-  // Append token span to full text output
-  const textContent = document.getElementById("cv-text-content");
-  if (textContent) {
-    const span = document.createElement("span");
-    span.dataset.idx = tokenHistory.length - 1;
-    span.textContent = msg.token || "";
-    textContent.appendChild(span);
-    const textBox = document.getElementById("cv-text-output");
-    if (textBox) textBox.scrollTop = textBox.scrollHeight;
-  }
 }
 
 // Same as renderClusterViz but does NOT append to the text output (for navigation)
@@ -2566,13 +2671,13 @@ function drawWaveformFrame() {
 function highlightToken(idx) {
   const textContent = document.getElementById("cv-text-content");
   if (!textContent) return;
-  for (const span of textContent.querySelectorAll("span.token-active")) {
-    span.classList.remove("token-active");
+  for (const token of textContent.querySelectorAll(".token-active")) {
+    token.classList.remove("token-active");
   }
-  const target = textContent.querySelector(`span[data-idx="${idx}"]`);
+  const target = textContent.querySelector(`[data-idx="${idx}"]`);
   if (target) {
     target.classList.add("token-active");
-    target.scrollIntoView({ block: "nearest" });
+    target.scrollIntoView({ block: "nearest", inline: "nearest" });
   }
 }
 
@@ -2639,6 +2744,15 @@ function resetClusterViz() {
     controlMonitor.textContent = "Mappings will appear here.";
   }
   if (controlCount) controlCount.textContent = "0 active";
+  if (liveTokenCurrent) liveTokenCurrent.textContent = "—";
+  if (liveTokenPosition) liveTokenPosition.textContent = "Waiting for generation";
+  if (liveFeatureToken) liveFeatureToken.textContent = "Waiting for a token";
+  if (liveFeatureLayer) liveFeatureLayer.textContent = `Gemma Scope 2 · layer ${layerSel.value || "—"}`;
+  if (liveFeatureCount) liveFeatureCount.textContent = "0 active";
+  if (liveFeatureDirections) {
+    liveFeatureDirections.className = "live-feature-directions empty-monitor";
+    liveFeatureDirections.textContent = "Run a prompt to see the strongest sparse directions used at each generated token.";
+  }
   renderFeatureBrowser();
   applyVisualControls();
   renderTonalityIdle();
@@ -2724,6 +2838,23 @@ async function resumePipeline() {
   if (!isPaused && isDone && pendingBuffer.length === 0) setDone();
 }
 
+function inspectHistoryToken(index) {
+  const selectedIndex = Number(index);
+  if (!Number.isInteger(selectedIndex) || selectedIndex < 0 || selectedIndex >= tokenHistory.length) return;
+  if (isRunning && !isPaused) pausePipeline();
+  historyIndex = selectedIndex;
+  const event = tokenHistory[historyIndex];
+  engine.stopAll();
+  consumeEmitterPayload(event);
+  renderClusterVizStatic(event);
+  renderTonalityPanel(event);
+  renderEmitterInspector(event);
+  highlightToken(historyIndex);
+  btnPrev.disabled = historyIndex <= 0;
+  btnNext.disabled = historyIndex >= tokenHistory.length - 1;
+  setStatus(`Inspecting token ${historyIndex + 1} / ${tokenHistory.length}`);
+}
+
 function navigatePrev() {
   if (historyIndex <= 0) return;
   historyIndex--;
@@ -2750,17 +2881,6 @@ function navigateNext() {
   renderClusterVizStatic(event);
   renderTonalityPanel(event);
   renderEmitterInspector(event);
-
-  // Append text span if this token was never live-rendered (arrived while paused)
-  const textContent = document.getElementById("cv-text-content");
-  if (textContent && !textContent.querySelector(`span[data-idx="${historyIndex}"]`)) {
-    const span = document.createElement("span");
-    span.dataset.idx = historyIndex;
-    span.textContent = event.token || "";
-    textContent.appendChild(span);
-    const textBox = document.getElementById("cv-text-output");
-    if (textBox) textBox.scrollTop = textBox.scrollHeight;
-  }
 
   highlightToken(historyIndex);
   btnNext.disabled = historyIndex >= tokenHistory.length - 1;

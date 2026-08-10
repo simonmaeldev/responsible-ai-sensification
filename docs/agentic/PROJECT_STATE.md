@@ -19,15 +19,15 @@ sensifying model/runtime data. The current Gemma 3, Gemma Scope, SAE,
 Neuronpedia, semantic-tonality, browser audio, and visualization system is a
 substantial proof of concept, not the definition or limit of the Emitter.
 
-The browser now has two primary destinations: **Model** and **Map**. The
-inference prompt and transport remain continuously visible; OSC is a compact
-optional output popover. Model is the default and makes the loaded Gemma path,
-selected transformer block, token, and provenance primary. Map owns probe
-evidence and mapping. Run/signal controls and verbal Tonality are mutually
-exclusive, closed-by-default drawers. Dense/sparse representations and the full
-mapping matrix are closed disclosures. Observation, interpretation,
-transformation, and routing remain important provenance distinctions, but they
-do not create permanent screen regions.
+The browser now has one primary live-inspection surface. The exact current
+token, selectable generated-token timeline, compact clickable 26-block Gemma
+grid, selected block, and strongest active SAE feature directions remain visible
+together. Model/run/signal/mapping setup and verbal Tonality are mutually
+exclusive, closed-by-default drawers; OSC remains a compact optional popover.
+Dense coordinates and the complete sparse representation remain available in a
+closed disclosure. Observation, interpretation, transformation, and routing
+remain important provenance distinctions, but they do not create permanent
+screen regions or primary tabs.
 
 Dense observation is now independent of the SAE attachment. The live
 `observation_layer` parameter can move residual probes across all advertised
@@ -84,8 +84,9 @@ lightweight model summaries are available as scalar mapping sources; and full
 residual vectors, top-k logits, and sparse SAE feature streams are explicit
 opt-in raw signals. The browser workbench enables the residual-vector and sparse
 SAE streams on startup so its primary views have real data; they can still be
-disabled through Map's Controls drawer. Live selection affects subsequent tokens without
-extending OSC v1 or requiring an artistic transformation.
+disabled through Setup's signal-capture disclosure. Live selection affects
+subsequent tokens without extending OSC v1 or requiring an artistic
+transformation.
 
 Emitter preparation now has structured browser feedback. A compact progress
 panel reports the language model, SAE, Neuronpedia descriptions, feature
@@ -354,6 +355,31 @@ OSC/OSCQuery moves live performance data.
   tools from the older laptop prototype. Deliberately excluded its competing
   unversioned top-K OSC sender, default three-port broadcast, toy Max receiver,
   and always-on bidirectional UDP bus.
+- Replaced the Model/Map tab structure with one live inspection surface. The
+  exact current token and token timeline now lead the page; the token path is
+  independent of colour/cluster metadata, so every generated token appears.
+  Selecting a token pauses live presentation and restores that token's model,
+  SAE, tonality, and mapping evidence.
+- Replaced the long residual-line composition with a compact grid of all 26 real
+  Gemma blocks. Each block remains clickable and shows its actual attention
+  type, measured update strength, selected dense probe, and fixed SAE marker.
+  The selected block's real operation order and profile remain compactly below.
+- Made the strongest active SAE directions continuously visible beside the
+  model grid. Rows use the raw `sae.active_features` stream, are ordered by exact
+  activation, show relative-strength bars, literal feature indices, and
+  available Neuronpedia descriptions. Whitespace tokens use visible timeline
+  symbols while the main token readout preserves the exact quoted text.
+- Consolidated model/run settings, signal capture, mappings, scenes, and feature
+  audition under Setup. Tonality and OSC remain optional. Browser audio,
+  WebSocket payloads, raw representations, live mapping, colour, and external
+  routing behavior were preserved.
+- Verified the live-inspector correction with 79 server tests, JavaScript
+  syntax, and the 153-ID browser harness. A real three-token Gemma/SAE browser
+  run rendered tokens `↵`, `The`, and `␠moon`; token 3 showed 53 active sparse
+  directions, 12 strongest evidence rows, all 26 measured blocks, and no browser
+  errors or horizontal overflow at 1,440 px. Clicking token 1 changed the exact
+  readout and restored token 1 for inspection. The inspected screenshot is
+  `runs/emitter-live-inspector-live.png`; the browser and server were stopped.
 
 ## Local Reference Material
 
@@ -367,16 +393,15 @@ background only; do not import from it directly unless asked.
 
 ## Current App Direction
 
-Use the workbench interface already present in this repo:
+Use the live inspector already present in this repo:
 
-- **Model**: the continuously visible prompt/run controls, one clickable Gemma
-  path, movable dense probe, fixed/labelled SAE site, and selected-block
-  structure. Dense/sparse details open only when requested.
-- **Map**: selected raw and derived observations plus searchable SAE/Neuronpedia
-  evidence. Signal selection is in Controls; mapped controls, mappings, and
-  scenes open only when requested.
-- **Controls drawer**: model/run settings in Model and the signal catalogue in
-  Map. It is closed by default and never occupies permanent canvas space.
+- **Primary surface**: prompt/run controls, exact current token, selectable
+  token history, compact clickable Gemma block grid, selected-block structure,
+  and strongest active SAE/Neuronpedia directions. These are synchronized
+  observations, not ornamental navigation.
+- **Setup drawer**: model/run settings, signal catalogue, mapped controls,
+  mappings, scenes, and detailed feature audition. It is closed by default and
+  never occupies permanent canvas space.
 - **Tonality drawer**: optional live verbal descriptions,
   root/scale/custom-interval editing, resonance evidence, browser waveform, and
   collapsed colour proof of concept. One lens editor is open at a time.
@@ -447,23 +472,23 @@ Avoid reverting to the older archive interface.
 
 ### Immediate Ubuntu GPU PC emitter handoff
 
-The current verified deliverable is four general Emitter-workbench slices, not a
+The current verified deliverable is a focused live Emitter inspector, not a
 finished definition of every model probe or research workflow. Start it
 with `./scripts/start.sh`; the launcher waits for readiness and opens
 `http://127.0.0.1:8080` in the default browser. Use `--no-browser` for a remote
-or headless session. Enter a prompt in the large composer, and use **Model**
-first with OSC disabled.
+or headless session. Enter a prompt in the large composer and keep OSC disabled
+for the first local inspection.
 
-Select a Dense observation layer from the slider, previous/next buttons, or
-transformer-block map. The path shows the latest token's measured update trace
-and local/global attention type. The selected real Gemma decoder block and its
-residual metrics appear directly below it. The
+Select a dense observation layer from Setup, the previous/next buttons, or the
+compact transformer-block grid. Each block shows the latest token's measured
+update strength and local/global attention type. The selected real Gemma decoder
+block and its residual metrics appear directly below it. The
 teal marker is the movable residual probe; the purple marker is the SAE's actual
 attachment and must not be interpreted as moving with it. During generation,
-the dense and sparse representations remain visible together. Dense and sparse
-raw streams are enabled by the browser workbench on startup; use **Map** to
-inspect their values and evidence, or open **Controls** from Map to change the
-selection.
+the exact token timeline and strongest active sparse directions remain visible.
+Click any earlier token to inspect its synchronized state. Dense and sparse raw
+streams are enabled on startup; open **Inspect raw representations** or Setup to
+change the selection.
 
 Open the **Tonality** drawer when evaluating the optional harmonic experiment:
 choose a

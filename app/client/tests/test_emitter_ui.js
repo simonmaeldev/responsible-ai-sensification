@@ -70,17 +70,20 @@ const source = fs.readFileSync(sourcePath, "utf8");
 const htmlIds = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map(match => match[1]));
 const referencedIds = [...source.matchAll(/getElementById\("([^"]+)"\)/g)].map(match => match[1]);
 assert.deepEqual(referencedIds.filter(id => !htmlIds.has(id)), []);
-assert.equal((html.match(/data-workspace-tab=/g) || []).length, 2);
-assert.match(html, /data-workspace-tab="model"/);
-assert.match(html, /data-workspace-tab="signals"/);
-assert.doesNotMatch(html, /data-workspace-tab="tonality"/);
-assert.match(html, /data-workspace-tab="signals"[^>]*>\s*<strong>Map<\/strong>/);
+assert.equal((html.match(/data-workspace-tab=/g) || []).length, 0);
+assert.doesNotMatch(html, /class="workspace-nav"/);
 assert.doesNotMatch(html, /data-workspace-tab="(?:observe|interpret|transform|route)"/);
 assert.match(html, /<textarea[^>]+id="prompt"/);
 assert.match(html, /id="model-anatomy"/);
 assert.match(html, /id="gemma-model-map"/);
-assert.match(html, /id="gemma-activity-plot"/);
+assert.match(html, /id="model-depth-grid"/);
+assert.doesNotMatch(html, /class="model-path-stage"/);
 assert.match(html, /id="model-layer-readout"/);
+assert.match(html, /id="live-token-current"/);
+assert.match(html, /id="live-token-position"/);
+assert.match(html, /id="cv-text-content"/);
+assert.match(html, /id="live-feature-directions"/);
+assert.match(html, /id="live-feature-count"/);
 assert.match(html, /id="tonality-lens-workspace"/);
 assert.match(html, /id="osc-popover"/);
 assert.match(html, /id="btn-controls-toggle"[^>]+aria-expanded="false"/);
@@ -96,7 +99,7 @@ assert.match(html, /id="gemma-block-diagram"/);
 assert.match(html, /id="layer-profile-metrics"/);
 assert.match(html, /id="dense-state-canvas"/);
 assert.match(html, /id="sparse-state-canvas"/);
-assert.match(html, /data-workspace-panel="signals"[^>]*class="[^"]*hidden/);
+assert.doesNotMatch(html, /data-workspace-panel=/);
 assert.doesNotMatch(html, /class="atlas-view-tabs"/);
 assert.match(html, /id="signal-catalogue-search"/);
 assert.match(html, /id="signal-catalogue-list"/);
@@ -217,7 +220,7 @@ global.fetch = async url => ({
   },
 });
 
-const instrumented = `${source}\n;globalThis.__emitterTest = { completeMapping, templateMappings, morphMapping, lerp, filterSignalCatalogue, signalRouteSummary, describeStreamValue, residualVectorStats, safeObservationLayer, normalizedLayerActivity, layerProfileEntry, layerProfilePoints, stepObservationLayer, scalePresetForIntervals, normalizedLens, handleMessage, handleLoadingMessage, startLoadingProgress, finishLoadingProgress, setWorkspace, setInterfaceDrawer, setSignalSelection(keys) { sessionActive = true; selectedEmitterSignalKeys = new Set(keys); sendSignalSelectionUpdate(); } };`;
+const instrumented = `${source}\n;globalThis.__emitterTest = { completeMapping, templateMappings, morphMapping, lerp, filterSignalCatalogue, signalRouteSummary, describeStreamValue, residualVectorStats, safeObservationLayer, normalizedLayerActivity, layerProfileEntry, layerProfilePoints, stepObservationLayer, scalePresetForIntervals, normalizedLens, visibleTokenLabel, featureDirectionRows, appendTokenToTimeline, handleMessage, handleLoadingMessage, startLoadingProgress, finishLoadingProgress, setWorkspace, setInterfaceDrawer, setSignalSelection(keys) { sessionActive = true; selectedEmitterSignalKeys = new Set(keys); sendSignalSelectionUpdate(); } };`;
 vm.runInThisContext(instrumented, { filename: sourcePath });
 
 setTimeout(() => {
@@ -286,6 +289,25 @@ setTimeout(() => {
     { layer: 1, x: 50, y: 20, value: 2 },
     { layer: 2, x: 100, y: 0, value: 4 },
   ]);
+  assert.deepEqual(
+    api.featureDirectionRows([
+      { index: 4, activation: 2, description: "quiet direction" },
+      { index: 8, activation: 8, description: "strong direction" },
+      { index: 2, activation: 4, description: "middle direction" },
+      { index: 9, activation: 0, description: "inactive" },
+    ], 2),
+    [
+      { index: 8, activation: 8, description: "strong direction", relative: 1 },
+      { index: 2, activation: 4, description: "middle direction", relative: 0.5 },
+    ],
+  );
+  assert.equal(api.visibleTokenLabel("\n"), "↵");
+  assert.equal(api.visibleTokenLabel(" moon"), "␠moon");
+  assert.equal(api.visibleTokenLabel(""), "∅");
+  api.appendTokenToTimeline({ token: " plain" }, 0);
+  assert.equal(elements.get("cv-text-content").children.length, 1);
+  assert.equal(elements.get("cv-text-content").children[0].textContent, "␠plain");
+  elements.get("cv-text-content").innerHTML = "";
   api.setWorkspace("signals");
   assert.deepEqual(visualsViewport.lastScrollOptions, { top: 0, behavior: "instant" });
   api.setInterfaceDrawer("controls", true);
@@ -315,6 +337,30 @@ setTimeout(() => {
     },
   });
   assert.equal(elements.get("anatomy-layer-count").textContent, "3 blocks");
+  api.handleMessage({
+    type: "token",
+    token: " test",
+    notes: [],
+    observation: { layer: 1, sae_layer: 22, sae_width: "65k" },
+    emitter: {
+      signals: {},
+      controls: {},
+      mappings: [],
+      streams: {
+        "sae.active_features": {
+          value_type: "sparse_vector",
+          value: [
+            { index: 12, activation: 7, description: "first live direction" },
+            { index: 20, activation: 3, description: "second live direction" },
+          ],
+        },
+      },
+    },
+  });
+  assert.equal(elements.get("cv-text-content").children.length, 1, "tokens must not depend on colour notes");
+  assert.equal(elements.get("live-token-current").textContent, '" test"');
+  assert.equal(elements.get("live-feature-count").textContent, "2 active");
+  assert.equal(elements.get("live-feature-directions").children.length, 2);
   assert.equal(api.scalePresetForIntervals([0, 2, 4, 5, 7, 9, 11]), "major");
   assert.equal(api.scalePresetForIntervals([0, 1, 6]), "custom");
   assert.equal(api.normalizedLens({ name: "D idea", description: "bright", intervals: [0, 4, 7], root: 14 }).root, 2);
