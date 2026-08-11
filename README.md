@@ -2,6 +2,8 @@
 
 Sensification of the output of Gemma 3 — turns SAE feature activations into live generative audio via a browser UI.
 
+Current project direction: this sensification work is being done with Professor Tegan Maharaj.
+
 > **Requires a HuggingFace login** and acceptance of the [Gemma 3 license](https://huggingface.co/google/gemma-3-1b-pt) before first use.
 
 ## Quick Start (Web UI)
@@ -24,6 +26,29 @@ address manually.
 ```
 
 The browser UI is the primary interface. Set a prompt, choose model/strategy/layer/width/clusters/mode/BPM, then click **Play (▶)**. Use **Pause (⏸)** to freeze playback and step through tokens with **⏮ / ⏭**. Parameters can be tweaked mid-generation without restarting.
+
+Passive external-observer tooling is available for TouchDesigner and other
+WebSocket clients. The server can mirror complete sparse activation events at
+`/ws/activations`, and deterministic fixture replay supports host-side work
+without loading the model. This rich observer feed is separate from the
+optional, browser-configured `/rai/v1` OSC output used by the existing Max for
+Live receiver. See `integrations/README.md`.
+
+### External integration quick loop
+
+```bash
+# Terminal 1: server
+./scripts/integration-dev.sh serve
+
+# Terminal 2: replay passive WebSocket fixtures without loading Gemma/SAE
+./scripts/integration-dev.sh replay 250 true
+
+# Observer-contract and starter-asset checks
+./scripts/integration-dev.sh check
+
+# Exercise the established OSC v1 receiver separately
+./scripts/integration-dev.sh osc-fixture 127.0.0.1 9000
+```
 
 ### Parameters
 
@@ -78,6 +103,11 @@ app/
 scripts/
   start.sh         # Start uvicorn and open the browser on port 8080
   stop.sh          # Kill uvicorn on port 8080
+  integration-dev.sh # Serve/replay/check passive external observers
+integrations/
+  fixtures/        # Deterministic raw activation events
+  ossia-score/     # Current OSC v1 monitoring notes and future scope
+  touchdesigner/   # Passive WebSocket callbacks and receiver setup
 specs/             # Feature specs + TODO backlog
 ```
 

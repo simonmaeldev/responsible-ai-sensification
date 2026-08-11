@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from unittest.mock import patch
 
 from app.server.pipeline.osc_output import OscResult
 from app.server.routers.stream import _forward_token_event, _sync_live_osc_controls
@@ -50,6 +51,46 @@ def test_browser_token_is_unchanged_when_osc_send_fails():
         "status": "error",
         "message": "OSC send failed: test",
     }
+
+
+def test_passive_activation_observer_is_forwarded_without_changing_browser_event():
+    ws = FakeWebSocket()
+    osc = FailingOscOutput()
+    params = PipelineParams()
+    event = {
+        "type": "token",
+        "token": "x",
+        "notes": [{"freq": 432.1, "raw_freq": 440.0, "amplitude": 1.0}],
+    }
+    activation_event = {
+        "type": "activation_token",
+        "schema_version": 1,
+        "run_id": "run-observer",
+        "active_features": [{"index": 42, "activation": 1.25}],
+    }
+    published = []
+
+    async def record_activation(payload):
+        published.append(payload)
+
+    with patch(
+        "app.server.routers.stream.publish_activation",
+        record_activation,
+        create=True,
+    ):
+        result = asyncio.run(
+            _forward_token_event(
+                ws,
+                event,
+                params,
+                osc,
+                activation_event=activation_event,
+            )
+        )
+
+    assert result.state == "error"
+    assert ws.messages[0] == event
+    assert published == [activation_event]
 
 
 def test_live_parameter_updates_are_forwarded_to_active_osc_run():

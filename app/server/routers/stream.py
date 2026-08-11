@@ -9,7 +9,9 @@ import uuid
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from app.server.pipeline.external_output import build_activation_event
 from app.server.pipeline.osc_output import OscResult, OscRunOutput
+from app.server.routers.integrations import publish_activation
 from app.server.session import PipelineParams, PipelineSession  # noqa: F401 (PipelineSession used for _session)
 
 logger = logging.getLogger(__name__)
@@ -127,10 +129,15 @@ async def _forward_token_event(
     event: dict,
     params: PipelineParams,
     osc_output: OscRunOutput,
+    *,
+    activation_event: dict | None = None,
 ) -> OscResult:
-    """Preserve the browser event, then mirror its final notes to OSC."""
+    """Forward one token independently to browser, OSC, and observers."""
     await _send(ws, event)
-    return await _call_osc(ws, osc_output.emit_token, params, event)
+    osc_result = await _call_osc(ws, osc_output.emit_token, params, event)
+    if activation_event is not None:
+        await publish_activation(activation_event)
+    return osc_result
 
 
 async def _sync_live_osc_controls(
@@ -482,7 +489,7 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
 
         # Producer + synthesizer: run generation concurrently with timed playback
         queue: asyncio.Queue = asyncio.Queue()
-        collected: list[dict] = []
+        collected: list[tuple[dict, dict | None]] = []
         event_loop = asyncio.get_running_loop()
         tonality_memory = TonalityMemory()
         emitter_mapping_runtime = EmitterMappingRuntime()
@@ -592,8 +599,21 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
                         }
                         if tonality_payload is not None:
                             event["tonality"] = tonality_payload
+                        activation_event = build_activation_event(
+                            run_id=osc_output.run_id,
+                            token_id=token_analysis.token_id,
+                            token=token_analysis.token,
+                            elapsed_ms=elapsed_ms,
+                            active_features=active_features,
+                            observation=event["observation"],
+                            notes=notes,
+                            tonality=tonality_payload,
+                            sequence=token_count,
+                        )
                         logger.debug("Token %d generated in %dms: %r", token_count, elapsed_ms, token_analysis.token)
-                        asyncio.run_coroutine_threadsafe(queue.put(event), event_loop).result()
+                        asyncio.run_coroutine_threadsafe(
+                            queue.put((event, activation_event)), event_loop
+                        ).result()
 
                 await asyncio.to_thread(_generate)
                 print(f"[pipeline] Generation complete: {token_count} tokens.", file=sys.stderr, flush=True)
@@ -602,7 +622,8 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
                 logger.exception("Generation error (producer)")
                 print(f"[pipeline] Generation error: {exc}", file=sys.stderr, flush=True)
                 asyncio.run_coroutine_threadsafe(
-                    queue.put({"type": "error", "message": str(exc)}), event_loop
+                    queue.put(({"type": "error", "message": str(exc)}, None)),
+                    event_loop,
                 ).result()
             finally:
                 await queue.put(None)  # always signal done, even on error
@@ -611,10 +632,11 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
             # Initial playback: drain the queue
             first_token_ready = False
             while True:
-                event = await queue.get()
-                if event is None:
+                item = await queue.get()
+                if item is None:
                     break
-                collected.append(event)
+                event, activation_event = item
+                collected.append((event, activation_event))
                 if event.get("type") == "token":
                     if not first_token_ready:
                         first_token_ready = True
@@ -624,7 +646,13 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
                             "complete",
                             "First token ready · streaming live",
                         )
-                    await _forward_token_event(ws, event, params, osc_output)
+                    await _forward_token_event(
+                        ws,
+                        event,
+                        params,
+                        osc_output,
+                        activation_event=activation_event,
+                    )
                 else:
                     await _send(ws, event)
                 if params.mode == "timed":
@@ -648,12 +676,23 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
                 if params.loop:
                     was_looping = True
                     loop_count += 1
-                    for event in collected:
+                    for event, activation_event in collected:
                         if not params.loop:
                             break
                         loop_event = {**event, "loop_count": loop_count}
                         if event.get("type") == "token":
-                            await _forward_token_event(ws, loop_event, params, osc_output)
+                            loop_activation_event = (
+                                {**activation_event, "loop_count": loop_count}
+                                if activation_event is not None
+                                else None
+                            )
+                            await _forward_token_event(
+                                ws,
+                                loop_event,
+                                params,
+                                osc_output,
+                                activation_event=loop_activation_event,
+                            )
                         else:
                             await _send(ws, loop_event)
                         if params.mode == "timed":

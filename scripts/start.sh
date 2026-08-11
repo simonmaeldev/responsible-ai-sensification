@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+set -e
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
+
 LOG_LEVEL="info"
 OPEN_BROWSER="${OPEN_BROWSER:-1}"
 EMITTER_URL="${EMITTER_URL:-http://127.0.0.1:8080}"
@@ -66,7 +71,16 @@ open_browser_when_ready() {
     ) &
 }
 
+if command -v uv >/dev/null 2>&1; then
+    SERVER_RUNNER=(uv run uvicorn)
+elif [[ -x "$ROOT_DIR/.venv/bin/python" ]]; then
+    SERVER_RUNNER=("$ROOT_DIR/.venv/bin/python" -m uvicorn)
+else
+    echo "Neither uv nor the project .venv is available." >&2
+    exit 1
+fi
+
 open_browser_when_ready
 export PYTHONPATH=.
-exec uv run uvicorn app.server.main:app \
+exec "${SERVER_RUNNER[@]}" app.server.main:app \
     --host 0.0.0.0 --port 8080 --log-level "$LOG_LEVEL"

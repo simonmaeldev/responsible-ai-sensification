@@ -1,6 +1,6 @@
 # Project State
 
-Last updated: 2026-08-08
+Last updated: 2026-08-11
 
 ## Branch
 
@@ -346,6 +346,14 @@ OSC/OSCQuery moves live performance data.
   features, and updated `luminous resolve` Tonality without browser errors.
   Inspected screenshots were captured at
   `runs/emitter-decluttered-{model,map,tonality}-live.png`; the server was stopped.
+- Added a passive `/ws/activations` observer endpoint and deterministic replay
+  fixture for TouchDesigner/research-tool development without model loading.
+  Rich events preserve run/model/observation/SAE provenance and coexist with
+  browser delivery plus the established `/rai/v1` OSC sender.
+- Preserved TouchDesigner callback/setup material and general OSC inspection
+  tools from the older laptop prototype. Deliberately excluded its competing
+  unversioned top-K OSC sender, default three-port broadcast, toy Max receiver,
+  and always-on bidirectional UDP bus.
 
 ## Local Reference Material
 
@@ -385,6 +393,10 @@ Avoid reverting to the older archive interface.
 - Whether paper passages should become prompts, annotations, comparison units, or all three.
 - Which Ableton parameters should follow semantic tonality after the initial
   note/activation bridge: timbre, envelope, density, filter, or brightness.
+- What the first TouchDesigner visual mapping should render and whether its
+  deliverable should be a `.toe` project or reusable `.tox` component.
+- What the first ossia score scenario should orchestrate, and whether automatic
+  OSCQuery namespace discovery should follow the verified `/rai/v1` prototype.
 - What the first user-facing workflow should be after paper ingestion.
 - Whether paper passages should become selectable prompt presets or stay outside
   the app as reference context.
@@ -521,3 +533,16 @@ a future Connector contract.
 8. Specify a small libossia/OSCQuery Connector namespace for deliberately
    selected bounded parameters. Keep dense arrays local or choose a separate
    bounded transport; do not force them into OSC messages.
+
+### Ubuntu laptop conflict-resolution handoff (2026-08-11)
+
+- The laptop's obsolete `3146ba5` prototype was integrated selectively rather
+  than discarded wholesale. Passive sparse observation, deterministic replay,
+  TouchDesigner callbacks, OSC monitoring, and launcher portability survived.
+- `/rai/v1` remains the sole production OSC contract, and
+  `max/rai_osc_receiver/` remains the sole Max receiver. The prototype's second
+  OSC namespace, default multi-host broadcast, inbound shared-control listener,
+  and toy Max patch were removed to avoid competing architectures.
+- Use `./scripts/integration-dev.sh replay 250 true` for passive WebSocket host
+  work. Use `./scripts/integration-dev.sh osc-fixture <host> <port>` separately
+  for the established OSC receiver path.

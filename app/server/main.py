@@ -14,13 +14,15 @@ logging.basicConfig(
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.server.routers import config, stream
+from app.server.routers import config, integrations, stream
 
 CLIENT_DIR = Path(__file__).parent.parent / "client"
+
 
 app = FastAPI(title="Responsible AI Sensification")
 
 app.include_router(config.router)
+app.include_router(integrations.router)
 app.include_router(stream.router)
 
 # Serve static files at /static so the root GET / below takes priority

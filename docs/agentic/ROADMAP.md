@@ -340,6 +340,9 @@ The focused contract is in `specs/emitter-neural-workbench.md`.
 
 Good later steps:
 
+- TouchDesigner integration through a raw sparse-activation bridge from the
+  FastAPI stream, so SAE feature indices, activations, descriptions, clusters,
+  and semantic-tonality context can drive live visuals directly.
 - Session history and replay/export, so live runs become reproducible research
   artifacts.
 - Deeper feature detail inspection, including cluster/instrument attribution and
@@ -349,6 +352,30 @@ Good later steps:
   combination, with provenance and no unsupported live-training claims.
 - A small libossia/OSCQuery namespace for selected bounded signals and controls,
   leaving large dense arrays on a separate local or binary path.
+
+## External Host Observation Tooling
+
+Status: passive server feed and deterministic fixture foundation complete;
+TouchDesigner host smoke test pending
+
+- `/ws/activations` exposes complete sparse feature events to passive external
+  observers without making them generation controllers.
+- Events retain run, model, selected observation layer, fixed SAE layer/width,
+  raw activation, normalized activation, description, cluster, and optional
+  semantic-tonality provenance.
+- Deterministic NDJSON replay and TouchDesigner callback examples allow host
+  work without loading Gemma or the SAE.
+- This observer feed does not expand or replace the verified `/rai/v1` OSC
+  Connector. The obsolete unversioned top-K sender and generic bidirectional
+  bus were deliberately not carried forward.
+
+Remaining:
+
+- Smoke-test fixture and live observation in TouchDesigner, then choose and save
+  a first project-specific `.toe` or `.tox` only after its mapping is defined.
+- Use the existing Max-generated receiver for Ableton work.
+- Specify selected libossia/OSCQuery parameters before adding discovery or
+  inbound cross-host controls.
 
 ## Verification Pattern
 

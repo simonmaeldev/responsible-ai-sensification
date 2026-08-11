@@ -65,7 +65,26 @@ priority takes precedence over the older numeric ordering.
   UI lens/blend listening test remain.
 - Do not treat Git worktrees as a cross-computer synchronization mechanism.
 
-## 1. Image generation placeholder → actual image
+## Passive external observation tooling
+
+- `/ws/activations` mirrors complete sparse SAE feature events to passive
+  observers without giving them control of generation.
+- Deterministic NDJSON replay and TouchDesigner callbacks support receiver work
+  without loading Gemma or the SAE.
+- The observer feed is separate from the established `/rai/v1` OSC contract.
+  It does not add a second OSC namespace, broadcast destination, or inbound
+  shared-control bus.
+
+## 1. Host application smoke tests
+- Validate passive fixture replay and a live run inside TouchDesigner.
+- Save a first project-specific `.toe` or `.tox` once the visual mapping is chosen.
+- Use the existing Max-generated receiver for Ableton `/rai/v1` checks; do not
+  replace it with a second starter patch.
+- Validate selected `/rai/v1` addresses in ossia score before saving a first
+  project-specific scenario or proposing OSCQuery discovery.
+- See `specs/external-integration-dev-workflow.md`.
+
+## 2. Image generation placeholder → actual image
 The bottom-right panel is currently a static placeholder.
 - Generate an image that encodes the SAE feature activations visually (e.g. scatter plot of active features by cluster, heatmap of activations over tokens, or a t-SNE/UMAP projection).
 - Could also call an external image generation API conditioned on the generated text.

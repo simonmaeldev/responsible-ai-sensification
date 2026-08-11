@@ -32,7 +32,7 @@ def _run_launcher(tmp_path: Path, *arguments: str) -> tuple[subprocess.Completed
     )
     _write_executable(
         command_dir / "uv",
-        '#!/usr/bin/env bash\nprintf "%s\\n" "$*" > "$UV_LAUNCH_LOG"\nsleep 0.1\n',
+        '#!/usr/bin/env bash\nprintf "%s\\n" "$*" > "$UV_LAUNCH_LOG"\npwd > "$UV_CWD_LOG"\nsleep 0.1\n',
     )
     environment = {
         **os.environ,
@@ -40,6 +40,7 @@ def _run_launcher(tmp_path: Path, *arguments: str) -> tuple[subprocess.Completed
         "DISPLAY": ":test",
         "BROWSER_LAUNCH_LOG": str(browser_log),
         "UV_LAUNCH_LOG": str(uv_log),
+        "UV_CWD_LOG": str(tmp_path / "uv-cwd.log"),
     }
     result = subprocess.run(
         ["bash", str(START_SCRIPT), *arguments],
@@ -73,3 +74,34 @@ def test_no_browser_flag_starts_server_without_opening_browser(tmp_path: Path) -
     assert not browser_log.exists()
     assert "run uvicorn app.server.main:app" in uv_log.read_text(encoding="utf-8")
 
+
+def test_start_changes_to_repository_root_before_launching(tmp_path: Path) -> None:
+    outside_repo = tmp_path / "outside"
+    outside_repo.mkdir()
+    command_dir = tmp_path / "bin"
+    command_dir.mkdir()
+    uv_log = tmp_path / "uv.log"
+    uv_cwd_log = tmp_path / "uv-cwd.log"
+    _write_executable(
+        command_dir / "uv",
+        '#!/usr/bin/env bash\nprintf "%s\\n" "$*" > "$UV_LAUNCH_LOG"\npwd > "$UV_CWD_LOG"\n',
+    )
+    environment = {
+        **os.environ,
+        "PATH": f"{command_dir}:{os.environ['PATH']}",
+        "UV_LAUNCH_LOG": str(uv_log),
+        "UV_CWD_LOG": str(uv_cwd_log),
+    }
+
+    result = subprocess.run(
+        ["bash", str(START_SCRIPT), "--no-browser"],
+        cwd=outside_repo,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=5,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert uv_cwd_log.read_text(encoding="utf-8").strip() == str(REPO_ROOT)
