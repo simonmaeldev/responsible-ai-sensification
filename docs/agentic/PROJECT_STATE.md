@@ -29,7 +29,15 @@ closed disclosure. Observation, interpretation, transformation, and routing
 remain important provenance distinctions, but they do not create permanent
 screen regions or primary tabs.
 
-Dense observation is now independent of the SAE attachment. The live
+The Emitter now includes a bounded **Gemma Probe Rack**. Up to eight named,
+live-editable probes can observe a real post-block residual, self-attention
+output, MLP output, or the Gemma Scope SAE. Tensor probes can capture a local
+summary or final-token vector; the SAE remains fixed to its trained layer.
+Every observation carries its actual module path, layer, shape, summary, model,
+and token provenance. The compact live strip keeps these readings attached to
+the current token, while the complete rack stays in an on-demand drawer.
+
+Dense observation is independent of the SAE attachment. The live
 `observation_layer` parameter can move residual probes across all advertised
 transformer blocks on subsequent tokens, while Gemma Scope continues to encode
 the residual from its actual trained layer. WebSocket token events identify both
@@ -56,6 +64,15 @@ Phase 5A is complete on the Ubuntu GPU PC: the browser can opt into a
 live-configurable OSC v1 output whose destination, UDP port, and per-token note
 cap can be changed during a run. The sender mirrors final post-tonality note
 events without changing browser audio, visualization, or token payloads.
+
+A second, additive Connector is now complete on the Ubuntu GPU PC. The browser
+can enable a real libossia OSCQuery server with live-configurable OSC and
+OSCQuery ports. It advertises `RAI Emitter` through `_oscjson._tcp` and exposes
+a stable read-only `/rai/model`, `/rai/run`, and eight-slot `/rai/probes`
+namespace. Only bounded probe summaries are published; dense vectors and full
+SAE feature sets stay in the local WebSocket. Startup, missing-library, broken
+pipe, and port-collision failures are reported without stopping generation.
+This does not change `/rai/v1` or the Windows receiver.
 
 Phase 5B is in progress on the Windows laptop. The receiver source has now been
 saved through Live's **Edit in Max** workflow as the Max-generated
@@ -104,8 +121,9 @@ model, browser-audio, WebSocket, OSC, or Receiver contracts.
 - **Connector:** transports selected emitter events and controls without
   defining their artistic meaning. It may select, serialize, rate-limit, chunk,
   or adapt data as technically required by a transport, while preserving raw
-  access where feasible. Current external communication uses `/rai/v1` OSC,
-  while the emitter browser uses an internal WebSocket.
+  access where feasible. Current external communication includes `/rai/v1` OSC
+  for bounded musical events and a separate libossia/OSCQuery namespace for
+  selected probe summaries; the emitter browser uses an internal WebSocket.
 - **Receiver:** consumes connector data and may perform its own transformations
   on raw signals or apply already-derived controls. It can be Ableton,
   TouchDesigner, ossia, another browser, hardware, or another system; the
@@ -136,6 +154,36 @@ computers: each computer uses its own clone/branch. Git moves source changes;
 OSC/OSCQuery moves live performance data.
 
 ## Recent Setup
+
+- Completed `specs/gemma-probe-rack-ossia.md` on the Ubuntu GPU PC using TDD.
+  The server now installs scoped hooks at real Gemma residual, `self_attn`, and
+  `mlp` modules and builds a fixed-layer SAE observation. Rack selection is
+  resolved on every token and generation uses one-token backpressure so live
+  browser changes reach subsequent forwards.
+- Added the on-demand browser **Probes** drawer and compact live probe strip.
+  Users can add/remove, name, enable, move, choose summary/local-vector capture,
+  and select bounded publication for at most eight probes. The live display
+  shows measured values and exact runtime module paths without displacing the
+  existing token, model, SAE, audio, visualization, or mapping views.
+- Added a repository-owned C++ sidecar using the installed official libossia
+  1.2.4 `opp::oscquery_server`. `./scripts/start.sh` prepares it opportunistically
+  and continues if unavailable. A repository-local runtime shim supplies the
+  Ubuntu versioned Avahi client library without system-package changes, enabling
+  `_oscjson._tcp` discovery.
+- Verified the libossia Connector locally: HTTP OSCQuery returned the typed,
+  read-only tree and changing RMS value; Avahi resolved `RAI Emitter` on IPv4,
+  IPv6, and loopback at TCP 5678; an occupied query port returned an isolated
+  error. Each temporary sidecar was stopped after its check.
+- Ran a real six-token Gemma 3 1B/Gemma Scope 2 session on the RTX 4060 Ti with
+  residual L0, attention L1, MLP L2, and SAE L22 probes. All four reported
+  nonzero values and truthful module paths. A live rack edit moved the attention
+  probe to L3: tokens 1–2 reported L1 and tokens 3–6 reported L3. OSCQuery RMS
+  changed on every token. The Emitter server was stopped afterward; the user's
+  independently running ossia score was not stopped.
+- Verification for this slice: 99/99 server tests, the 165-ID browser behavior
+  harness, `node --check app/client/main.js`, shell syntax, a clean sidecar
+  rebuild, local OSCQuery/discovery/collision checks, and the real GPU run all
+  passed. A temporary 1440×1000 acceptance screenshot was inspected and removed.
 
 - Inspected local archive: `/home/apaixonada/EvaPortelance/responsible-ai-sensification-zougoulou-main.zip`.
 - Extracted old material to a local ignored `references/` folder.
@@ -405,8 +453,11 @@ Use the live inspector already present in this repo:
 - **Tonality drawer**: optional live verbal descriptions,
   root/scale/custom-interval editing, resonance evidence, browser waveform, and
   collapsed colour proof of concept. One lens editor is open at a time.
-- **OSC output popover**: optional OSC v1 configuration. libossia/OSCQuery is a
-  planned—not complete—Connector boundary and is not presented as an app view.
+- **Probes drawer**: bounded experiment setup for real residual, attention, MLP,
+  and fixed-layer SAE observation sites. The latest values remain in a compact
+  strip on the primary surface.
+- **Connect popover**: optional `/rai/v1` musical OSC and separate libossia /
+  OSCQuery probe-summary configuration. Neither Connector is required locally.
 - Generated text, token history, pause/replay buffering, loading stages, browser
   audio, mappings, visualization, WebSocket events, and OSC remain functional.
 
@@ -430,12 +481,12 @@ Avoid reverting to the older archive interface.
 - Which validated emitter controls should eventually be added to a future
   connector contract; do not assume every internal signal belongs on the wire.
 - Which model-family probe adapters and observation sites should be added after
-  the selected-layer residual, output-logit, and SAE examples.
+  the implemented Gemma residual, attention-output, MLP-output, and SAE sites.
 - Which bounded binary transport should carry intentionally selected large raw
   arrays if OSC/libossia is unsuitable for them.
-- Which libossia object tree, units, ranges, and access modes should form the
-  first discoverable Connector namespace. Do not replace the custom model UI
-  with libossia; use it to expose deliberately selected parameters.
+- Which additional bounded probe metrics deserve a versioned extension beyond
+  the implemented read-only eight-slot libossia namespace. Do not put raw dense
+  vectors into this OSCQuery tree or replace the custom model UI with libossia.
 - Which real Interpreto split points, concept-learning methods, attribution
   methods, datasets, and training checkpoints the researchers want. Do not show
   an Interpreto panel until the backend returns real, provenance-bearing results.
@@ -459,11 +510,12 @@ Avoid reverting to the older archive interface.
   `~/.local/share/applications/ossia-score.desktop` exposes it to the Ubuntu app
   menu. Extraction avoids requiring `libfuse2`, which remains uninstalled
   because this agent session could not answer the interactive sudo prompt.
-- The current custom `/rai/v1` OSC sender still does not depend on libossia or
-  score. They are local Connector research tools, not Emitter prerequisites;
-  the repository's Max receiver and documented Windows installations remain
-  separate.
-- Verification: the two launcher tests passed, all 79 server tests passed,
+- The custom `/rai/v1` OSC sender still does not depend on libossia or score.
+  The optional Probe Connector now uses the user-local libossia installation
+  through `connector/ossia_probe_server/`; `scripts/start.sh` builds it when
+  possible and otherwise starts the Emitter normally. ossia score remains an
+  independent client/research tool, and the Windows Max receiver is unchanged.
+- Original launcher verification: the two launcher tests passed, all 79 server tests passed,
   `bash -n scripts/start.sh` and `node --check app/client/main.js` passed, and a
   real desktop start opened the page and established its WebSocket. The server
   was then stopped. `ossia-score --version` reports 3.8.2, and its desktop GUI
@@ -497,9 +549,19 @@ description. Live description/root/interval changes affect subsequent semantic
 output without restarting. Browser audio, mapping scenes, A/B morphing, and the
 collapsed colour proof of concept are preserved.
 
-Open the **OSC** header popover only when an external destination is wanted. OSC
-v1 is available; libossia/OSCQuery is explicitly planned and not implemented.
-No model, SAE, or tonality experiment depends on a Connector.
+Open **Probes** to configure observation sites. Residual, attention, and MLP
+sites can move between real decoder blocks; the SAE site is locked to its
+trained layer. `summary` is the low-bandwidth local view, while `local vector`
+adds the final-token vector to the browser WebSocket only. The publication
+checkbox exposes the bounded summary, never the vector.
+
+Open the **Connect** header popover only when an external client is wanted.
+`/rai/v1` sends the established musical messages to an explicit destination.
+The separate ossia option starts the discoverable `RAI Emitter` OSCQuery device
+using the displayed local ports. In score or another OSCQuery client, connect to
+the discovered device or `http://<emitter-host>:5678`; values are under
+`/rai/probes/1..8`. No model, SAE, tonality, browser-audio, or visualization
+behavior depends on either Connector.
 
 After pressing **Run prompt** (or Play), use the preparation panel at the bottom of the controls to
 see whether the model, SAE, Neuronpedia descriptions, feature organization, and
@@ -527,11 +589,10 @@ and deliberately hear or meter the bounded preview synth. Then use the browser
 controls during a longer real run to confirm that live tonality-lens and
 raw/interpreted pitch-blend edits are audible on subsequent tokens.
 
-The Emitter catalogue can now grow beyond existing Gemma/SAE fields, but the
-external contract has not grown with it. Do not expand `/rai/v1` or add
-discovery/pairing merely because a signal appears in the Explorer. First hear
-the current audio path and deliberately choose which bounded signals belong in
-a future Connector contract.
+The Emitter catalogue can grow beyond existing Gemma/SAE fields, but neither
+external contract grows automatically with it. Do not expand `/rai/v1` or the
+bounded OSCQuery slot metrics merely because a signal appears locally. First
+identify a concrete research or artistic workflow and preserve provenance.
 
 ### Later local and integration work
 
@@ -555,9 +616,9 @@ a future Connector contract.
 7. With the researchers, define one evidence-backed Interpreto adapter slice:
    model/split point, live inference versus dataset/checkpoint source, concept or
    attribution method, and provenance. Implement the adapter before its UI.
-8. Specify a small libossia/OSCQuery Connector namespace for deliberately
-   selected bounded parameters. Keep dense arrays local or choose a separate
-   bounded transport; do not force them into OSC messages.
+8. In ossia score, add the discovered `RAI Emitter` OSCQuery device and evaluate
+   which existing bounded probe summaries are useful. Keep dense arrays local
+   or choose a separate bounded transport; do not force them into OSC messages.
 
 ### Ubuntu laptop conflict-resolution handoff (2026-08-11)
 

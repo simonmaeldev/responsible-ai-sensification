@@ -236,6 +236,7 @@ let defaultTonalityCatalogue = [];
 let lastRenderedNotes = [];
 let lensUpdateTimer = null;
 let oscUpdateTimer = null;
+let ossiaUpdateTimer = null;
 let mappingUpdateTimer = null;
 let mappingCatalogue = { signals: [], targets: [], curves: [], default_mappings: [] };
 let emitterMappings = [];
@@ -258,6 +259,15 @@ let activeWorkspace = "model";
 let expandedLensIndex = 0;
 let currentLayerProfile = [];
 let lastCapturedObservationLayer = null;
+let probeRack = [];
+let latestProbeObservations = [];
+const MAX_PROBE_SLOTS = 8;
+const PROBE_SITE_LABELS = {
+  residual_post: "Residual after block",
+  attention_output: "Attention output",
+  mlp_output: "MLP output",
+  sae: "Gemma Scope SAE",
+};
 const WORKBENCH_SIGNAL_KEYS = ["model.layer_profile", "model.residual.vector", "sae.active_features"];
 
 // Transport / history state
@@ -351,11 +361,19 @@ const oscPortIn       = document.getElementById("osc-port");
 const oscMaxNotesIn   = document.getElementById("osc-max-notes");
 const oscStatus       = document.getElementById("osc-status");
 const oscSummaryState = document.getElementById("osc-summary-state");
+const ossiaEnabledCb  = document.getElementById("ossia-enabled");
+const ossiaControls   = document.getElementById("ossia-controls");
+const ossiaOscPortIn  = document.getElementById("ossia-osc-port");
+const ossiaQueryPortIn = document.getElementById("ossia-query-port");
+const ossiaStatus     = document.getElementById("ossia-status");
 const controlDrawer = document.getElementById("control-drawer");
+const probeDrawer = document.getElementById("probe-drawer");
 const tonalityDrawer = document.getElementById("tonality-drawer");
 const drawerBackdrop = document.getElementById("drawer-backdrop");
 const btnControlsToggle = document.getElementById("btn-controls-toggle");
 const btnControlsClose = document.getElementById("btn-controls-close");
+const btnProbesToggle = document.getElementById("btn-probes-toggle");
+const btnProbesClose = document.getElementById("btn-probes-close");
 const btnTonalityToggle = document.getElementById("btn-tonality-toggle");
 const btnTonalityClose = document.getElementById("btn-tonality-close");
 const volumeIn        = document.getElementById("volume");
@@ -449,6 +467,10 @@ const liveFeatureDirections = document.getElementById("live-feature-directions")
 const liveFeatureCount = document.getElementById("live-feature-count");
 const liveFeatureToken = document.getElementById("live-feature-token");
 const liveFeatureLayer = document.getElementById("live-feature-layer");
+const probeRackList = document.getElementById("probe-rack-list");
+const probeRackCount = document.getElementById("probe-rack-count");
+const btnAddProbe = document.getElementById("btn-add-probe");
+const liveProbeStrip = document.getElementById("live-probe-strip");
 
 const WORKSPACE_COPY = {
   model: {
@@ -465,14 +487,19 @@ const WORKSPACE_COPY = {
 
 function setInterfaceDrawer(drawerName, isOpen) {
   const controlsOpen = drawerName === "controls" && isOpen;
+  const probesOpen = drawerName === "probes" && isOpen;
   const tonalityOpen = drawerName === "tonality" && isOpen;
   controlDrawer.classList.toggle("is-open", controlsOpen);
   controlDrawer.setAttribute("aria-hidden", String(!controlsOpen));
+  probeDrawer.classList.toggle("is-open", probesOpen);
+  probeDrawer.setAttribute("aria-hidden", String(!probesOpen));
   tonalityDrawer.classList.toggle("is-open", tonalityOpen);
   tonalityDrawer.setAttribute("aria-hidden", String(!tonalityOpen));
   btnControlsToggle.setAttribute("aria-expanded", String(controlsOpen));
+  btnProbesToggle.setAttribute("aria-expanded", String(probesOpen));
   btnTonalityToggle.setAttribute("aria-expanded", String(tonalityOpen));
-  drawerBackdrop.hidden = !(controlsOpen || tonalityOpen);
+  drawerBackdrop.hidden = !(controlsOpen || probesOpen || tonalityOpen);
+  if (probesOpen) renderProbeRack();
   if (tonalityOpen) renderLensEditor();
 }
 
@@ -1326,6 +1353,207 @@ function updateModeHelp() {
   modeHelp.dataset.tooltip = modeDescs[modeSel.value] ?? "";
 }
 
+function normalizedProbe(raw = {}, saeLayer = Number(layerSel.value) || 22) {
+  const site = Object.hasOwn(PROBE_SITE_LABELS, raw.site) ? raw.site : "residual_post";
+  const fallbackId = site === "sae" ? "sae" : site.replace("_output", "").replace("_post", "");
+  const id = String(raw.id || fallbackId)
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48) || fallbackId;
+  const requestedLayer = Number.parseInt(raw.layer);
+  const layer = site === "sae"
+    ? Math.max(0, Number.parseInt(saeLayer) || 0)
+    : Math.max(0, Math.min(255, Number.isFinite(requestedLayer) ? requestedLayer : 0));
+  const capture = site === "sae" ? "summary" : (raw.capture === "vector" ? "vector" : "summary");
+  return {
+    id,
+    site,
+    layer,
+    capture,
+    enabled: raw.enabled === undefined ? true : Boolean(raw.enabled),
+    publish: raw.publish === undefined ? true : Boolean(raw.publish),
+  };
+}
+
+function normalizedProbeRack(rawRack, saeLayer = Number(layerSel.value) || 22) {
+  if (!Array.isArray(rawRack)) return [];
+  const identifiers = new Set();
+  const result = [];
+  for (const raw of rawRack) {
+    if (result.length >= MAX_PROBE_SLOTS || !raw || !Object.hasOwn(PROBE_SITE_LABELS, raw.site)) continue;
+    const probe = normalizedProbe(raw, saeLayer);
+    if (identifiers.has(probe.id)) continue;
+    identifiers.add(probe.id);
+    result.push(probe);
+  }
+  return result;
+}
+
+function availableModelLayerCount() {
+  const architecture = catalogue[modelSel.value]?.architecture || {};
+  return Math.max(1, Number(architecture.layer_count) || Number(observationLayerIn.max) + 1 || 1);
+}
+
+function probeValueLabel(observation) {
+  const summary = observation?.summary || {};
+  if (observation?.site === "sae") {
+    return `${Number(summary.active_count || 0)} active · max ${formatSignalValue(summary.max_activation)}`;
+  }
+  return `RMS ${formatSignalValue(summary.rms)} · peak ${formatSignalValue(summary.max_abs)}`;
+}
+
+function renderLiveProbeStrip(observations = latestProbeObservations) {
+  if (!liveProbeStrip) return;
+  liveProbeStrip.innerHTML = "";
+  const visible = Array.isArray(observations) ? observations : [];
+  liveProbeStrip.classList.toggle("empty-monitor", visible.length === 0);
+  if (!visible.length) {
+    liveProbeStrip.textContent = "Waiting for live probe observations.";
+    return;
+  }
+  for (const observation of visible) {
+    const item = document.createElement("article");
+    item.className = `live-probe-card probe-site-${observation.site || "unknown"}`;
+    item.title = observation.module_path || "Runtime observation";
+    const location = document.createElement("span");
+    location.textContent = `${PROBE_SITE_LABELS[observation.site] || observation.site} · L${observation.layer}`;
+    const name = document.createElement("strong");
+    name.textContent = observation.id || "probe";
+    const value = document.createElement("small");
+    value.textContent = probeValueLabel(observation);
+    item.append(location, name, value);
+    liveProbeStrip.appendChild(item);
+  }
+}
+
+function renderProbeRack() {
+  if (!probeRackList) return;
+  probeRackList.innerHTML = "";
+  if (probeRackCount) probeRackCount.textContent = `${probeRack.length} / ${MAX_PROBE_SLOTS}`;
+  btnAddProbe.disabled = probeRack.length >= MAX_PROBE_SLOTS;
+  const liveById = new Map(latestProbeObservations.map(observation => [observation.id, observation]));
+  const maximumLayer = Math.max(0, availableModelLayerCount() - 1);
+  probeRack.forEach((probe, index) => {
+    const row = document.createElement("section");
+    row.className = "probe-rack-row";
+    row.dataset.probeId = probe.id;
+
+    const header = document.createElement("header");
+    const enabled = document.createElement("input");
+    enabled.type = "checkbox";
+    enabled.checked = probe.enabled;
+    enabled.title = "Capture this probe";
+    enabled.addEventListener("change", () => {
+      probeRack[index].enabled = enabled.checked;
+      sendProbeRackUpdate();
+    });
+    const id = document.createElement("input");
+    id.type = "text";
+    id.value = probe.id;
+    id.maxLength = 48;
+    id.setAttribute("aria-label", "Probe name");
+    id.addEventListener("change", () => {
+      probeRack[index].id = id.value;
+      sendProbeRackUpdate();
+    });
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "probe-remove";
+    remove.textContent = "×";
+    remove.title = "Remove probe";
+    remove.addEventListener("click", () => {
+      probeRack.splice(index, 1);
+      sendProbeRackUpdate();
+    });
+    header.append(enabled, id, remove);
+
+    const controls = document.createElement("div");
+    controls.className = "probe-row-controls";
+    const site = document.createElement("select");
+    site.setAttribute("aria-label", "Observation site");
+    Object.entries(PROBE_SITE_LABELS).forEach(([value, label]) => {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = label;
+      site.appendChild(option);
+    });
+    site.value = probe.site;
+    site.addEventListener("change", () => {
+      probeRack[index] = normalizedProbe({ ...probeRack[index], site: site.value }, Number(layerSel.value) || 22);
+      sendProbeRackUpdate();
+    });
+    const layer = document.createElement("input");
+    layer.type = "number";
+    layer.min = "0";
+    layer.max = String(maximumLayer);
+    layer.value = String(probe.layer);
+    layer.disabled = probe.site === "sae";
+    layer.setAttribute("aria-label", "Transformer layer");
+    layer.addEventListener("change", () => {
+      probeRack[index].layer = Math.max(0, Math.min(maximumLayer, Number.parseInt(layer.value) || 0));
+      sendProbeRackUpdate();
+    });
+    const capture = document.createElement("select");
+    capture.setAttribute("aria-label", "Local capture detail");
+    for (const value of ["summary", "vector"]) {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = value === "summary" ? "summary" : "local vector";
+      capture.appendChild(option);
+    }
+    capture.value = probe.capture;
+    capture.disabled = probe.site === "sae";
+    capture.addEventListener("change", () => {
+      probeRack[index].capture = capture.value;
+      sendProbeRackUpdate();
+    });
+    controls.append(site, layer, capture);
+
+    const provenance = document.createElement("small");
+    provenance.className = "probe-module-path";
+    provenance.textContent = liveById.get(probe.id)?.module_path || "module path appears with the next token";
+
+    const footer = document.createElement("footer");
+    const publishLabel = document.createElement("label");
+    const publish = document.createElement("input");
+    publish.type = "checkbox";
+    publish.checked = probe.publish;
+    publish.addEventListener("change", () => {
+      probeRack[index].publish = publish.checked;
+      sendProbeRackUpdate();
+    });
+    const publishText = document.createElement("span");
+    publishText.textContent = "publish summary";
+    publishLabel.append(publish, publishText);
+    const readout = document.createElement("span");
+    readout.className = "probe-live-value";
+    readout.textContent = liveById.has(probe.id) ? probeValueLabel(liveById.get(probe.id)) : "waiting";
+    footer.append(publishLabel, readout);
+    row.append(header, controls, provenance, footer);
+    probeRackList.appendChild(row);
+  });
+}
+
+function renderProbeRackLiveValues() {
+  if (!probeRackList) return;
+  const liveById = new Map(latestProbeObservations.map(observation => [observation.id, observation]));
+  for (const row of probeRackList.querySelectorAll(".probe-rack-row")) {
+    const observation = liveById.get(row.dataset.probeId);
+    const readout = row.querySelector(".probe-live-value");
+    const provenance = row.querySelector(".probe-module-path");
+    if (readout) readout.textContent = observation ? probeValueLabel(observation) : "waiting";
+    if (provenance) provenance.textContent = observation?.module_path || "module path appears with the next token";
+  }
+}
+
+function sendProbeRackUpdate() {
+  probeRack = normalizedProbeRack(probeRack, Number(layerSel.value) || 22);
+  renderProbeRack();
+  saveParams();
+  sendParamUpdate({ probe_rack: structuredClone(probeRack) });
+}
+
 function applyParams(p) {
   if (p.prompt     !== undefined) prompt.value       = p.prompt;
   if (p.model      !== undefined) {
@@ -1345,6 +1573,9 @@ function applyParams(p) {
   if (p.osc_host !== undefined) oscHostIn.value = p.osc_host;
   if (p.osc_port !== undefined) oscPortIn.value = p.osc_port;
   if (p.osc_max_notes_per_token !== undefined) oscMaxNotesIn.value = p.osc_max_notes_per_token;
+  if (p.ossia_enabled !== undefined) ossiaEnabledCb.checked = Boolean(p.ossia_enabled);
+  if (p.ossia_osc_port !== undefined) ossiaOscPortIn.value = p.ossia_osc_port;
+  if (p.ossia_query_port !== undefined) ossiaQueryPortIn.value = p.ossia_query_port;
   if (p.volume !== undefined) volumeIn.value = p.volume;
   if (p.tonality_enabled !== undefined) tonalityEnabledCb.checked = Boolean(p.tonality_enabled);
   if (p.prompt_influence !== undefined) promptInfluenceIn.value = p.prompt_influence;
@@ -1362,11 +1593,16 @@ function applyParams(p) {
     selectedEmitterSignalKeys = new Set(p.emitter_signal_keys.map(String));
     renderSignalExplorer();
   }
+  if (Array.isArray(p.probe_rack)) {
+    probeRack = normalizedProbeRack(p.probe_rack, Number(layerSel.value) || 22);
+    renderProbeRack();
+  }
 
   // Sync conditional visibility
   if (p.strategy !== undefined) syncClustersVisibility();
   if (p.mode     !== undefined) syncBpmVisibility();
   syncOscControls();
+  syncOssiaControls();
   syncTonalityControls();
   updateTonalityControlValues();
   updateVolumeValue();
@@ -1391,6 +1627,9 @@ function collectParams() {
     osc_host: oscHostIn.value.trim(),
     osc_port: boundedIntValue(oscPortIn, 9000, 1, 65535),
     osc_max_notes_per_token: boundedIntValue(oscMaxNotesIn, 32, 1, 128),
+    ossia_enabled: ossiaEnabledCb.checked,
+    ossia_osc_port: boundedIntValue(ossiaOscPortIn, 9010, 1, 65535),
+    ossia_query_port: boundedIntValue(ossiaQueryPortIn, 5678, 1, 65535),
     volume: parseFloat(volumeIn.value),
     tonality_enabled: tonalityEnabledCb.checked,
     prompt_influence: parseFloat(promptInfluenceIn.value),
@@ -1398,6 +1637,7 @@ function collectParams() {
     tonality_lenses: collectTonalityLenses(),
     emitter_signal_keys: [...selectedEmitterSignalKeys],
     emitter_mappings: structuredClone(emitterMappings),
+    probe_rack: structuredClone(probeRack),
   };
 }
 
@@ -1420,14 +1660,20 @@ function boundedIntValue(input, fallback, minimum, maximum) {
   return Math.max(minimum, Math.min(maximum, value));
 }
 
+function updateConnectorSummary() {
+  if (!oscSummaryState) return;
+  const states = [oscStatus?.dataset.state, ossiaStatus?.dataset.state];
+  const anyEnabled = oscEnabledCb.checked || ossiaEnabledCb.checked;
+  const state = states.includes("error") ? "error" : (anyEnabled ? "ready" : "disabled");
+  oscSummaryState.textContent = state === "ready" ? "on" : (state === "error" ? "error" : "off");
+  oscSummaryState.dataset.state = state;
+}
+
 function setOscStatus(message, state) {
   if (!oscStatus) return;
   oscStatus.textContent = message;
   oscStatus.dataset.state = state;
-  if (oscSummaryState) {
-    oscSummaryState.textContent = state === "ready" ? "on" : (state === "error" ? "error" : "off");
-    oscSummaryState.dataset.state = state;
-  }
+  updateConnectorSummary();
 }
 
 function syncOscControls() {
@@ -1455,6 +1701,36 @@ function scheduleOscUpdate(delayMs = 250) {
       osc_host: oscHostIn.value.trim(),
       osc_port: boundedIntValue(oscPortIn, 9000, 1, 65535),
       osc_max_notes_per_token: boundedIntValue(oscMaxNotesIn, 32, 1, 128),
+    });
+  }, delayMs);
+}
+
+function setOssiaStatus(message, state) {
+  if (!ossiaStatus) return;
+  ossiaStatus.textContent = message;
+  ossiaStatus.dataset.state = state;
+  updateConnectorSummary();
+}
+
+function syncOssiaControls() {
+  const enabled = ossiaEnabledCb.checked;
+  ossiaControls.classList.toggle("hidden", !enabled);
+  if (!enabled) {
+    setOssiaStatus("ossia namespace disabled", "disabled");
+    return;
+  }
+  const queryPort = boundedIntValue(ossiaQueryPortIn, 5678, 1, 65535);
+  setOssiaStatus(`Starting OSCQuery on this Emitter · port ${queryPort}`, "ready");
+}
+
+function scheduleOssiaUpdate(delayMs = 250) {
+  saveParams();
+  if (ossiaUpdateTimer) clearTimeout(ossiaUpdateTimer);
+  ossiaUpdateTimer = setTimeout(() => {
+    sendParamUpdate({
+      ossia_enabled: ossiaEnabledCb.checked,
+      ossia_osc_port: boundedIntValue(ossiaOscPortIn, 9010, 1, 65535),
+      ossia_query_port: boundedIntValue(ossiaQueryPortIn, 5678, 1, 65535),
     });
   }, delayMs);
 }
@@ -2134,6 +2410,10 @@ function handleMessage(msg) {
       setOscStatus(msg.message || "OSC status unavailable", msg.status || "unconfigured");
       break;
 
+    case "ossia_status":
+      setOssiaStatus(msg.message || "ossia status unavailable", msg.status || "unconfigured");
+      break;
+
     case "tonality_lenses_status":
       if (msg.status === "embedding") setLensEmbeddingStatus("embedding…", "embedding");
       else if (msg.status === "ready") setLensEmbeddingStatus(`${msg.lens_count ?? 0} embedded`, "ready");
@@ -2176,6 +2456,9 @@ function consumeEmitterPayload(msg) {
   currentVisualControls = Object.fromEntries(
     Object.entries(currentEmitterControls).filter(([key]) => key.startsWith("visual."))
   );
+  latestProbeObservations = Array.isArray(msg.probes) ? msg.probes : [];
+  renderLiveProbeStrip();
+  renderProbeRackLiveValues();
   updateFeatureCatalogue(msg.notes || []);
   applyVisualControls();
   renderSignalExplorer();
@@ -2733,6 +3016,7 @@ function resetClusterViz() {
   currentEmitterControls = {};
   currentMappingDiagnostics = [];
   currentVisualControls = {};
+  latestProbeObservations = [];
   featureCatalogue = new Map([...featureCatalogue].filter(([index]) => pinnedFeatures.has(index)));
   if (signalToken) signalToken.textContent = "waiting";
   if (signalMonitor) {
@@ -2753,6 +3037,8 @@ function resetClusterViz() {
     liveFeatureDirections.className = "live-feature-directions empty-monitor";
     liveFeatureDirections.textContent = "Run a prompt to see the strongest sparse directions used at each generated token.";
   }
+  renderLiveProbeStrip();
+  renderProbeRack();
   renderFeatureBrowser();
   applyVisualControls();
   renderTonalityIdle();
@@ -2935,11 +3221,16 @@ prompt.addEventListener("keydown", event => {
 
 modelSel.addEventListener("change", () => {
   populateLayerWidth(modelSel.value);
+  renderProbeRack();
   saveParams();
 });
 
 layerSel.addEventListener("change", () => {
   updateObservationLayer(false);
+  probeRack = probeRack.map(probe => probe.site === "sae"
+    ? normalizedProbe(probe, Number(layerSel.value) || 22)
+    : probe);
+  renderProbeRack();
   saveParams();
 });
 observationLayerIn.addEventListener("input", () => updateObservationLayer(true));
@@ -3001,6 +3292,20 @@ oscMaxNotesIn.addEventListener("change", () => {
   scheduleOscUpdate(0);
 });
 
+ossiaEnabledCb.addEventListener("change", () => {
+  syncOssiaControls();
+  scheduleOssiaUpdate(0);
+});
+
+for (const [input, fallback] of [[ossiaOscPortIn, 9010], [ossiaQueryPortIn, 5678]]) {
+  input.addEventListener("input", () => { syncOssiaControls(); scheduleOssiaUpdate(); });
+  input.addEventListener("change", () => {
+    input.value = boundedIntValue(input, fallback, 1, 65535);
+    syncOssiaControls();
+    scheduleOssiaUpdate(0);
+  });
+}
+
 volumeIn.addEventListener("input", () => {
   engine.setVolume(parseFloat(volumeIn.value));
   updateVolumeValue();
@@ -3056,6 +3361,10 @@ btnControlsToggle.addEventListener("click", () => {
   setInterfaceDrawer("controls", btnControlsToggle.getAttribute("aria-expanded") !== "true");
 });
 btnControlsClose.addEventListener("click", () => setInterfaceDrawer(null, false));
+btnProbesToggle.addEventListener("click", () => {
+  setInterfaceDrawer("probes", btnProbesToggle.getAttribute("aria-expanded") !== "true");
+});
+btnProbesClose.addEventListener("click", () => setInterfaceDrawer(null, false));
 btnTonalityToggle.addEventListener("click", () => {
   setInterfaceDrawer("tonality", btnTonalityToggle.getAttribute("aria-expanded") !== "true");
 });
@@ -3063,6 +3372,22 @@ btnTonalityClose.addEventListener("click", () => setInterfaceDrawer(null, false)
 drawerBackdrop.addEventListener("click", () => setInterfaceDrawer(null, false));
 document.addEventListener?.("keydown", event => {
   if (event.key === "Escape") setInterfaceDrawer(null, false);
+});
+
+btnAddProbe.addEventListener("click", () => {
+  if (probeRack.length >= MAX_PROBE_SLOTS) return;
+  const used = new Set(probeRack.map(probe => probe.id));
+  let number = 1;
+  while (used.has(`probe-${number}`)) number++;
+  probeRack.push(normalizedProbe({
+    id: `probe-${number}`,
+    site: "residual_post",
+    layer: Number(observationLayerIn.value) || 0,
+    capture: "summary",
+    enabled: true,
+    publish: true,
+  }));
+  sendProbeRackUpdate();
 });
 
 btnAddMapping.addEventListener("click", () => {

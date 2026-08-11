@@ -67,8 +67,9 @@ The goal is to make agent work persistent, scoped, and easy to restart without l
 - Ubuntu laptop: browser/control use and lightweight work unless the user assigns
   a different role; never assume a GPU.
 - A Connector is the transport boundary between an Emitter and Receiver, not a
-  synonym for either machine. Current external transport is OSC v1; the browser
-  WebSocket is an internal emitter transport.
+  synonym for either machine. Current external transports are `/rai/v1` OSC for
+  bounded musical events and a separate libossia/OSCQuery namespace for selected
+  probe summaries; the browser WebSocket is an internal emitter transport.
 - Emitter work must run and be observable locally with external connectors off.
   The Emitter may expose arbitrary raw or derived probe data; Gemma Scope, SAE,
   Neuronpedia, tonality, audio, and visual mappings are current experiments, not
@@ -94,10 +95,11 @@ The goal is to make agent work persistent, scoped, and easy to restart without l
   independently understandable.
 - Do not use Git as the live transport. Use OSC/OSCQuery over the LAN for runtime
   messages.
-- Treat libossia as a candidate Connector namespace/discovery layer, not as the
-  model-exploration UI. Treat Interpreto as a candidate interpretation adapter,
-  not as proof of live training support. Both need a focused spec and real
-  backend evidence before user-facing claims.
+- Treat the implemented libossia namespace as an optional bounded Connector,
+  not as the model-exploration UI. New namespace fields still need a focused
+  contract and evidence. Treat Interpreto as a candidate interpretation
+  adapter, not as proof of live training support; it requires a real backend
+  before user-facing claims.
 
 ## Agent Tooling
 
@@ -152,6 +154,10 @@ complete relevant checks for confidence:
 - Cross-machine OSC behavior: first verify the Ubuntu sender against a loopback
   receiver; verify Ableton/Max reception separately on Windows; then run one LAN
   integration check with both machines named in the report.
+- libossia/OSCQuery behavior: verify the typed read-only tree on loopback,
+  discovery when mDNS is expected, live value changes, and failure isolation.
+  Keep raw vectors and complete sparse sets on the local WebSocket unless a
+  separate bounded high-bandwidth transport is specified.
 - Documentation-only changes: inspect the complete diff, run `git diff --check`,
   and confirm that linked workflow/state documents remain consistent. Do not
   invent a code test merely to claim test-driven development.

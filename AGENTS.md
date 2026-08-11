@@ -43,10 +43,13 @@ applications, operating systems, or physical computers:
   TouchDesigner, ossia, a browser, or hardware.
 
 In the current setup, the FastAPI/browser application on the Ubuntu GPU PC is
-the emitter, outbound `/rai/v1` OSC is the external connector, and the Windows
-Max for Live/ossia device is the receiver. Do not make emitter features depend
-on a particular connector or receiver. Validate mappings in browser audio and
-visuals before expanding an external transport contract.
+the emitter. Outbound `/rai/v1` OSC is the musical-event connector; the optional
+libossia/OSCQuery `/rai` namespace is a separate bounded probe-summary
+connector. The Windows Max for Live/ossia device receives `/rai/v1`; no Windows
+receiver for the new probe namespace is implemented. Do not make emitter
+features depend on a particular connector or receiver. Validate observations
+locally before expanding an external transport contract, and keep raw vectors
+out of the bounded OSCQuery tree.
 
 ## Execution Environment
 
@@ -104,6 +107,7 @@ code, while OSC/OSCQuery carries live performance data between machines.
 - `app/server/routers/stream.py`: websocket streaming pipeline.
 - `app/server/session.py`: pipeline parameters and session state.
 - `app/server/pipeline/`: extraction, transform, synthesis, cluster naming, and export helpers.
+- `connector/ossia_probe_server/`: optional C++ libossia OSCQuery sidecar for bounded probe summaries.
 - `app/server/tests/`: server-side pytest tests.
 - `specs/`: implementation specs, bug notes, and backlog.
 - `docs/agentic/`: agent workflow, state, roadmap, and prompt templates.

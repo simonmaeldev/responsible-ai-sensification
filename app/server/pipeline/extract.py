@@ -49,6 +49,7 @@ class TokenAnalysis(BaseModel):
     active_features: list[ActiveFeature]
     probe_values: dict[str, object] = Field(default_factory=dict)
     probe_layer: int | None = None
+    probes: list[dict[str, object]] = Field(default_factory=list)
 
 
 class GenerationAnalysis(BaseModel):
@@ -390,6 +391,7 @@ def inspect_live(
     max_new_tokens: int = 200,
     probe_keys: Collection[str] | Callable[[], Collection[str]] | None = None,
     observation_layer: int | Callable[[], int] | None = None,
+    probe_rack: Collection[dict] | Callable[[], Collection[dict]] | None = None,
 ) -> Generator[tuple[TokenAnalysis, int], None, None]:
     """Generate tokens and observe distinct dense and sparse model locations.
 
@@ -415,6 +417,9 @@ def inspect_live(
             layer,
         )
         requested_probe_keys = probe_keys() if callable(probe_keys) else (probe_keys or ())
+        requested_probe_rack = probe_rack() if callable(probe_rack) else probe_rack
+        if requested_probe_rack is None:
+            requested_probe_rack = []
         capture_layers = (
             range(len(decoder_layers))
             if "model.layer_profile" in requested_probe_keys
@@ -435,8 +440,16 @@ def inspect_live(
             )
             for layer_index in sorted(capture_layers)
         ]
+        from app.server.pipeline.model_probes import GemmaProbeManager
+
+        probe_manager = GemmaProbeManager(
+            model,
+            requested_probe_rack,
+            sae_layer=layer,
+        )
         try:
-            outputs = model(input_ids)
+            with probe_manager.capture():
+                outputs = model(input_ids)
         finally:
             for hook in hooks:
                 hook.remove()
@@ -476,6 +489,24 @@ def inspect_live(
             for i in active_indices
         ]
 
+        active_feature_payloads = [feature.model_dump() for feature in active_features]
+        from app.server.pipeline.model_probes import build_sae_probe_observations
+
+        probe_observations = probe_manager.tensor_observations(
+            model_id=str(getattr(model, "name_or_path", "") or getattr(getattr(model, "config", None), "_name_or_path", "") or "unknown"),
+            token_index=step + 1,
+        )
+        probe_observations.extend(
+            build_sae_probe_observations(
+                requested_probe_rack,
+                active_feature_payloads,
+                sae_layer=layer,
+                sae_width=str(getattr(neuronpedia, "width", "unknown")),
+                model_id=str(getattr(model, "name_or_path", "") or getattr(getattr(model, "config", None), "_name_or_path", "") or "unknown"),
+                token_index=step + 1,
+            )
+        )
+
         token_str = tokenizer.decode([next_token_id])
         token_analysis = TokenAnalysis(
             token_id=next_token_id,
@@ -484,6 +515,7 @@ def inspect_live(
             active_features=active_features,
             probe_values=probe_values,
             probe_layer=probe_layer,
+            probes=probe_observations,
         )
 
         elapsed_ms = int((time.perf_counter() - t0) * 1000)

@@ -42,6 +42,13 @@ priority takes precedence over the older numeric ordering.
   change, the movable dense probe, and fixed layer-22 SAE while keeping full
   dense capture at only the selected block. OSC is a compact optional output,
   not a primary workspace. Verified with a layer-7 dense probe and layer-22 SAE.
+- Gemma Probe Rack + ossia Connector: an on-demand eight-slot rack captures real
+  residual, attention-output, MLP-output, and fixed-layer SAE observations with
+  live module/layer provenance and optional local vectors. Selected bounded
+  summaries publish through a discoverable, read-only libossia OSCQuery `/rai`
+  namespace; `/rai/v1`, browser audio/visuals, and the Windows receiver remain
+  unchanged. Verified with 99 tests, browser checks, mDNS/OSCQuery loopback, and
+  a real six-token GPU run whose attention probe moved live from L1 to L3.
 
 ## Current priority: researcher-facing observation workflows
 
@@ -52,8 +59,9 @@ priority takes precedence over the older numeric ordering.
   by the workbench but remain outside OSC v1.
 - With the researchers, specify one actual Interpreto adapter: supported model,
   split point, inference/dataset/checkpoint source, method, and provenance.
-- Specify a small libossia/OSCQuery namespace only for deliberately selected,
-  bounded Connector parameters. Do not force full dense arrays into OSC.
+- Evaluate the implemented bounded libossia/OSCQuery namespace in ossia score.
+  Add metrics only from a concrete workflow; do not force full dense arrays
+  into OSC.
 - Keep Tonality and other transformation experiments removable and evaluate
   them only when they answer a concrete research or artistic question.
 

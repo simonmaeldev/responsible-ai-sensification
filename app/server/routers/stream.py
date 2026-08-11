@@ -11,8 +11,12 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from app.server.pipeline.external_output import build_activation_event
 from app.server.pipeline.osc_output import OscResult, OscRunOutput
+from app.server.pipeline.ossia_probe_output import (
+    OssiaProbeOutput,
+    OssiaResult,
+)
 from app.server.routers.integrations import publish_activation
-from app.server.session import PipelineParams, PipelineSession  # noqa: F401 (PipelineSession used for _session)
+from app.server.session import PipelineParams, PipelineSession
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -87,6 +91,19 @@ async def _send(ws: WebSocket, msg: dict) -> None:
     await ws.send_text(json.dumps(msg))
 
 
+def _token_event_queue() -> asyncio.Queue:
+    """Keep one-token backpressure so live probe edits reach model hooks."""
+    return asyncio.Queue(maxsize=1)
+
+
+async def _stop_session(ws: WebSocket, session: PipelineSession) -> None:
+    """Cancel once and avoid duplicating the pipeline's final stopped event."""
+    pipeline_will_report = session.is_running()
+    await session.cancel()
+    if not pipeline_will_report:
+        await _send(ws, {"type": "stopped"})
+
+
 async def _send_loading(
     ws: WebSocket,
     stage_key: str,
@@ -129,15 +146,58 @@ async def _forward_token_event(
     event: dict,
     params: PipelineParams,
     osc_output: OscRunOutput,
+    ossia_output: OssiaProbeOutput | None = None,
     *,
     activation_event: dict | None = None,
 ) -> OscResult:
-    """Forward one token independently to browser, OSC, and observers."""
+    """Forward one token to each independent browser and connector consumer."""
     await _send(ws, event)
-    osc_result = await _call_osc(ws, osc_output.emit_token, params, event)
+    result = await _call_osc(ws, osc_output.emit_token, params, event)
+    if ossia_output is not None:
+        await _call_ossia(ws, ossia_output.emit_token, params, event)
     if activation_event is not None:
         await publish_activation(activation_event)
-    return osc_result
+    return result
+
+
+async def _call_ossia(
+    ws: WebSocket,
+    operation,
+    *args,
+    report_status: bool = False,
+) -> OssiaResult:
+    """Run the optional libossia sidecar without risking generation."""
+    try:
+        result = await asyncio.to_thread(operation, *args)
+    except Exception as exc:
+        logger.exception("Unexpected libossia Connector error")
+        result = OssiaResult("error", f"libossia Connector error: {exc}", str(exc))
+    if report_status or result.state == "error":
+        try:
+            await _send(
+                ws,
+                {
+                    "type": "ossia_status",
+                    "status": result.state,
+                    "message": result.message,
+                },
+            )
+        except Exception:
+            logger.debug("Could not send libossia status to browser", exc_info=True)
+    return result
+
+
+async def _sync_live_ossia(
+    ws: WebSocket,
+    params: PipelineParams,
+    ossia_output: OssiaProbeOutput,
+) -> OssiaResult:
+    return await _call_ossia(
+        ws,
+        ossia_output.sync,
+        params,
+        report_status=True,
+    )
 
 
 async def _sync_live_osc_controls(
@@ -243,9 +303,13 @@ async def _prepare_live_tonality_lenses(ws: WebSocket, lenses: list[dict]) -> No
 
 async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
     """Background task: load model (cached), run inspect_live, stream token events."""
-    osc_output = OscRunOutput(uuid.uuid4().hex)
+    run_id = uuid.uuid4().hex
+    osc_output = OscRunOutput(run_id)
+    ossia_output = OssiaProbeOutput(run_id)
     _session.osc_output = osc_output
+    _session.ossia_output = ossia_output
     try:
+        await _sync_live_ossia(ws, params, ossia_output)
         cache_key = (params.model, params.layer, params.width)
 
         if cache_key in _model_cache:
@@ -488,7 +552,7 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
         await _call_osc(ws, osc_output.begin, params, report_status=True)
 
         # Producer + synthesizer: run generation concurrently with timed playback
-        queue: asyncio.Queue = asyncio.Queue()
+        queue = _token_event_queue()
         collected: list[tuple[dict, dict | None]] = []
         event_loop = asyncio.get_running_loop()
         tonality_memory = TonalityMemory()
@@ -516,6 +580,7 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
                         max_new_tokens=params.max_tokens,
                         probe_keys=_requested_probe_keys,
                         observation_layer=lambda: params.observation_layer,
+                        probe_rack=lambda: params.probe_rack,
                     ):
                         token_count += 1
                         active_features = [f.model_dump() for f in token_analysis.active_features]
@@ -578,6 +643,10 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
                             "token_id": token_analysis.token_id,
                             "elapsed_ms": elapsed_ms,
                             "notes": notes,
+                            "probes": [
+                                {**probe, "model": params.model}
+                                for probe in token_analysis.probes
+                            ],
                             "observation": {
                                 "model": params.model,
                                 "layer": token_analysis.probe_layer,
@@ -651,6 +720,7 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
                         event,
                         params,
                         osc_output,
+                        ossia_output,
                         activation_event=activation_event,
                     )
                 else:
@@ -691,6 +761,7 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
                                 loop_event,
                                 params,
                                 osc_output,
+                                ossia_output,
                                 activation_event=loop_activation_event,
                             )
                         else:
@@ -718,8 +789,11 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
             pass
     finally:
         await _call_osc(ws, osc_output.stop, params)
+        await _call_ossia(ws, ossia_output.close)
         if _session.osc_output is osc_output:
             _session.osc_output = None
+        if _session.ossia_output is ossia_output:
+            _session.ossia_output = None
         try:
             await _send(ws, {"type": "stopped"})
         except Exception:
@@ -752,8 +826,7 @@ async def ws_stream(ws: WebSocket) -> None:
                 )
 
             elif action == "stop":
-                await _session.cancel()
-                await _send(ws, {"type": "stopped"})
+                await _stop_session(ws, _session)
 
             elif action == "update_params":
                 raw_params = msg.get("params", {})
@@ -769,6 +842,15 @@ async def ws_stream(ws: WebSocket) -> None:
                         _session.params,
                         _session.osc_output,
                         set(raw_params),
+                    )
+                if (
+                    _session.ossia_output is not None
+                    and set(raw_params) & {"ossia_enabled", "ossia_osc_port", "ossia_query_port"}
+                ):
+                    await _sync_live_ossia(
+                        ws,
+                        _session.params,
+                        _session.ossia_output,
                     )
 
             else:

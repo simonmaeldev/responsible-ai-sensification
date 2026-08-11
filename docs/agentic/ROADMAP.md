@@ -260,7 +260,7 @@ The focused implementation contract and completion record are in
 
 ## Phase 9: General Emitter Neural Workbench
 
-Status: five vertical slices complete; broader research adapters remain open
+Status: six vertical slices complete; broader research adapters remain open
 
 Goal: replace the instrument-first information architecture with a general,
 truthful workbench for moving through model observation sites and separating raw
@@ -340,15 +340,56 @@ Not yet implemented:
 
 - Interpreto attribution/concept adapters or training/checkpoint views. Define
   real methods and provenance with the researchers before adding UI.
-- libossia/OSCQuery Connector namespace and discovery. OSC v1 remains the only
-  current external Connector.
-- Attention-head, MLP sublayer, gradient, optimizer, training-step, dataset, or
-  arbitrary model-family adapters.
+- Attention-head decomposition, Q/K/V, internal MLP sublayer, gradient,
+  optimizer, training-step, dataset, or arbitrary model-family adapters.
 - Semantic projections of dense or sparse directions. Coordinate/index views
   are intentionally literal until a justified projection exists.
 
 The cumulative workbench contract is in `specs/emitter-neural-workbench.md`;
 the latest single-surface correction is in `specs/emitter-live-inspector.md`.
+
+## Phase 10: Gemma Probe Rack And libossia OSCQuery
+
+Status: complete for the first bounded adapter and namespace
+
+Goal: let a researcher place truthful observation probes at real Gemma hook
+points, inspect them beside the current token, and optionally expose bounded
+measurements through a discoverable ossia namespace without turning the Emitter
+into a predetermined musical instrument.
+
+Implemented:
+
+- Added a validated eight-slot rack for post-block residual, self-attention
+  output, MLP output, and the existing fixed-layer Gemma Scope SAE.
+- Added scoped PyTorch hooks with actual module paths, layers, shape/dtype,
+  token/model provenance, RMS/peak/mean summaries, and optional local vectors.
+  SAE observations report active count, activation totals, and the top feature.
+- Resolve the rack every generation step and bound the generation queue to one
+  pending token so a live browser edit reaches subsequent model forwards.
+- Added one on-demand Probes drawer and a restrained always-visible live strip;
+  no new permanent workspace or ornamental model visualization was introduced.
+- Added an optional repository-owned C++ sidecar using official libossia
+  `opp::oscquery_server`, live OSC/OSCQuery port controls, a stable read-only
+  `/rai` tree, `_oscjson._tcp` discovery, and failure isolation.
+- Kept raw vectors and complete sparse feature sets in the local WebSocket.
+  OSCQuery publishes only selected bounded summaries and remains separate from
+  the unchanged `/rai/v1` Ableton contract and Windows receiver.
+- Verified 99 server tests, the 165-ID browser behavior harness, JavaScript and
+  shell syntax, C++ rebuild, real HTTP OSCQuery values, mDNS discovery, port
+  collision handling, and a real six-token RTX 4060 Ti run. The live attention
+  probe moved from L1 to L3 starting at token 3 without restart.
+
+Deliberate next adapter boundary:
+
+- Add attention-head or Q/K/V probes only one real hook point at a time, with
+  explicit tensor meaning and cost tests.
+- Define one researcher-backed Interpreto/training adapter before exposing
+  gradients, checkpoints, datasets, or training steps.
+- Evaluate the existing namespace in ossia score before versioning additional
+  metrics. Do not put unbounded dense arrays into OSC/OSCQuery.
+
+The focused contract and exact namespace are in
+`specs/gemma-probe-rack-ossia.md`.
 
 ## Later Candidate Features
 
@@ -364,8 +405,8 @@ Good later steps:
 - Semantic color/image mapping based on the same lens logic as tonalities.
 - A researcher-defined Interpreto adapter for one real model/split-point/method
   combination, with provenance and no unsupported live-training claims.
-- A small libossia/OSCQuery namespace for selected bounded signals and controls,
-  leaving large dense arrays on a separate local or binary path.
+- A versioned extension to the existing libossia/OSCQuery namespace, but only
+  after concrete score/receiver use identifies additional bounded metrics.
 
 ## External Host Observation Tooling
 

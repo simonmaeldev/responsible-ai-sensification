@@ -4569,3 +4569,260 @@ body {
     inset: 0;
   }
 }
+
+/* Probe Rack + bounded connector controls */
+.connector-section {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.connector-kicker {
+  color: #73808a;
+  font-size: 8px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.connector-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+#probe-drawer {
+  right: 0;
+  left: auto;
+  width: min(430px, calc(100vw - 24px));
+  min-width: 0;
+  max-height: none;
+  padding: 22px 18px 28px;
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+  background: #0d121a;
+  transform: translateX(102%);
+  box-shadow: -20px 0 60px rgba(0, 0, 0, 0.42);
+}
+
+.probe-rack-guide {
+  margin: 18px 0;
+  padding: 11px 12px;
+  border: 1px solid rgba(85, 214, 194, 0.14);
+  border-radius: 6px;
+  background: rgba(85, 214, 194, 0.035);
+}
+
+.probe-rack-guide > span,
+.probe-rack-guide small {
+  display: block;
+  color: #6f7e87;
+  font-size: 8px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.probe-rack-guide > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 5px;
+  margin: 9px 0;
+}
+
+.probe-rack-guide i {
+  color: #b6c3c8;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 9px;
+  font-style: normal;
+}
+
+.probe-rack-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.probe-rack-row {
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-left: 2px solid rgba(85, 214, 194, 0.7);
+  border-radius: 6px;
+  background: rgba(4, 8, 13, 0.36);
+}
+
+.probe-rack-row header,
+.probe-rack-row footer,
+.probe-row-controls {
+  display: grid;
+  align-items: center;
+  gap: 7px;
+}
+
+.probe-module-path {
+  display: block;
+  overflow: hidden;
+  margin-top: 7px;
+  color: #5f6c75;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 7px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.probe-rack-row header {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.probe-rack-row header input[type="text"] {
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: #e6eceb;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.probe-row-controls {
+  grid-template-columns: minmax(0, 1.65fr) 62px minmax(0, 1fr);
+  margin-top: 8px;
+}
+
+.probe-row-controls select,
+.probe-row-controls input {
+  min-width: 0;
+  height: 30px;
+  padding: 4px 6px;
+  font-size: 9px;
+}
+
+.probe-rack-row footer {
+  grid-template-columns: auto minmax(0, 1fr);
+  margin-top: 8px;
+  color: #82909a;
+  font-size: 8px;
+}
+
+.probe-rack-row footer label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.probe-live-value {
+  overflow: hidden;
+  color: #8fdccb;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.probe-remove {
+  min-width: 25px;
+  width: 25px;
+  height: 25px;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  color: #7b8891;
+}
+
+.probe-add-button {
+  width: 100%;
+  margin-top: 9px;
+  border-style: dashed;
+  background: rgba(85, 214, 194, 0.03);
+  color: var(--accent);
+}
+
+.live-probe-rail {
+  display: grid;
+  grid-template-columns: 95px minmax(0, 1fr);
+  align-items: stretch;
+  gap: 9px;
+}
+
+.live-probe-rail > header {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  color: #a7b3ba;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.live-probe-rail > header small {
+  color: #58656f;
+  font-size: 7px;
+  font-weight: 500;
+}
+
+.live-probe-strip {
+  min-height: 52px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 7px;
+}
+
+.live-probe-strip.empty-monitor {
+  display: flex;
+  align-items: center;
+  min-height: 52px;
+  padding: 0 12px;
+  border: 1px dashed rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  color: #5e6a72;
+  font-size: 9px;
+}
+
+.live-probe-card {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  padding: 7px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 2px solid #55d6c2;
+  border-radius: 5px;
+  background: rgba(11, 17, 24, 0.82);
+}
+
+.live-probe-card.probe-site-attention_output { border-top-color: #63a9e8; }
+.live-probe-card.probe-site-mlp_output { border-top-color: #e2aa69; }
+.live-probe-card.probe-site-sae { border-top-color: #9c83eb; }
+
+.live-probe-card span,
+.live-probe-card small {
+  overflow: hidden;
+  color: #697680;
+  font-size: 7px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.live-probe-card strong {
+  color: #dbe3e4;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+}
+
+.live-probe-card small {
+  color: #93a2a9;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 8px;
+}
+
+@media (max-width: 760px) {
+  #probe-drawer {
+    top: 0;
+  }
+
+  .live-probe-rail {
+    grid-template-columns: 1fr;
+  }
+}

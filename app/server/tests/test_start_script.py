@@ -105,3 +105,11 @@ def test_start_changes_to_repository_root_before_launching(tmp_path: Path) -> No
 
     assert result.returncode == 0
     assert uv_cwd_log.read_text(encoding="utf-8").strip() == str(REPO_ROOT)
+
+
+def test_start_prepares_optional_libossia_bridge_without_making_it_required() -> None:
+    source = START_SCRIPT.read_text(encoding="utf-8")
+
+    assert "build_ossia_probe_server.sh" in source
+    assert "Optional libossia bridge is unavailable" in source
+    assert "if !" in source, "the optional connector build must not abort Emitter startup"

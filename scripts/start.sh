@@ -7,6 +7,11 @@ cd "$ROOT_DIR"
 LOG_LEVEL="info"
 OPEN_BROWSER="${OPEN_BROWSER:-1}"
 EMITTER_URL="${EMITTER_URL:-http://127.0.0.1:8080}"
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+REPOSITORY_DIR="$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)"
+OSSIA_BRIDGE="$REPOSITORY_DIR/build/ossia-probe-server/rai-ossia-probe-server"
+OSSIA_SOURCE="$REPOSITORY_DIR/connector/ossia_probe_server/main.cpp"
+OSSIA_BUILD_SCRIPT="$SCRIPT_DIR/build_ossia_probe_server.sh"
 
 for arg in "$@"; do
     if [ "$arg" = "--verbose" ] || [ "${VERBOSE:-0}" = "1" ]; then
@@ -25,6 +30,17 @@ for arg in "$@"; do
         echo "Done."
     fi
 done
+
+prepare_optional_ossia_bridge() {
+    if [ -x "$OSSIA_BRIDGE" ] \
+        && [ ! "$OSSIA_SOURCE" -nt "$OSSIA_BRIDGE" ] \
+        && [ ! "$OSSIA_BUILD_SCRIPT" -nt "$OSSIA_BRIDGE" ]; then
+        return
+    fi
+    if ! "$OSSIA_BUILD_SCRIPT"; then
+        echo "Optional libossia bridge is unavailable; the Emitter will run without OSCQuery." >&2
+    fi
+}
 
 open_browser_when_ready() {
     if [ "$OPEN_BROWSER" != "1" ]; then
@@ -80,6 +96,7 @@ else
     exit 1
 fi
 
+prepare_optional_ossia_bridge
 open_browser_when_ready
 export PYTHONPATH=.
 exec "${SERVER_RUNNER[@]}" app.server.main:app \

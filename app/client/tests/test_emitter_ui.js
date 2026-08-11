@@ -86,6 +86,15 @@ assert.match(html, /id="live-feature-directions"/);
 assert.match(html, /id="live-feature-count"/);
 assert.match(html, /id="tonality-lens-workspace"/);
 assert.match(html, /id="osc-popover"/);
+assert.match(html, /id="btn-probes-toggle"[^>]+aria-expanded="false"/);
+assert.match(html, /id="probe-drawer"[^>]+aria-hidden="true"/);
+assert.match(html, /id="probe-rack-list"/);
+assert.match(html, /id="btn-add-probe"/);
+assert.match(html, /id="live-probe-strip"/);
+assert.match(html, /id="ossia-enabled"/);
+assert.match(html, /id="ossia-osc-port"/);
+assert.match(html, /id="ossia-query-port"/);
+assert.match(html, /id="ossia-status"/);
 assert.match(html, /id="btn-controls-toggle"[^>]+aria-expanded="false"/);
 assert.match(html, /id="btn-tonality-toggle"[^>]+aria-expanded="false"/);
 assert.match(html, /id="control-drawer"[^>]+aria-hidden="true"/);
@@ -169,7 +178,16 @@ global.fetch = async url => ({
         modes: [{ value: "timed", label: "Timed", description: "test" }],
       };
     }
-    if (url.endsWith("defaults")) return { emitter_mappings: [] };
+    if (url.endsWith("defaults")) return {
+      emitter_mappings: [],
+      probe_rack: [
+        { id: "residual", site: "residual_post", layer: 1, capture: "summary", enabled: true, publish: true },
+        { id: "sae", site: "sae", layer: 22, capture: "summary", enabled: true, publish: true },
+      ],
+      ossia_enabled: false,
+      ossia_osc_port: 9010,
+      ossia_query_port: 5678,
+    };
     if (url.endsWith("emitter-mapping")) {
       return {
         max_mappings: 32,
@@ -220,7 +238,7 @@ global.fetch = async url => ({
   },
 });
 
-const instrumented = `${source}\n;globalThis.__emitterTest = { completeMapping, templateMappings, morphMapping, lerp, filterSignalCatalogue, signalRouteSummary, describeStreamValue, residualVectorStats, safeObservationLayer, normalizedLayerActivity, layerProfileEntry, layerProfilePoints, stepObservationLayer, scalePresetForIntervals, normalizedLens, visibleTokenLabel, featureDirectionRows, appendTokenToTimeline, handleMessage, handleLoadingMessage, startLoadingProgress, finishLoadingProgress, setWorkspace, setInterfaceDrawer, setSignalSelection(keys) { sessionActive = true; selectedEmitterSignalKeys = new Set(keys); sendSignalSelectionUpdate(); } };`;
+const instrumented = `${source}\n;globalThis.__emitterTest = { completeMapping, templateMappings, morphMapping, lerp, filterSignalCatalogue, signalRouteSummary, describeStreamValue, residualVectorStats, safeObservationLayer, normalizedLayerActivity, layerProfileEntry, layerProfilePoints, stepObservationLayer, scalePresetForIntervals, normalizedLens, visibleTokenLabel, featureDirectionRows, normalizedProbe, normalizedProbeRack, appendTokenToTimeline, handleMessage, handleLoadingMessage, startLoadingProgress, finishLoadingProgress, setWorkspace, setInterfaceDrawer, setSignalSelection(keys) { sessionActive = true; selectedEmitterSignalKeys = new Set(keys); sendSignalSelectionUpdate(); }, setProbeRackForTest(probes) { sessionActive = true; probeRack = normalizedProbeRack(probes); sendProbeRackUpdate(); } };`;
 vm.runInThisContext(instrumented, { filename: sourcePath });
 
 setTimeout(() => {
@@ -304,6 +322,15 @@ setTimeout(() => {
   assert.equal(api.visibleTokenLabel("\n"), "↵");
   assert.equal(api.visibleTokenLabel(" moon"), "␠moon");
   assert.equal(api.visibleTokenLabel(""), "∅");
+  assert.deepEqual(
+    api.normalizedProbe({ id: "scope", site: "sae", layer: 4, capture: "vector" }, 22),
+    { id: "scope", site: "sae", layer: 22, capture: "summary", enabled: true, publish: true },
+  );
+  assert.equal(api.normalizedProbeRack([
+    { id: "same", site: "attention_output", layer: 0 },
+    { id: "same", site: "mlp_output", layer: 1 },
+    { id: "bad", site: "invented", layer: 1 },
+  ]).length, 1);
   api.appendTokenToTimeline({ token: " plain" }, 0);
   assert.equal(elements.get("cv-text-content").children.length, 1);
   assert.equal(elements.get("cv-text-content").children[0].textContent, "␠plain");
@@ -342,6 +369,18 @@ setTimeout(() => {
     token: " test",
     notes: [],
     observation: { layer: 1, sae_layer: 22, sae_width: "65k" },
+    probes: [
+      {
+        id: "attention-1", site: "attention_output", layer: 1,
+        module_path: "model.layers.1.self_attn", capture: "summary", publish: true,
+        shape: [2], summary: { rms: 4.5, max_abs: 7, mean: -0.25 },
+      },
+      {
+        id: "sae", site: "sae", layer: 22,
+        module_path: "gemma_scope.resid_post.layer_22.width_65k", capture: "summary", publish: true,
+        shape: [65000], summary: { active_count: 2, max_activation: 7, total_activation: 10, top_index: 12, top_activation: 7 },
+      },
+    ],
     emitter: {
       signals: {},
       controls: {},
@@ -361,6 +400,7 @@ setTimeout(() => {
   assert.equal(elements.get("live-token-current").textContent, '" test"');
   assert.equal(elements.get("live-feature-count").textContent, "2 active");
   assert.equal(elements.get("live-feature-directions").children.length, 2);
+  assert.equal(elements.get("live-probe-strip").children.length, 2);
   assert.equal(api.scalePresetForIntervals([0, 2, 4, 5, 7, 9, 11]), "major");
   assert.equal(api.scalePresetForIntervals([0, 1, 6]), "custom");
   assert.equal(api.normalizedLens({ name: "D idea", description: "bright", intervals: [0, 4, 7], root: 14 }).root, 2);
@@ -370,6 +410,19 @@ setTimeout(() => {
     action: "update_params",
     params: { emitter_signal_keys: ["activation.max", "model.residual.vector"] },
   });
+  api.setProbeRackForTest([
+    { id: "mlp-1", site: "mlp_output", layer: 2, capture: "vector", enabled: true, publish: false },
+  ]);
+  assert.deepEqual(global.WebSocket.instances[0].sent.at(-1), {
+    action: "update_params",
+    params: {
+      probe_rack: [
+        { id: "mlp-1", site: "mlp_output", layer: 2, capture: "vector", enabled: true, publish: false },
+      ],
+    },
+  });
+  api.handleMessage({ type: "ossia_status", status: "active", message: "OSCQuery ws://127.0.0.1:5678" });
+  assert.equal(elements.get("ossia-status").textContent, "OSCQuery ws://127.0.0.1:5678");
   api.startLoadingProgress();
   assert.equal(elements.get("loading-panel").classList.contains("hidden"), false);
   api.handleLoadingMessage({

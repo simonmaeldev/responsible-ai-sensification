@@ -31,9 +31,12 @@
       </div>
 
       <details id="osc-popover" class="osc-popover">
-        <summary>OSC <span id="osc-summary-state">off</span></summary>
+        <summary>Connect <span id="osc-summary-state">off</span></summary>
         <div class="osc-popover-body">
-          <label class="checkbox-label"><input id="osc-enabled" type="checkbox" /> Send `/rai/v1`</label>
+          <div class="connector-section">
+            <span class="connector-kicker">Fixed performance messages</span>
+            <label class="checkbox-label"><input id="osc-enabled" type="checkbox" /> Send `/rai/v1` notes</label>
+          </div>
           <div id="osc-controls" class="external-output hidden">
             <section class="control-group"><label>Destination host / IP</label><input id="osc-host" type="text" value="" placeholder="Host or IP address" autocomplete="off" /></section>
             <div class="external-output-grid">
@@ -41,6 +44,18 @@
               <section class="control-group"><label>Notes / token</label><input id="osc-max-notes" type="number" min="1" max="128" value="32" /></section>
             </div>
             <div id="osc-status" class="osc-status" data-state="disabled">OSC disabled</div>
+          </div>
+          <div class="connector-divider"></div>
+          <div class="connector-section">
+            <span class="connector-kicker">Discoverable probe namespace</span>
+            <label class="checkbox-label"><input id="ossia-enabled" type="checkbox" /> Publish to ossia / OSCQuery</label>
+          </div>
+          <div id="ossia-controls" class="external-output hidden">
+            <div class="external-output-grid">
+              <section class="control-group"><label>OSC UDP port</label><input id="ossia-osc-port" type="number" min="1" max="65535" value="9010" /></section>
+              <section class="control-group"><label>OSCQuery port</label><input id="ossia-query-port" type="number" min="1" max="65535" value="5678" /></section>
+            </div>
+            <div id="ossia-status" class="osc-status" data-state="disabled">ossia namespace disabled</div>
           </div>
         </div>
       </details>
@@ -53,6 +68,7 @@
       </div>
       <div class="workspace-tools" aria-label="Optional tools">
         <button id="btn-controls-toggle" type="button" aria-expanded="false" aria-controls="control-drawer">Setup</button>
+        <button id="btn-probes-toggle" type="button" aria-expanded="false" aria-controls="probe-drawer">Probes</button>
         <button id="btn-tonality-toggle" type="button" aria-expanded="false" aria-controls="tonality-drawer">Tonality experiment</button>
       </div>
     </div>
@@ -133,6 +149,24 @@
         </details>
       </aside>
 
+      <aside id="probe-drawer" class="controls interface-drawer probe-drawer" aria-hidden="true">
+        <button id="btn-probes-close" class="drawer-close" type="button" aria-label="Close probe rack">×</button>
+        <div class="emitter-identity">
+          <span>Live experiment setup</span>
+          <strong>Gemma Probe Rack</strong>
+          <small>Place bounded observation probes at real hook points. Changes apply to the next generated token.</small>
+        </div>
+        <div class="probe-rack-guide">
+          <span>Available block hook points</span>
+          <div><i>attention output</i><i>MLP output</i><i>post-block residual</i></div>
+          <small>SAE probes use their trained Gemma Scope layer.</small>
+        </div>
+        <div class="section-title-row"><span>Active observation sites</span><span id="probe-rack-count" class="inline-status">0 / 8</span></div>
+        <div id="probe-rack-list" class="probe-rack-list"></div>
+        <button id="btn-add-probe" class="probe-add-button" type="button">+ Add probe</button>
+        <p class="truth-note">Summary values may be published through OSCQuery. Local vectors stay in this emitter and are never sent through that bounded namespace.</p>
+      </aside>
+
       <div id="status" class="status status-toast">
         <div class="status-line"><span id="status-text">Ready</span><span id="loop-count-display" class="loop-counter hidden">Loop: 0</span></div>
         <section id="loading-panel" class="loading-feedback hidden" data-state="active" role="status" aria-live="polite">
@@ -157,6 +191,11 @@
               <header><span>Generated tokens</span><small>Click a token to pause and inspect that moment</small></header>
               <div id="cv-text-output"><div id="cv-text-content"></div></div>
             </div>
+          </section>
+
+          <section class="live-probe-rail" aria-live="polite">
+            <header><span>Probe activity</span><small>current generated token</small></header>
+            <div id="live-probe-strip" class="live-probe-strip empty-monitor">Waiting for live probe observations.</div>
           </section>
 
           <div class="live-inspection-grid">

@@ -2,6 +2,7 @@
 
 from app.server.session import PipelineParams
 from app.server.pipeline.emitter_signals import default_emitter_signal_keys
+from app.server.pipeline.model_probes import default_probe_rack
 
 
 def test_pipeline_params_update_coerces_tonality_controls():
@@ -104,3 +105,47 @@ def test_pipeline_params_coerces_live_emitter_signal_selection():
     )
 
     assert params.emitter_signal_keys == ["activation.max", "model.residual.vector"]
+
+
+def test_pipeline_params_coerces_probe_rack_and_libossia_ports():
+    params = PipelineParams()
+
+    assert params.probe_rack == default_probe_rack(params.layer)
+    params.update(
+        probe_rack=[
+            {
+                "id": "attention",
+                "site": "attention_output",
+                "layer": "7",
+                "capture": "vector",
+                "enabled": "true",
+                "publish": "false",
+            },
+            {"id": "scope", "site": "sae", "layer": 3, "capture": "vector"},
+        ],
+        ossia_enabled="true",
+        ossia_osc_port=0,
+        ossia_query_port=70_000,
+    )
+
+    assert params.probe_rack == [
+        {
+            "id": "attention",
+            "site": "attention_output",
+            "layer": 7,
+            "capture": "vector",
+            "enabled": True,
+            "publish": False,
+        },
+        {
+            "id": "scope",
+            "site": "sae",
+            "layer": 22,
+            "capture": "summary",
+            "enabled": True,
+            "publish": True,
+        },
+    ]
+    assert params.ossia_enabled is True
+    assert params.ossia_osc_port == 1
+    assert params.ossia_query_port == 65_535

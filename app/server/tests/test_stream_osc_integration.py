@@ -5,7 +5,14 @@ import json
 from unittest.mock import patch
 
 from app.server.pipeline.osc_output import OscResult
-from app.server.routers.stream import _forward_token_event, _sync_live_osc_controls
+from app.server.pipeline.ossia_probe_output import OssiaResult
+from app.server.routers.stream import (
+    _forward_token_event,
+    _sync_live_osc_controls,
+    _sync_live_ossia,
+    _stop_session,
+    _token_event_queue,
+)
 from app.server.session import PipelineParams
 
 
@@ -29,6 +36,52 @@ class FailingOscOutput:
     def sync_controls(self, params, changed_fields):
         self.changed_fields = changed_fields
         return OscResult("ready", "OSC targeting test:9000 via UDP; delivery unconfirmed")
+
+
+class FailingOssiaOutput:
+    def __init__(self):
+        self.forwarded_event = None
+        self.synced = False
+
+    def emit_token(self, params, event):
+        self.forwarded_event = event
+        return OssiaResult("error", "libossia bridge output failed: test", error="test")
+
+    def sync(self, params):
+        self.synced = True
+        return OssiaResult("active", "OSCQuery ws://127.0.0.1:5678")
+
+
+class StopSession:
+    def __init__(self, running):
+        self.running = running
+        self.cancelled = False
+
+    def is_running(self):
+        return self.running
+
+    async def cancel(self):
+        self.cancelled = True
+
+
+def test_generation_queue_keeps_only_one_token_ahead_for_live_probe_edits():
+    queue = _token_event_queue()
+
+    assert queue.maxsize == 1
+
+
+def test_stop_action_only_sends_fallback_status_when_no_pipeline_will_send_it():
+    running_ws = FakeWebSocket()
+    running = StopSession(running=True)
+    asyncio.run(_stop_session(running_ws, running))
+    assert running.cancelled is True
+    assert running_ws.messages == []
+
+    idle_ws = FakeWebSocket()
+    idle = StopSession(running=False)
+    asyncio.run(_stop_session(idle_ws, idle))
+    assert idle.cancelled is True
+    assert idle_ws.messages == [{"type": "stopped"}]
 
 
 def test_browser_token_is_unchanged_when_osc_send_fails():
@@ -106,3 +159,42 @@ def test_live_parameter_updates_are_forwarded_to_active_osc_run():
     assert osc.changed_fields == {"bpm", "osc_port"}
     assert ws.messages[-1]["type"] == "osc_status"
     assert "delivery unconfirmed" in ws.messages[-1]["message"]
+
+
+def test_browser_token_is_unchanged_when_libossia_publication_fails():
+    ws = FakeWebSocket()
+    osc = FailingOscOutput()
+    ossia = FailingOssiaOutput()
+    params = PipelineParams()
+    event = {
+        "type": "token",
+        "token": "x",
+        "notes": [],
+        "probes": [{"id": "residual", "vector": [1.0, 2.0], "publish": True}],
+    }
+
+    result = asyncio.run(_forward_token_event(ws, event, params, osc, ossia))
+
+    assert result.state == "error"
+    assert ossia.forwarded_event is event
+    assert ws.messages[0] == event
+    assert ws.messages[-1] == {
+        "type": "ossia_status",
+        "status": "error",
+        "message": "libossia bridge output failed: test",
+    }
+
+
+def test_live_libossia_enable_and_port_updates_are_synchronized():
+    ws = FakeWebSocket()
+    ossia = FailingOssiaOutput()
+
+    result = asyncio.run(_sync_live_ossia(ws, PipelineParams(), ossia))
+
+    assert result.state == "active"
+    assert ossia.synced is True
+    assert ws.messages[-1] == {
+        "type": "ossia_status",
+        "status": "active",
+        "message": "OSCQuery ws://127.0.0.1:5678",
+    }
