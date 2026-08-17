@@ -10,8 +10,10 @@
 
 ## Status And Decision
 
-This is the active implementation direction, but no interface code has been
-written yet.
+Slice 1 is complete and verified on the Ubuntu GPU PC with installed ossia
+score 3.8.2. The fixed WebSocket device can control and observe a real
+Gemma/SAE/Neuronpedia run. Slice 2, the minimal custom interface, is next; no
+product custom UI or saved `.score` document has been added yet.
 
 The first prototype will put the visible research interface and patching
 surface inside ossia score while keeping the existing Python inference backend.
@@ -70,7 +72,9 @@ destroying nodes during generation:
 ```text
 RAI Workbench:/connection/state
 RAI Workbench:/run/state
+RAI Workbench:/run/error
 RAI Workbench:/run/prompt
+RAI Workbench:/run/max_tokens
 RAI Workbench:/run/start
 RAI Workbench:/run/stop
 RAI Workbench:/loading/label
@@ -89,23 +93,34 @@ RAI Workbench:/features/1..12/activation
 RAI Workbench:/features/1..12/description
 ```
 
-The first interface shows twelve strongest features. Complete sparse sets and
+The device exposes the twelve strongest features. Complete sparse sets and
 full residual vectors remain in the local WebSocket payload and are not
 expanded into thousands of score addresses. A later measured experiment may
 use score `List` or `Map` values for selected raw data.
 
+`/run/prompt` and `/run/max_tokens` are local score parameters read when
+`/run/start` changes. Start and Stop are Boolean toggles rather than pulse
+parameters so each action works reliably with score 3.8.2's WebSocket request
+callback behavior.
+
 This score device is separate from the existing bounded OSCQuery `RAI Emitter`
 device. Do not merge their contracts merely because both are visible in score.
 
-## Proposed Repository Layout
+## Repository Layout
 
 Keep score-owned prototype material together under `ossia/rai_workbench/`:
 
-- `README.md`: launch and manual verification instructions;
-- `websocket-device.qml`: JSON-to-address-tree adapter;
-- `interface.qml`: custom score UI;
-- `rai-workbench.score`: document generated and saved through score;
-- small deterministic fixtures or checks needed to test the adapter.
+- `README.md`: launch, loading, and verification instructions;
+- `websocket-adapter.js`: canonical JSON-to-address-tree logic;
+- `websocket-device.template.qml`: score WebSocket device shell;
+- `build-websocket-device.js`: embeds the adapter into the self-contained,
+  generated `websocket-device.qml`;
+- `tests/`: adapter tests and deterministic/real installed-score smoke
+  harnesses.
+
+`interface.qml` and a score-generated `rai-workbench.score` document belong to
+Slice 2 and are intentionally absent. The QML file under `tests/` is only an
+automated harness, not the product interface.
 
 Server files should change only if a failing contract test proves that the
 existing WebSocket protocol cannot support the score adapter cleanly.
@@ -114,10 +129,23 @@ existing WebSocket protocol cannot support the score adapter cleanly.
 
 ### Slice 1: WebSocket device vertical path
 
+Status: complete
+
 - Connect score 3.8.2 to `/ws/stream`.
 - Translate `ready`, structured loading, one token, done, stopped, and error.
 - Send prompt/start/stop through score parameters.
 - Verify one short real Gemma/SAE run without a custom UI.
+
+Observed verification:
+
+- eight adapter/tree tests pass, including generated-QML synchronization;
+- the backend accepts browser text JSON and score 3.8.2 binary JSON command
+  frames, with 105 complete server tests passing;
+- the deterministic installed-score smoke test observes loading, running,
+  exact token, probe, feature, done, and stop behavior;
+- a real one-token installed-score run loaded Gemma 3 1B PT, the layer-22 65k
+  SAE, and Neuronpedia evidence, then exposed token `" and"`, feature 14994,
+  and its cached description without a QML error.
 
 ### Slice 2: Minimal custom interface
 

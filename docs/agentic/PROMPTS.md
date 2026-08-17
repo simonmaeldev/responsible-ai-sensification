@@ -86,6 +86,9 @@ an unresolved failure. A push is never required to advance on the same clone.
 
 ### Phase 1 Prompt: WebSocket Device Vertical Path
 
+Status: complete on the Ubuntu GPU PC. Use this prompt only to reproduce or
+regression-test Phase 1; Phase 2 is the next implementation prompt.
+
 ```text
 Execution machine: Ubuntu GPU PC. Work only in this repository and do not
 change the Windows receiver or any external connector contract.

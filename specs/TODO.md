@@ -49,13 +49,19 @@ priority takes precedence over the older numeric ordering.
   namespace; `/rai/v1`, browser audio/visuals, and the Windows receiver remain
   unchanged. Verified with 99 tests, browser checks, mDNS/OSCQuery loopback, and
   a real six-token GPU run whose attention probe moved live from L1 to L3.
+- Ossia score interface Phase 1: a self-contained score 3.8.2 WebSocket device
+  controls the existing FastAPI Gemma/SAE runtime and exposes a fixed tree for
+  connection/loading/run state, exact tokens, layer provenance, eight probes,
+  and twelve strongest SAE/Neuronpedia features. Deterministic start/stop and a
+  real one-token GPU run passed through installed score; all 105 server tests
+  pass.
 
 ## Current priority: researcher-facing observation workflows
 
-- Build the ossia score-native interface in the gated slices defined by
-  `specs/ossia-score-interface.md`. Keep the existing Python inference backend
-  for the first prototype and use `docs/agentic/PROMPTS.md` for restart/handoff
-  prompts. Do not begin native ONNX inference before the Phase 5 decision gate.
+- Continue with ossia score interface Slice 2: build the minimal custom QML UI
+  on the verified Phase 1 device tree. Keep the existing Python inference
+  backend and use `docs/agentic/PROMPTS.md` for restart/handoff prompts. Do not
+  begin native ONNX inference before the Phase 5 decision gate.
 - Use Model to compare dense residual state across transformer blocks while
   keeping the layer-22 SAE provenance visible.
 - Use Map to compare raw residual/logit/SAE data with derived signals and

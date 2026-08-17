@@ -155,6 +155,19 @@ OSC/OSCQuery moves live performance data.
 
 ## Recent Setup
 
+- Completed ossia score interface Phase 1 on the Ubuntu GPU PC. A
+  self-contained score 3.8.2 WebSocket device now maps `/ws/stream` into a
+  fixed tree for connection/run/loading state, exact tokens, model and layer
+  provenance, eight bounded probes, and twelve strongest SAE/Neuronpedia
+  features. Prompt, maximum-token, Start, and Stop parameters control the
+  existing backend without a custom UI.
+- Added text-and-binary WebSocket command compatibility after source and runtime
+  checks showed score 3.8.2 sends request callback results as binary frames.
+  Eight adapter tests, deterministic installed-score start/stop smoke checks,
+  and all 105 server tests pass. A real one-token score run loaded Gemma 3 1B
+  PT, the layer-22 65k SAE, and Neuronpedia data and exposed token `" and"`,
+  feature 14994, and its cached description without QML errors. The test-owned
+  server and score processes were stopped afterward.
 - Completed `specs/gemma-probe-rack-ossia.md` on the Ubuntu GPU PC using TDD.
   The server now installs scoped hooks at real Gemma residual, `self_attn`, and
   `mlp` modules and builds a fixed-layer SAE observation. Rack selection is
@@ -441,17 +454,17 @@ background only; do not import from it directly unless asked.
 
 ## Current App Direction
 
-The next experimental interface target is now an ossia score-native workbench
-on the Ubuntu GPU PC. The first prototype will keep the existing FastAPI,
-PyTorch Gemma, Gemma Scope SAE, and Neuronpedia runtime and connect score to its
-`/ws/stream` endpoint through a bidirectional WebSocket device. The installed
-score 3.8.2 remains suitable for this interface experiment, but its older
-Qwen-specific Language Model process is not the research inference path.
+The ossia score-native workbench is now active on the Ubuntu GPU PC. Phase 1
+keeps the existing FastAPI, PyTorch Gemma, Gemma Scope SAE, and Neuronpedia
+runtime and connects score 3.8.2 to `/ws/stream` through a verified,
+bidirectional WebSocket device. The device tree passes real token, layer,
+probe, SAE, and Neuronpedia evidence. score's older Qwen-specific Language
+Model process is not the research inference path.
 
-The current browser remains the verified reference and fallback until the score
-prototype passes token, layer, probe, SAE, and Neuronpedia evidence checks. The
-phased contract is in `specs/ossia-score-interface.md`; restart prompts and
-advance gates are in `docs/agentic/PROMPTS.md`.
+The next target is Phase 2: a minimal custom score UI using the verified device
+tree. The browser remains the reference and fallback while interface parity is
+built. The phased contract is in `specs/ossia-score-interface.md`; restart
+prompts and advance gates are in `docs/agentic/PROMPTS.md`.
 
 Use the live inspector already present in this repo:
 

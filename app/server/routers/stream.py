@@ -91,6 +91,31 @@ async def _send(ws: WebSocket, msg: dict) -> None:
     await ws.send_text(json.dumps(msg))
 
 
+async def _receive_command(ws: WebSocket) -> dict:
+    """Decode browser text frames and score 3.8 binary JSON frames alike."""
+    frame = await ws.receive()
+    if frame.get("type") == "websocket.disconnect":
+        raise WebSocketDisconnect(frame.get("code", 1000))
+
+    raw = frame.get("text")
+    if raw is None:
+        payload = frame.get("bytes")
+        if payload is None:
+            raise ValueError("Invalid JSON")
+        try:
+            raw = payload.decode("utf8")
+        except UnicodeDecodeError as exc:
+            raise ValueError("Invalid JSON") from exc
+
+    try:
+        message = json.loads(raw)
+    except (json.JSONDecodeError, TypeError) as exc:
+        raise ValueError("Invalid JSON") from exc
+    if not isinstance(message, dict):
+        raise ValueError("Invalid JSON")
+    return message
+
+
 def _token_event_queue() -> asyncio.Queue:
     """Keep one-token backpressure so live probe edits reach model hooks."""
     return asyncio.Queue(maxsize=1)
@@ -807,10 +832,9 @@ async def ws_stream(ws: WebSocket) -> None:
 
     try:
         while True:
-            raw = await ws.receive_text()
             try:
-                msg = json.loads(raw)
-            except json.JSONDecodeError:
+                msg = await _receive_command(ws)
+            except ValueError:
                 await _send(ws, {"type": "error", "message": "Invalid JSON"})
                 continue
 
