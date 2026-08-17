@@ -1,6 +1,6 @@
 # Project State
 
-Last updated: 2026-08-11
+Last updated: 2026-08-17
 
 ## Branch
 
@@ -441,6 +441,18 @@ background only; do not import from it directly unless asked.
 
 ## Current App Direction
 
+The next experimental interface target is now an ossia score-native workbench
+on the Ubuntu GPU PC. The first prototype will keep the existing FastAPI,
+PyTorch Gemma, Gemma Scope SAE, and Neuronpedia runtime and connect score to its
+`/ws/stream` endpoint through a bidirectional WebSocket device. The installed
+score 3.8.2 remains suitable for this interface experiment, but its older
+Qwen-specific Language Model process is not the research inference path.
+
+The current browser remains the verified reference and fallback until the score
+prototype passes token, layer, probe, SAE, and Neuronpedia evidence checks. The
+phased contract is in `specs/ossia-score-interface.md`; restart prompts and
+advance gates are in `docs/agentic/PROMPTS.md`.
+
 Use the live inspector already present in this repo:
 
 - **Primary surface**: prompt/run controls, exact current token, selectable
@@ -465,6 +477,9 @@ Avoid reverting to the older archive interface.
 
 ## Open Decisions
 
+- After the score-native WebSocket interface is working, whether there is enough
+  scientific or performance value to port exact Gemma 3 1B PT and its matching
+  Gemma Scope SAE into a custom ONNX/Avendish process.
 - Where the user will place the term paper.
 - Whether paper passages should become prompts, annotations, comparison units, or all three.
 - Which Ableton parameters should follow semantic tonality after the initial

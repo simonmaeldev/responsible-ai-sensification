@@ -52,6 +52,10 @@ priority takes precedence over the older numeric ordering.
 
 ## Current priority: researcher-facing observation workflows
 
+- Build the ossia score-native interface in the gated slices defined by
+  `specs/ossia-score-interface.md`. Keep the existing Python inference backend
+  for the first prototype and use `docs/agentic/PROMPTS.md` for restart/handoff
+  prompts. Do not begin native ONNX inference before the Phase 5 decision gate.
 - Use Model to compare dense residual state across transformer blocks while
   keeping the layer-22 SAE provenance visible.
 - Use Map to compare raw residual/logit/SAE data with derived signals and

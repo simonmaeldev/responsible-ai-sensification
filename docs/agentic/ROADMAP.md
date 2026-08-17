@@ -391,6 +391,30 @@ Deliberate next adapter boundary:
 The focused contract and exact namespace are in
 `specs/gemma-probe-rack-ossia.md`.
 
+## Phase 11: Ossia Score-Native Interface
+
+Status: planned; documentation and sequential runbook complete
+
+Goal: make ossia score the visible research interface and patching environment
+while initially preserving the verified FastAPI/PyTorch Gemma, Gemma Scope SAE,
+and Neuronpedia backend.
+
+Planned slices:
+
+1. Connect a score WebSocket device to the existing `/ws/stream` protocol and
+   verify prompt, run control, loading, token, feature, and terminal events.
+2. Add a minimal custom QML interface for prompt/run controls, exact tokens, and
+   the strongest SAE/Neuronpedia evidence.
+3. Add the real Gemma block map, independent dense observation layer, fixed SAE
+   layer, token history, and bounded probe summaries.
+4. Make selected scalar observations patchable by ordinary score processes and
+   prove the path with one removable example.
+5. Only after the interface is verified, decide whether native ONNX/Avendish
+   inference is justified. Do not port inference without a new approved spec.
+
+The focused contract is in `specs/ossia-score-interface.md`. The sequential
+prompts and advance gates are in `docs/agentic/PROMPTS.md`.
+
 ## Later Candidate Features
 
 Good later steps:
