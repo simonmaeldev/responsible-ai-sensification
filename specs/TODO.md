@@ -73,6 +73,13 @@ priority takes precedence over the older numeric ordering.
   live controls. Deterministic normal/debug/removal checks and a real two-token
   GPU run pass; raw vectors, full sparse data, inference, and external connector
   contracts remain unchanged.
+- Ossia score interface Phase 5: inspected installed and current score/ONNX/
+  Avendish capabilities, exact cached Gemma/SAE requirements, the host GPU
+  runtime, and a real backend reference. The documented decision is no-go for a
+  native port now: retain the verified FastAPI/PyTorch backend and score
+  WebSocket device. No code, build, dependency, model, or connector change was
+  made; future native work requires a new approved spec after explicit parity
+  gates are met.
 
 ## Current priority: researcher-facing observation workflows
 

@@ -207,6 +207,12 @@ unchanged. This does not authorize a native inference implementation.
 
 ### Phase 5 Prompt: Native Inference Decision Gate
 
+Status: complete on the Ubuntu GPU PC. The result is no-go for native
+ONNX/Avendish inference now; keep the verified FastAPI/PyTorch backend and score
+WebSocket device. The measured gaps and reopen conditions are in
+`specs/ossia-native-inference-decision.md`. No native implementation spec was
+created.
+
 ```text
 Execution machine: Ubuntu GPU PC. This is an investigation and decision task,
 not authorization to port inference.
@@ -229,8 +235,9 @@ write a new focused spec for user approval. Update durable docs and commit only
 documentation produced by this decision task. Do not push.
 ```
 
-The sequence stops after Phase 5. Native inference requires a new approved spec;
-there is intentionally no automatic Phase 6 prompt.
+The sequence stops after Phase 5. Native inference remains closed unless the
+recorded parity gates motivate a new user-approved spec; there is intentionally
+no automatic Phase 6 prompt.
 
 ## Ubuntu GPU PC: Implement Ableton OSC Emitter
 

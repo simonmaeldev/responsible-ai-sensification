@@ -10,13 +10,14 @@
 
 ## Status And Decision
 
-Slices 1 through 4 are complete and verified on the Ubuntu GPU PC with installed
+Slices 1 through 5 are complete and verified on the Ubuntu GPU PC with installed
 ossia score 3.8.2. The fixed WebSocket device and compact custom interface can
 control and observe a real Gemma/SAE/Neuronpedia run, preserve synchronized
 token history and exact provenance, and apply dense-layer and probe changes to
 subsequent tokens. Four raw scalar summaries are now patchable by ordinary score
-processes. Slice 5 remains a separate native-inference decision gate and is not
-authorized by completion of this slice.
+processes. Slice 5 concluded that native ONNX/Avendish inference is not justified
+now; the verified backend remains the inference path. The evidence and reopen
+gates are recorded in `specs/ossia-native-inference-decision.md`.
 
 The first prototype will put the visible research interface and patching
 surface inside ossia score while keeping the existing Python inference backend.
@@ -277,11 +278,22 @@ Observed verification:
 
 ### Slice 5: Native inference decision gate
 
-- After the interface works, evaluate an isolated current/continuous score and
-  `score-addon-onnx` build.
-- Compare exact Gemma 3 1B PT tokenization, token IDs, hidden-state access, SAE
-  parity, cancellation, backpressure, GPU performance, and build cost.
-- Do not implement a native inference port until a new focused spec is approved.
+Status: complete — no-go for a native port now
+
+The investigation inspected installed score 3.8.2 plus current score,
+score-addon-onnx, and Avendish source. The current add-on can name Gemma-family
+decoders, but its process boundary and worker lifecycle do not preserve this
+project's exact plain-prompt token IDs, layer-22 residual, Gemma Scope SAE,
+Neuronpedia/provenance evidence, cancellation, or one-token live-control
+boundary. The installed CUDA provider is also incompatible with the host's
+available CUDA libraries, and no exact PT ONNX export or matching score SDK is
+present.
+
+The decision is to keep the verified FastAPI/PyTorch backend and existing score
+WebSocket device. An Avendish bridge would duplicate that working adapter
+without moving inference or supplying a measured benefit. No implementation
+was performed, and native work requires a new approved spec after the gates in
+`specs/ossia-native-inference-decision.md` are met.
 
 ## Test-First Verification
 

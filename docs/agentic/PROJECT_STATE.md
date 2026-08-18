@@ -155,6 +155,24 @@ OSC/OSCQuery moves live performance data.
 
 ## Recent Setup
 
+- Completed ossia score interface Phase 5 as an investigation on the Ubuntu GPU
+  PC. The evidence-backed decision is no-go for native ONNX/Avendish inference
+  now: keep the verified FastAPI/PyTorch Gemma, Gemma Scope SAE, and Neuronpedia
+  backend behind the existing score WebSocket device. No inference or interface
+  code changed, no dependency/model download or source build was performed, and
+  no native implementation spec was opened.
+- Installed score 3.8.2 and current upstream source were inspected. The current
+  add-on still lacks node outputs and lifecycle contracts for exact PT prompt
+  IDs, raw token IDs, the layer-22 residual, Gemma Scope SAE values,
+  Neuronpedia/provenance, cancellation, and acknowledged one-token live edits.
+  Its installed CUDA 13 provider cannot load against the host CUDA 12 libraries;
+  the machine also lacks the current score SDK and required CMake baseline.
+- A real RTX 4060 Ti backend reference generated four exact greedy tokens for
+  `The future of AI`. After a 365 ms warm-up step, the next three model-plus-SAE
+  steps each took 37 ms (about 27 tokens/second steady), with 2,500 MiB peak
+  allocated GPU memory. This is a backend baseline, not an ONNX comparison.
+  Exact evidence and the gates for any future revisit are in
+  `specs/ossia-native-inference-decision.md`.
 - Completed ossia score interface Phase 4 on the Ubuntu GPU PC. The fixed
   `RAI Workbench:/patchable` tree exposes only tensor RMS/maximum absolute value
   and SAE active count/top activation. Values are copied unchanged from the
@@ -513,21 +531,24 @@ background only; do not import from it directly unless asked.
 
 ## Current App Direction
 
-The ossia score-native workbench is active on the Ubuntu GPU PC. Phases 1–3
+The ossia score-native workbench is active on the Ubuntu GPU PC. Phases 1–4
 keep the existing FastAPI, PyTorch Gemma, Gemma Scope SAE, and Neuronpedia
 runtime and connect score 3.8.2 through a verified WebSocket device plus a
 compact custom interface. The interface controls and displays real token
 history, block/profile data, dense and fixed-SAE provenance, bounded probe
-summaries, and SAE/Neuronpedia evidence. score's older Qwen-specific Language
-Model process is not the research inference path.
+summaries, patchable scalar observations, and SAE/Neuronpedia evidence. The
+installed score Language Model process is not the research inference path;
+current upstream source has broader decoder names but not this project's
+evidence or lifecycle contract.
 
 Phase 4 is complete: four selected raw scalar summaries can drive ordinary
 score processes through a provenance-bearing local tree, with one removable
-example. The browser remains the reference and fallback. Phase 5 is only a
-native-inference decision gate; no ONNX/Avendish port is implemented or
-authorized. The phased contract is in
-`specs/ossia-score-interface.md`; restart prompts and advance gates are in
-`docs/agentic/PROMPTS.md`.
+example. The browser remains the reference and fallback. Phase 5 is complete:
+native ONNX/Avendish inference is a documented no-go now, so no port or bridge
+is implemented or authorized. The phased contract is in
+`specs/ossia-score-interface.md`, the decision evidence is in
+`specs/ossia-native-inference-decision.md`, and restart prompts and advance
+gates are in `docs/agentic/PROMPTS.md`.
 
 Use the live inspector already present in this repo:
 
@@ -553,9 +574,6 @@ Avoid reverting to the older archive interface.
 
 ## Open Decisions
 
-- After the score-native WebSocket interface is working, whether there is enough
-  scientific or performance value to port exact Gemma 3 1B PT and its matching
-  Gemma Scope SAE into a custom ONNX/Avendish process.
 - Where the user will place the term paper.
 - Whether paper passages should become prompts, annotations, comparison units, or all three.
 - Which Ableton parameters should follow semantic tonality after the initial

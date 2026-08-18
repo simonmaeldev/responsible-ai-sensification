@@ -393,13 +393,13 @@ The focused contract and exact namespace are in
 
 ## Phase 11: Ossia Score-Native Interface
 
-Status: Slices 1 through 4 complete; Slice 5 remains a decision gate
+Status: Slices 1 through 5 complete; native inference is a documented no-go now
 
 Goal: make ossia score the visible research interface and patching environment
 while initially preserving the verified FastAPI/PyTorch Gemma, Gemma Scope SAE,
 and Neuronpedia backend.
 
-Implemented Slices 1 through 4:
+Implemented Slices 1 through 5:
 
 - Added a self-contained score 3.8.2 WebSocket device with local prompt and
   maximum-token controls plus toggle-based Start and Stop actions.
@@ -445,12 +445,20 @@ Implemented Slices 1 through 4:
   sparse SAE data, inference, and all external connector contracts remain
   unchanged.
 
-Remaining decision gate:
+Completed decision gate:
 
-5. Decide in a new focused investigation whether native ONNX/Avendish
-   inference is justified. Do not port inference without a new approved spec.
+5. Inspected installed score 3.8.2, current score-addon-onnx and Avendish source,
+   exact cached Gemma/SAE assets, host GPU/runtime compatibility, and a real
+   four-token backend baseline. Native inference is not justified now: the
+   current add-on does not preserve exact plain-prompt token IDs, the layer-22
+   residual, SAE/Neuronpedia/provenance evidence, cancellation, or acknowledged
+   one-token live edits, and its installed CUDA provider does not match the host
+   libraries. Keep the verified backend and WebSocket device. Do not add an
+   Avendish bridge or native port without a new approved spec after the recorded
+   reopen gates are met.
 
-The focused contract is in `specs/ossia-score-interface.md`. The sequential
+The focused contract is in `specs/ossia-score-interface.md`; the Phase 5 evidence
+and decision are in `specs/ossia-native-inference-decision.md`. The sequential
 prompts and advance gates are in `docs/agentic/PROMPTS.md`.
 
 ## Later Candidate Features

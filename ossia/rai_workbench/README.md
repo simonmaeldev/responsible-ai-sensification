@@ -9,8 +9,11 @@ observations are available to ordinary score processes without changing their
 backend values.
 
 Raw vectors stay in the local WebSocket payload and are not expanded into the
-score address tree. Native inference and external connector changes belong to
-later phases and are not included.
+score address tree. The completed Phase 5 investigation found no current reason
+to replace the verified backend with native ONNX/Avendish inference. Its exact
+evidence and reopen gates are in
+`specs/ossia-native-inference-decision.md`. External connector changes remain
+out of scope.
 
 ## Requirements
 
