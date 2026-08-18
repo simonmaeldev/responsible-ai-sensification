@@ -71,6 +71,7 @@ async def run_fixture(
     host: str,
     port: int,
     ready: asyncio.Future[int] | None = None,
+    expected_prompt: str = "Phase 1 score smoke",
 ) -> None:
     received: list[dict[str, Any]] = []
     finished = asyncio.Event()
@@ -120,7 +121,7 @@ async def run_fixture(
         raise RuntimeError("Expected exactly one start and one stop request")
 
     start_params = start_messages[0].get("params", {})
-    if start_params.get("prompt") != "Phase 1 score smoke":
+    if start_params.get("prompt") != expected_prompt:
         raise RuntimeError("score did not forward the smoke-test prompt")
     if start_params.get("max_tokens") != 1:
         raise RuntimeError("score did not forward the smoke-test token limit")

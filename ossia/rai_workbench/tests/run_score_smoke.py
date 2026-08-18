@@ -20,7 +20,9 @@ def parse_result(output: str) -> dict:
     for line in output.splitlines():
         marker_index = line.find(RESULT_MARKER)
         if marker_index >= 0:
-            return json.loads(line[marker_index + len(RESULT_MARKER) :])
+            payload = line[marker_index + len(RESULT_MARKER) :]
+            result, _ = json.JSONDecoder().raw_decode(payload)
+            return result
     raise RuntimeError("score did not report a smoke-test result")
 
 
@@ -46,16 +48,25 @@ async def run_score(
     score_binary: str,
     smoke_ui: Path,
     timeout: float = 45,
+    score_document: Path | None = None,
+    ui_flag: str = "--ui",
+    forbidden_output: tuple[str, ...] = (),
 ) -> dict:
     environment = os.environ.copy()
     environment["QT_QPA_PLATFORM"] = "offscreen"
 
-    score_process = await asyncio.create_subprocess_exec(
+    command = [
         score_binary,
         "--no-restore",
         "--no-opengl",
-        "--ui",
+        ui_flag,
         str(smoke_ui.resolve()),
+    ]
+    if score_document is not None:
+        command.append(str(score_document.resolve()))
+
+    score_process = await asyncio.create_subprocess_exec(
+        *command,
         env=environment,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.STDOUT,
@@ -82,6 +93,12 @@ async def run_score(
                 "score smoke test timed out\n" + diagnostic
             ) from exc
         output = "\n".join(output_lines)
+        for pattern in forbidden_output:
+            if pattern in output:
+                raise RuntimeError(
+                    f"score reported forbidden QML diagnostic {pattern!r}\n"
+                    + output[-8000:]
+                )
         for line in output_lines:
             if "RAI_SCORE_SMOKE" in line:
                 print(line, flush=True)

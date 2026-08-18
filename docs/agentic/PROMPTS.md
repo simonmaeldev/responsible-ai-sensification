@@ -123,6 +123,9 @@ state without QML errors.
 
 ### Phase 2 Prompt: Minimal Custom Interface
 
+Status: complete on the Ubuntu GPU PC. Use this prompt only to reproduce or
+regression-test Phase 2; Phase 3 is the next implementation prompt.
+
 ```text
 Execution machine: Ubuntu GPU PC.
 

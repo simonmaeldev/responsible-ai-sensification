@@ -55,13 +55,18 @@ priority takes precedence over the older numeric ordering.
   and twelve strongest SAE/Neuronpedia features. Deterministic start/stop and a
   real one-token GPU run passed through installed score; all 105 server tests
   pass.
+- Ossia score interface Phase 2: a minimal custom QML interface and
+  score-generated document provide prompt/run controls, connection and loading
+  feedback, exact token/ID, and twelve raw SAE/Neuronpedia evidence rows.
+  Deterministic `--ui`/`--ui-debug`, visual, and real one-token GPU checks pass.
 
 ## Current priority: researcher-facing observation workflows
 
-- Continue with ossia score interface Slice 2: build the minimal custom QML UI
-  on the verified Phase 1 device tree. Keep the existing Python inference
-  backend and use `docs/agentic/PROMPTS.md` for restart/handoff prompts. Do not
-  begin native ONNX inference before the Phase 5 decision gate.
+- Continue with ossia score interface Slice 3: add the real Gemma block map,
+  independent dense observation layer, fixed SAE attachment, token history,
+  and bounded probe summaries to the verified custom UI. Keep the existing
+  Python inference backend and do not begin native ONNX inference before the
+  Phase 5 decision gate.
 - Use Model to compare dense residual state across transformer blocks while
   keeping the layer-22 SAE provenance visible.
 - Use Map to compare raw residual/logit/SAE data with derived signals and

@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 from pathlib import Path
+from typing import Callable
 
 from run_score_smoke import run_score
 
@@ -41,7 +42,14 @@ async def drain_server_output(
             print("SERVER " + line, flush=True)
 
 
-async def run_real(score_binary: str, smoke_ui: Path, start_script: Path) -> None:
+async def run_real(
+    score_binary: str,
+    smoke_ui: Path,
+    start_script: Path,
+    score_document: Path | None = None,
+    result_assertion: Callable[[dict], None] = assert_real_result,
+    success_marker: str = "SCORE_REAL_SMOKE_OK",
+) -> None:
     server_process = await asyncio.create_subprocess_exec(
         str(start_script.resolve()),
         "--no-browser",
@@ -69,9 +77,21 @@ async def run_real(score_binary: str, smoke_ui: Path, start_script: Path) -> Non
         drain_task = asyncio.create_task(
             drain_server_output(server_process, server_lines)
         )
-        result = await run_score(score_binary, smoke_ui, timeout=600)
-        assert_real_result(result)
-        print("SCORE_REAL_SMOKE_OK", flush=True)
+        result = await run_score(
+            score_binary,
+            smoke_ui,
+            timeout=600,
+            score_document=score_document,
+            forbidden_output=(
+                "ReferenceError",
+                "TypeError",
+                "Binding loop detected",
+                "Unable to assign",
+                "Cannot assign",
+            ),
+        )
+        result_assertion(result)
+        print(success_marker, flush=True)
     except Exception:
         diagnostic = "\n".join(server_lines[-100:])
         if diagnostic:

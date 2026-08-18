@@ -10,10 +10,10 @@
 
 ## Status And Decision
 
-Slice 1 is complete and verified on the Ubuntu GPU PC with installed ossia
-score 3.8.2. The fixed WebSocket device can control and observe a real
-Gemma/SAE/Neuronpedia run. Slice 2, the minimal custom interface, is next; no
-product custom UI or saved `.score` document has been added yet.
+Slices 1 and 2 are complete and verified on the Ubuntu GPU PC with installed
+ossia score 3.8.2. The fixed WebSocket device and minimal custom interface can
+control and observe a real Gemma/SAE/Neuronpedia run. Slice 3, the research
+observation views, is next.
 
 The first prototype will put the visible research interface and patching
 surface inside ossia score while keeping the existing Python inference backend.
@@ -115,12 +115,15 @@ Keep score-owned prototype material together under `ossia/rai_workbench/`:
 - `websocket-device.template.qml`: score WebSocket device shell;
 - `build-websocket-device.js`: embeds the adapter into the self-contained,
   generated `websocket-device.qml`;
+- `interface.qml`: minimal score-native run and evidence interface;
+- `rai-workbench.score`: score-generated document containing the WebSocket
+  device;
+- `build-score-document.py`: refreshes the embedded device through score's
+  `--ui-debug` document API;
 - `tests/`: adapter tests and deterministic/real installed-score smoke
   harnesses.
 
-`interface.qml` and a score-generated `rai-workbench.score` document belong to
-Slice 2 and are intentionally absent. The QML file under `tests/` is only an
-automated harness, not the product interface.
+The QML files under `tests/` are automated harnesses, not product interfaces.
 
 Server files should change only if a failing contract test proves that the
 existing WebSocket protocol cannot support the score adapter cleanly.
@@ -149,10 +152,32 @@ Observed verification:
 
 ### Slice 2: Minimal custom interface
 
+Status: complete
+
 - Add prompt, Run, Stop, connection/loading state, current token, and twelve
   strongest SAE/Neuronpedia rows.
 - Develop with `--ui-debug`; document the final `--ui` launch.
 - Keep the normal score patch visible during development.
+
+Observed verification:
+
+- four static interface/document tests, all eight Phase 1 adapter tests, and all
+  105 FastAPI server tests pass;
+- the score-generated document contains one `RAI Workbench` WebSocket device
+  whose embedded QML exactly matches the generated Phase 1 device;
+- deterministic installed-score runs pass in both final `--ui` mode and
+  development `--ui-debug` mode with no QML reference, type, assignment, or
+  binding-loop diagnostics;
+- a real one-token custom-interface run exposed token `" detector"`, token ID
+  24772, feature 14994, raw activation 3411.114501953125, and its Neuronpedia
+  description;
+- an offscreen 1120×760 acceptance capture was inspected after removing an
+  unsupported generic monospace override that had hidden numeric/token text.
+
+score 3.8.2 must refresh the saved document in `--ui-debug` mode. Saving from
+replacement `--ui` mode writes the JSON but then crashes because the normal
+document UI lifecycle is absent; the repository build helper deliberately uses
+the verified debug mode and the committed score-generated document as its seed.
 
 ### Slice 3: Research observation views
 

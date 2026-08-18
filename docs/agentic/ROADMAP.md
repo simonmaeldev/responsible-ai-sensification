@@ -393,13 +393,13 @@ The focused contract and exact namespace are in
 
 ## Phase 11: Ossia Score-Native Interface
 
-Status: Slice 1 complete; Slice 2 is next
+Status: Slices 1 and 2 complete; Slice 3 is next
 
 Goal: make ossia score the visible research interface and patching environment
 while initially preserving the verified FastAPI/PyTorch Gemma, Gemma Scope SAE,
 and Neuronpedia backend.
 
-Implemented Slice 1:
+Implemented Slices 1 and 2:
 
 - Added a self-contained score 3.8.2 WebSocket device with local prompt and
   maximum-token controls plus toggle-based Start and Stop actions.
@@ -410,11 +410,15 @@ Implemented Slice 1:
 - Verified eight adapter tests, all 105 server tests, deterministic installed
   score start/stop behavior, and one real Gemma/SAE/Neuronpedia token through
   score without QML errors.
+- Added a minimal custom QML interface and score-generated document with prompt,
+  maximum-token, Run, Stop, connection/loading/error state, exact quoted token
+  and ID, and twelve raw SAE/Neuronpedia evidence rows.
+- Verified static interface/document contracts, normal `--ui` and development
+  `--ui-debug` fixture runs, an inspected 1120×760 offscreen capture, and one
+  real token through the custom interface without QML/binding diagnostics.
 
 Remaining slices:
 
-2. Add a minimal custom QML interface for prompt/run controls, exact tokens, and
-   the strongest SAE/Neuronpedia evidence.
 3. Add the real Gemma block map, independent dense observation layer, fixed SAE
    layer, token history, and bounded probe summaries.
 4. Make selected scalar observations patchable by ordinary score processes and
