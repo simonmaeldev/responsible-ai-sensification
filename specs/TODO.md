@@ -66,13 +66,16 @@ priority takes precedence over the older numeric ordering.
   representation evidence. Deterministic normal/debug and real two-token GPU
   runs prove L22-to-L7 live changes while the SAE stays fixed; all 106 server
   tests and the unchanged browser harness pass.
+- Ossia score interface Phase 4: four deliberately selected tensor/SAE scalar
+  observations are patchable by ordinary score processes with unchanged values
+  and complete provenance. One labelled built-in `Float` input patch is
+  removable without affecting observation delivery, synchronized history, or
+  live controls. Deterministic normal/debug/removal checks and a real two-token
+  GPU run pass; raw vectors, full sparse data, inference, and external connector
+  contracts remain unchanged.
 
 ## Current priority: researcher-facing observation workflows
 
-- Continue with ossia score interface Slice 4: expose a deliberately selected
-  set of scalar observations to normal score processes and prove the path with
-  one removable example mapping. Keep raw values unchanged, preserve
-  provenance, and do not expand external connector contracts.
 - Use Model to compare dense residual state across transformer blocks while
   keeping the layer-22 SAE provenance visible.
 - Use Map to compare raw residual/logit/SAE data with derived signals and

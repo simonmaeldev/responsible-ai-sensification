@@ -57,6 +57,17 @@ function _shape(value) {
   return Array.isArray(value) ? JSON.stringify(value) : "";
 }
 
+function _probeRepresentation(probe) {
+  var source = _object(probe);
+  var site = _text(source.site);
+  if (site === "sae") {
+    return "sparse_sae_summary";
+  }
+  return _text(source.capture) === "vector"
+    ? "dense_final_token_vector"
+    : "dense_tensor_summary";
+}
+
 function connectedUpdates() {
   return [
     { address: "/connection/state", value: "connected" },
@@ -258,11 +269,7 @@ function _probeUpdates(result, probes) {
       publish: probe ? _text(probe.publish) : "",
       shape: probe ? _shape(probe.shape) : "",
       dtype: probe ? _text(probe.dtype) : "",
-      representation: probe
-        ? (site === "sae"
-          ? "sparse_sae_summary"
-          : (capture === "vector" ? "dense_final_token_vector" : "dense_tensor_summary"))
-        : "",
+      representation: probe ? _probeRepresentation(probe) : "",
       rms: _number(summary.rms, 0),
       max_abs: _number(summary.max_abs, 0),
       mean: _number(summary.mean, 0),
@@ -280,6 +287,76 @@ function _probeUpdates(result, probes) {
         "/probes/" + (slot + 1) + "/" + field,
         values[field],
       );
+    }
+  }
+}
+
+function _firstPatchableProbe(probes, sparse) {
+  var source = Array.isArray(probes) ? probes : [];
+  for (var slot = 0; slot < source.length; slot += 1) {
+    var probe = _object(source[slot]);
+    var isSparse = _text(probe.site) === "sae";
+    if (isSparse === sparse) {
+      return { probe: probe, sourceSlot: slot + 1 };
+    }
+  }
+  return { probe: null, sourceSlot: -1 };
+}
+
+function _patchableScalarUpdates(result, event, probes) {
+  var tensor = _firstPatchableProbe(probes, false);
+  var sparse = _firstPatchableProbe(probes, true);
+  var descriptors = [
+    { key: "tensor_rms", source: tensor, field: "rms" },
+    { key: "tensor_max_abs", source: tensor, field: "max_abs" },
+    { key: "sae_active_count", source: sparse, field: "active_count" },
+    {
+      key: "sae_top_activation",
+      source: sparse,
+      field: "top_activation",
+      featureField: "top_index",
+    },
+  ];
+
+  for (var index = 0; index < descriptors.length; index += 1) {
+    var descriptor = descriptors[index];
+    var probe = descriptor.source.probe;
+    var summary = probe ? _object(probe.summary) : {};
+    var rawValue = summary[descriptor.field];
+    var valid = (
+      probe !== null
+      && typeof rawValue === "number"
+      && isFinite(rawValue)
+    );
+    var rawFeatureIndex = descriptor.featureField
+      ? summary[descriptor.featureField]
+      : -1;
+    var prefix = "/patchable/" + descriptor.key;
+    var values = {
+      valid: valid,
+      value: valid ? rawValue : 0,
+      metric: "summary." + descriptor.field,
+      probe_id: probe ? _text(probe.id) : "",
+      source_slot: probe ? descriptor.source.sourceSlot : -1,
+      model: probe ? _text(probe.model) : "",
+      token_index: probe ? _number(probe.token_index, -1) : -1,
+      token_id: _number(event.token_id, -1),
+      token_text: _text(event.token),
+      site: probe ? _text(probe.site) : "",
+      layer: probe ? _number(probe.layer, -1) : -1,
+      module_path: probe ? _text(probe.module_path) : "",
+      shape: probe ? _shape(probe.shape) : "",
+      dtype: probe ? _text(probe.dtype) : "",
+      representation: probe ? _probeRepresentation(probe) : "",
+      feature_index: (
+        typeof rawFeatureIndex === "number" && isFinite(rawFeatureIndex)
+      ) ? rawFeatureIndex : -1,
+    };
+
+    for (var field in values) {
+      if (Object.prototype.hasOwnProperty.call(values, field)) {
+        _update(result, prefix + "/" + field, values[field]);
+      }
     }
   }
 }
@@ -413,6 +490,7 @@ function _tokenEvent(result, event) {
   _profileUpdates(result, _layerProfile(event));
   _probeUpdates(result, probes);
   _featureUpdates(result, _activeFeatures(event));
+  _patchableScalarUpdates(result, event, probes);
   // This transaction marker must remain last so the UI snapshots synchronized data.
   _update(result, "/token/revision", result.tokenIndex);
 }
@@ -599,6 +677,40 @@ function decodeEvent(message, previousTokenIndex) {
     return nodes;
   }
 
+  function patchableScalarChildren(integerValue) {
+    return [
+      { name: "valid", type: Ossia.Type.Bool, value: false },
+      {
+        name: "value",
+        type: integerValue ? Ossia.Type.Int : Ossia.Type.Float,
+        value: integerValue ? 0 : 0.0,
+      },
+      { name: "metric", type: Ossia.Type.String, value: "" },
+      { name: "probe_id", type: Ossia.Type.String, value: "" },
+      { name: "source_slot", type: Ossia.Type.Int, value: -1 },
+      { name: "model", type: Ossia.Type.String, value: "" },
+      { name: "token_index", type: Ossia.Type.Int, value: -1 },
+      { name: "token_id", type: Ossia.Type.Int, value: -1 },
+      { name: "token_text", type: Ossia.Type.String, value: "" },
+      { name: "site", type: Ossia.Type.String, value: "" },
+      { name: "layer", type: Ossia.Type.Int, value: -1 },
+      { name: "module_path", type: Ossia.Type.String, value: "" },
+      { name: "shape", type: Ossia.Type.String, value: "" },
+      { name: "dtype", type: Ossia.Type.String, value: "" },
+      { name: "representation", type: Ossia.Type.String, value: "" },
+      { name: "feature_index", type: Ossia.Type.Int, value: -1 },
+    ];
+  }
+
+  function patchableScalarNodes() {
+    return [
+      { name: "tensor_rms", children: root.patchableScalarChildren(false) },
+      { name: "tensor_max_abs", children: root.patchableScalarChildren(false) },
+      { name: "sae_active_count", children: root.patchableScalarChildren(true) },
+      { name: "sae_top_activation", children: root.patchableScalarChildren(false) },
+    ];
+  }
+
   function createTree() {
     return [
       {
@@ -719,6 +831,7 @@ function decodeEvent(message, previousTokenIndex) {
       },
       { name: "probes", children: root.probeNodes() },
       { name: "features", children: root.featureNodes() },
+      { name: "patchable", children: root.patchableScalarNodes() },
     ];
   }
 }

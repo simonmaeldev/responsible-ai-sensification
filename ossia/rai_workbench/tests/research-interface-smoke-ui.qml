@@ -1,4 +1,5 @@
 import QtQuick
+import Score.UI as UI
 
 Rectangle {
   id: root
@@ -9,8 +10,14 @@ Rectangle {
   property bool sawLoading: false
   property bool sawRunning: false
   property bool sawDone: false
+  property real exampleMappedValue: -1.0
 
   Component.onCompleted: console.log("RAI_SCORE_RESEARCH_INTERFACE_STARTED")
+
+  UI.PortSource on exampleMappedValue {
+    process: "EXAMPLE_patchable_tensor_rms_delete_safe"
+    port: 0
+  }
 
   Loader {
     id: interfaceLoader
@@ -115,13 +122,34 @@ Rectangle {
       firstProbeShape: first === null ? "" : first.probes[0].shape,
       firstProbeDtype: first === null ? "" : first.probes[0].dtype,
       firstProbeRepresentation: first === null ? "" : first.probes[0].representation,
+      firstProbeRms: first === null ? -1 : first.probes[0].rms,
+      firstProbeMaxAbs: first === null ? -1 : first.probes[0].maxAbs,
       firstSaeProbeSite: first === null ? "" : first.probes[1].site,
       firstSaeProbeLayer: first === null ? -1 : first.probes[1].layer,
       firstSaeProbeModulePath: first === null ? "" : first.probes[1].modulePath,
       firstSaeProbeShape: first === null ? "" : first.probes[1].shape,
       firstSaeProbeDtype: first === null ? "" : first.probes[1].dtype,
       firstSaeProbeRepresentation: first === null ? "" : first.probes[1].representation,
+      firstSaeProbeActiveCount: first === null ? -1 : first.probes[1].activeCount,
+      firstSaeProbeTopIndex: first === null ? -1 : first.probes[1].topIndex,
+      firstSaeProbeTopActivation: first === null ? -1 : first.probes[1].topActivation,
       firstBlockDelta: first === null ? -1 : first.blocks[1].deltaRms,
+      firstPatchableCount: first === null ? 0 : first.patchableScalars.length,
+      firstTensorRms: first === null ? -1 : first.patchableScalars[0].value,
+      firstTensorPeak: first === null ? -1 : first.patchableScalars[1].value,
+      firstSaeActiveCount: first === null ? -1 : first.patchableScalars[2].value,
+      firstSaeTopActivation: first === null ? -1 : first.patchableScalars[3].value,
+      firstScalarModel: first === null ? "" : first.patchableScalars[0].model,
+      firstScalarTokenIndex: first === null ? -1 : first.patchableScalars[0].tokenIndex,
+      firstScalarTokenId: first === null ? -1 : first.patchableScalars[0].tokenId,
+      firstScalarTokenText: first === null ? "" : first.patchableScalars[0].tokenText,
+      firstScalarSite: first === null ? "" : first.patchableScalars[0].site,
+      firstScalarLayer: first === null ? -1 : first.patchableScalars[0].layer,
+      firstScalarModulePath: first === null ? "" : first.patchableScalars[0].modulePath,
+      firstScalarShape: first === null ? "" : first.patchableScalars[0].shape,
+      firstScalarDtype: first === null ? "" : first.patchableScalars[0].dtype,
+      firstScalarRepresentation: first === null ? "" : first.patchableScalars[0].representation,
+      firstSaeFeatureIndex: first === null ? -1 : first.patchableScalars[3].featureIndex,
       secondTokenText: second === null ? "" : second.tokenText,
       secondObservationLayer: second === null ? -1 : second.observationLayer,
       secondDenseModulePath: second === null ? "" : second.observationModulePath,
@@ -131,9 +159,18 @@ Rectangle {
       secondFeatureDescription: second === null ? "" : second.features[0].description,
       secondProbeLayer: second === null ? -1 : second.probes[0].layer,
       secondProbeModulePath: second === null ? "" : second.probes[0].modulePath,
+      secondProbeRms: second === null ? -1 : second.probes[0].rms,
       secondBlockDelta: second === null ? -1 : second.blocks[1].deltaRms,
+      secondTensorRms: second === null ? -1 : second.patchableScalars[0].value,
+      secondTensorLayer: second === null ? -1 : second.patchableScalars[0].layer,
+      secondTensorModulePath: second === null ? "" : second.patchableScalars[0].modulePath,
+      secondSaeTopActivation: second === null ? -1 : second.patchableScalars[3].value,
+      secondSaeFeatureIndex: second === null ? -1 : second.patchableScalars[3].featureIndex,
+      secondSaeProbeTopActivation: second === null ? -1 : second.probes[1].topActivation,
       inspectedTokenText: inspected === null ? "" : inspected.tokenText,
       inspectedObservationLayer: inspected === null ? -1 : inspected.observationLayer,
+      inspectedTensorRms: inspected === null ? -1 : inspected.patchableScalars[0].value,
+      exampleMappedValue: root.exampleMappedValue,
       modelLayerCount: workbench.modelLayerCount,
       blockOneAttention: workbench.blockAt(0).attentionType,
       blockSixAttention: workbench.blockAt(5).attentionType,

@@ -295,6 +295,184 @@ test("token events expose bounded probes and strongest SAE features", () => {
   assert.equal(result.updates.at(-1).address, "/token/revision");
 });
 
+test("four patchable scalars preserve backend values and complete provenance", () => {
+  const adapter = loadAdapter();
+  const tensorSummary = {
+    rms: 10.5,
+    max_abs: 11.5,
+    mean: 9.875,
+  };
+  const saeSummary = {
+    active_count: 37,
+    max_activation: 3.5,
+    total_activation: 8.25,
+    top_index: 8123,
+    top_activation: 3.5,
+  };
+  const result = adapter.decodeEvent(
+    {
+      type: "token",
+      token: " glass",
+      token_id: 421,
+      elapsed_ms: 12.0,
+      probes: [
+        {
+          id: "attention-l7",
+          model: "google/gemma-3-1b-pt",
+          token_index: 2,
+          site: "attention_output",
+          layer: 7,
+          module_path: "model.layers.7.self_attn",
+          capture: "summary",
+          publish: true,
+          shape: [1152],
+          dtype: "float32",
+          summary: tensorSummary,
+        },
+        {
+          id: "sae",
+          model: "google/gemma-3-1b-pt",
+          token_index: 2,
+          site: "sae",
+          layer: 22,
+          module_path: "gemma_scope.resid_post.layer_22.width_65k",
+          capture: "summary",
+          publish: true,
+          shape: [65536],
+          dtype: "sparse_float32",
+          summary: saeSummary,
+        },
+      ],
+    },
+    1,
+  );
+  const values = valuesByAddress(result);
+
+  const expected = {
+    tensor_rms: {
+      value: tensorSummary.rms,
+      metric: "summary.rms",
+      probe_id: "attention-l7",
+      source_slot: 1,
+      feature_index: -1,
+      site: "attention_output",
+      layer: 7,
+      module_path: "model.layers.7.self_attn",
+      shape: "[1152]",
+      dtype: "float32",
+      representation: "dense_tensor_summary",
+    },
+    tensor_max_abs: {
+      value: tensorSummary.max_abs,
+      metric: "summary.max_abs",
+      probe_id: "attention-l7",
+      source_slot: 1,
+      feature_index: -1,
+      site: "attention_output",
+      layer: 7,
+      module_path: "model.layers.7.self_attn",
+      shape: "[1152]",
+      dtype: "float32",
+      representation: "dense_tensor_summary",
+    },
+    sae_active_count: {
+      value: saeSummary.active_count,
+      metric: "summary.active_count",
+      probe_id: "sae",
+      source_slot: 2,
+      feature_index: -1,
+      site: "sae",
+      layer: 22,
+      module_path: "gemma_scope.resid_post.layer_22.width_65k",
+      shape: "[65536]",
+      dtype: "sparse_float32",
+      representation: "sparse_sae_summary",
+    },
+    sae_top_activation: {
+      value: saeSummary.top_activation,
+      metric: "summary.top_activation",
+      probe_id: "sae",
+      source_slot: 2,
+      feature_index: saeSummary.top_index,
+      site: "sae",
+      layer: 22,
+      module_path: "gemma_scope.resid_post.layer_22.width_65k",
+      shape: "[65536]",
+      dtype: "sparse_float32",
+      representation: "sparse_sae_summary",
+    },
+  };
+
+  for (const [key, scalar] of Object.entries(expected)) {
+    const prefix = `/patchable/${key}`;
+    assert.equal(values[`${prefix}/valid`], true);
+    assert.equal(values[`${prefix}/value`], scalar.value);
+    assert.equal(values[`${prefix}/metric`], scalar.metric);
+    assert.equal(values[`${prefix}/probe_id`], scalar.probe_id);
+    assert.equal(values[`${prefix}/source_slot`], scalar.source_slot);
+    assert.equal(values[`${prefix}/model`], "google/gemma-3-1b-pt");
+    assert.equal(values[`${prefix}/token_index`], 2);
+    assert.equal(values[`${prefix}/token_id`], 421);
+    assert.equal(values[`${prefix}/token_text`], " glass");
+    assert.equal(values[`${prefix}/site`], scalar.site);
+    assert.equal(values[`${prefix}/layer`], scalar.layer);
+    assert.equal(values[`${prefix}/module_path`], scalar.module_path);
+    assert.equal(values[`${prefix}/shape`], scalar.shape);
+    assert.equal(values[`${prefix}/dtype`], scalar.dtype);
+    assert.equal(values[`${prefix}/representation`], scalar.representation);
+    assert.equal(values[`${prefix}/feature_index`], scalar.feature_index);
+  }
+
+  assert.equal(values["/patchable/tensor_rms/value"], tensorSummary.rms);
+  assert.equal(values["/patchable/tensor_max_abs/value"], tensorSummary.max_abs);
+  assert.equal(values["/patchable/sae_active_count/value"], saeSummary.active_count);
+  assert.equal(values["/patchable/sae_top_activation/value"], saeSummary.top_activation);
+  assert.equal(result.updates.at(-1).address, "/token/revision");
+  assert.equal(
+    result.updates.some((update) => /patchable.*(?:vector|features)/.test(update.address)),
+    false,
+  );
+});
+
+test("patchable scalars follow subsequent probes and invalidate absent sources", () => {
+  const adapter = loadAdapter();
+  const second = valuesByAddress(
+    adapter.decodeEvent(
+      {
+        type: "token",
+        token: " next",
+        token_id: 502,
+        probes: [
+          {
+            id: "mlp-l3",
+            model: "google/gemma-3-1b-pt",
+            token_index: 6,
+            site: "mlp_output",
+            layer: 3,
+            module_path: "model.layers.3.mlp",
+            capture: "summary",
+            shape: [1152],
+            dtype: "float32",
+            summary: { rms: 4.25, max_abs: 9.5, mean: -0.25 },
+          },
+        ],
+      },
+      5,
+    ),
+  );
+
+  assert.equal(second["/patchable/tensor_rms/value"], 4.25);
+  assert.equal(second["/patchable/tensor_rms/layer"], 3);
+  assert.equal(second["/patchable/tensor_rms/site"], "mlp_output");
+  assert.equal(second["/patchable/tensor_rms/module_path"], "model.layers.3.mlp");
+  assert.equal(second["/patchable/tensor_rms/token_index"], 6);
+  assert.equal(second["/patchable/sae_active_count/valid"], false);
+  assert.equal(second["/patchable/sae_active_count/value"], 0);
+  assert.equal(second["/patchable/sae_active_count/model"], "");
+  assert.equal(second["/patchable/sae_top_activation/valid"], false);
+  assert.equal(second["/patchable/sae_top_activation/feature_index"], -1);
+});
+
 test("token index falls back to a local counter when no probe index exists", () => {
   const adapter = loadAdapter();
   const result = adapter.decodeEvent(
@@ -365,9 +543,17 @@ test("the score QML device exposes the fixed Phase 1 tree", () => {
     "probe_controls",
     "probes",
     "features",
+    "patchable",
   ]) {
     assert.match(qml, new RegExp(`name: "${node}"`));
   }
+  assert.match(qml, /function patchableScalarNodes\s*\(/);
+  assert.match(qml, /name: "tensor_rms"/);
+  assert.match(qml, /name: "tensor_max_abs"/);
+  assert.match(qml, /name: "sae_active_count"/);
+  assert.match(qml, /name: "sae_top_activation"/);
+  assert.doesNotMatch(qml, /name: "example"/);
+  assert.doesNotMatch(qml, /name: "(?:vector|features)",\s*type:/);
 });
 
 test("prompt edits stay local and start reads the local score value", () => {

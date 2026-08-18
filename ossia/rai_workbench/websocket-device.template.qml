@@ -148,6 +148,40 @@ Ossia.WebSockets {
     return nodes;
   }
 
+  function patchableScalarChildren(integerValue) {
+    return [
+      { name: "valid", type: Ossia.Type.Bool, value: false },
+      {
+        name: "value",
+        type: integerValue ? Ossia.Type.Int : Ossia.Type.Float,
+        value: integerValue ? 0 : 0.0,
+      },
+      { name: "metric", type: Ossia.Type.String, value: "" },
+      { name: "probe_id", type: Ossia.Type.String, value: "" },
+      { name: "source_slot", type: Ossia.Type.Int, value: -1 },
+      { name: "model", type: Ossia.Type.String, value: "" },
+      { name: "token_index", type: Ossia.Type.Int, value: -1 },
+      { name: "token_id", type: Ossia.Type.Int, value: -1 },
+      { name: "token_text", type: Ossia.Type.String, value: "" },
+      { name: "site", type: Ossia.Type.String, value: "" },
+      { name: "layer", type: Ossia.Type.Int, value: -1 },
+      { name: "module_path", type: Ossia.Type.String, value: "" },
+      { name: "shape", type: Ossia.Type.String, value: "" },
+      { name: "dtype", type: Ossia.Type.String, value: "" },
+      { name: "representation", type: Ossia.Type.String, value: "" },
+      { name: "feature_index", type: Ossia.Type.Int, value: -1 },
+    ];
+  }
+
+  function patchableScalarNodes() {
+    return [
+      { name: "tensor_rms", children: root.patchableScalarChildren(false) },
+      { name: "tensor_max_abs", children: root.patchableScalarChildren(false) },
+      { name: "sae_active_count", children: root.patchableScalarChildren(true) },
+      { name: "sae_top_activation", children: root.patchableScalarChildren(false) },
+    ];
+  }
+
   function createTree() {
     return [
       {
@@ -268,6 +302,7 @@ Ossia.WebSockets {
       },
       { name: "probes", children: root.probeNodes() },
       { name: "features", children: root.featureNodes() },
+      { name: "patchable", children: root.patchableScalarNodes() },
     ];
   }
 }

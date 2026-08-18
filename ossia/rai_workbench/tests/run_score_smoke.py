@@ -54,6 +54,7 @@ async def run_score(
 ) -> dict:
     environment = os.environ.copy()
     environment["QT_QPA_PLATFORM"] = "offscreen"
+    environment["SCORE_AUDIO_BACKEND"] = "dummy"
 
     command = [
         score_binary,

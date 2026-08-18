@@ -154,7 +154,7 @@ evidence.
 ### Phase 3 Prompt: Research Observation Views
 
 Status: complete on the Ubuntu GPU PC. Use this prompt only to reproduce or
-regression-test Phase 3; Phase 4 is the next implementation prompt.
+regression-test Phase 3; Phase 4 is also complete.
 
 ```text
 Execution machine: Ubuntu GPU PC.
@@ -180,6 +180,9 @@ synchronized and live probe/layer edits affect the expected subsequent token.
 
 ### Phase 4 Prompt: Patchable Score Observations
 
+Status: complete on the Ubuntu GPU PC. Use this prompt only to reproduce or
+regression-test Phase 4; Phase 5 is a separate investigation and decision gate.
+
 ```text
 Execution machine: Ubuntu GPU PC.
 
@@ -198,8 +201,9 @@ replace or remove it, run all relevant checks, update durable docs, and create
 one focused commit. Do not push.
 ```
 
-Advance to Phase 5 only when a normal score process demonstrably reacts to a
-real scalar observation and the raw/provenance display remains unchanged.
+The Phase 5 advance gate is satisfied: a normal `Float` process received an
+exact real scalar while raw/provenance display and removal behavior remained
+unchanged. This does not authorize a native inference implementation.
 
 ### Phase 5 Prompt: Native Inference Decision Gate
 

@@ -1,6 +1,6 @@
 # Project State
 
-Last updated: 2026-08-17
+Last updated: 2026-08-18
 
 ## Branch
 
@@ -155,6 +155,28 @@ OSC/OSCQuery moves live performance data.
 
 ## Recent Setup
 
+- Completed ossia score interface Phase 4 on the Ubuntu GPU PC. The fixed
+  `RAI Workbench:/patchable` tree exposes only tensor RMS/maximum absolute value
+  and SAE active count/top activation. Values are copied unchanged from the
+  existing probe event and carry exact model, token, site, layer, runtime module
+  path, shape, dtype, and representation provenance before the synchronized
+  token-revision marker. Raw vectors and complete sparse SAE data remain local.
+- Added the clearly labelled built-in `Float` process
+  `EXAMPLE_patchable_tensor_rms_delete_safe`, with only its inlet patched to
+  tensor RMS. Starting an interface run activates normal score transport. A
+  removal smoke deleted the process from a staged document and preserved every
+  observation, two-token history assertion, and live L22-to-L7 edit.
+- Phase 4 verification passed eleven adapter/device tests, nine
+  interface/document tests, deterministic normal/debug installed-score runs,
+  the complete 111-test server suite, JavaScript syntax, and the unchanged
+  165-reference browser harness. Headless score tests select its supported
+  temporary Dummy audio backend and do not change user audio settings.
+- A real RTX 4060 Ti run matched every patchable value against its source field
+  in the browser WebSocket event. Tensor RMS moved from `794.3080444335938` at
+  `model.layers.22` to `87.42140197753906` at `model.layers.7`; the ordinary
+  `Float` inlet received exactly `87.42140197753906`, token-one history restored
+  the first scalar/provenance, and SAE layer 22 remained fixed. Test-owned score
+  and server processes stopped afterward.
 - Completed ossia score interface Phase 3 on the Ubuntu GPU PC. The compact
   custom interface now shows selectable synchronized token history, all 26 real
   Gemma blocks and attention types, per-token layer profiles, a live dense
@@ -499,10 +521,11 @@ history, block/profile data, dense and fixed-SAE provenance, bounded probe
 summaries, and SAE/Neuronpedia evidence. score's older Qwen-specific Language
 Model process is not the research inference path.
 
-The next target is Phase 4: expose a deliberately selected set of scalar
-observations to ordinary score processes and prove the path with one removable
-example mapping. The browser remains the reference and fallback while interface
-parity is built. The phased contract is in
+Phase 4 is complete: four selected raw scalar summaries can drive ordinary
+score processes through a provenance-bearing local tree, with one removable
+example. The browser remains the reference and fallback. Phase 5 is only a
+native-inference decision gate; no ONNX/Avendish port is implemented or
+authorized. The phased contract is in
 `specs/ossia-score-interface.md`; restart prompts and advance gates are in
 `docs/agentic/PROMPTS.md`.
 

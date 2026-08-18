@@ -1,4 +1,4 @@
-"""Run two real Gemma tokens through the Slice 3 score interface."""
+"""Run two real Gemma tokens through the Slice 4 score interface."""
 
 from __future__ import annotations
 
@@ -83,6 +83,30 @@ def assert_research_real_result(result: dict) -> None:
     _require(result.get("firstSaeProbeShape") == "[65536]", "Wrong exact SAE probe shape", result)
     _require(result.get("firstSaeProbeDtype") == "sparse_float32", "Wrong SAE probe dtype", result)
     _require(result.get("firstSaeProbeRepresentation") == "sparse_sae_summary", "Wrong SAE probe representation", result)
+
+    _require(result.get("firstPatchableCount") == 4, "Patchable scalar selection changed", result)
+    _require(result.get("firstTensorRms") == result.get("firstProbeRms"), "Tensor RMS changed from backend event", result)
+    _require(result.get("firstTensorPeak") == result.get("firstProbeMaxAbs"), "Tensor peak changed from backend event", result)
+    _require(result.get("firstSaeActiveCount") == result.get("firstSaeProbeActiveCount"), "SAE active count changed from backend event", result)
+    _require(result.get("firstSaeTopActivation") == result.get("firstSaeProbeTopActivation"), "SAE top activation changed from backend event", result)
+    _require(result.get("firstSaeFeatureIndex") == result.get("firstSaeProbeTopIndex"), "SAE top identifier changed", result)
+    _require(result.get("secondTensorRms") == result.get("secondProbeRms"), "Live tensor RMS changed from backend event", result)
+    _require(result.get("secondSaeTopActivation") == result.get("secondSaeProbeTopActivation"), "Live SAE scalar changed from backend event", result)
+    _require(result.get("exampleMappedValue") == result.get("secondTensorRms"), "Normal Float process did not receive exact scalar", result)
+    _require(result.get("inspectedTensorRms") == result.get("firstTensorRms"), "Scalar history is not synchronized", result)
+
+    _require(result.get("firstScalarModel") == model, "Scalar model provenance changed", result)
+    _require(result.get("firstScalarTokenIndex") == result.get("firstTokenIndex"), "Scalar token index changed", result)
+    _require(result.get("firstScalarTokenId") == result.get("firstTokenId"), "Scalar token ID changed", result)
+    _require(result.get("firstScalarTokenText") == result.get("firstTokenText"), "Scalar token text changed", result)
+    _require(result.get("firstScalarSite") == result.get("firstProbeSite"), "Scalar site provenance changed", result)
+    _require(result.get("firstScalarLayer") == result.get("firstProbeLayer"), "Scalar layer provenance changed", result)
+    _require(result.get("firstScalarModulePath") == result.get("firstProbeModulePath"), "Scalar module provenance changed", result)
+    _require(result.get("firstScalarShape") == result.get("firstProbeShape"), "Scalar shape provenance changed", result)
+    _require(result.get("firstScalarDtype") == result.get("firstProbeDtype"), "Scalar dtype provenance changed", result)
+    _require(result.get("firstScalarRepresentation") == result.get("firstProbeRepresentation"), "Scalar representation provenance changed", result)
+    _require(result.get("secondTensorLayer") == result.get("secondProbeLayer"), "Live scalar layer did not move", result)
+    _require(result.get("secondTensorModulePath") == result.get("secondProbeModulePath"), "Live scalar module did not move", result)
 
 
 def main() -> None:

@@ -54,12 +54,36 @@ Rectangle {
   property var inspectedSnapshot: null
   property int inspectedHistoryIndex: -1
   property bool followingLatest: true
+  property var patchableScalarKeys: [
+    {
+      key: "tensor_rms",
+      label: "Tensor RMS",
+      path: "RAI Workbench:/patchable/tensor_rms",
+    },
+    {
+      key: "tensor_max_abs",
+      label: "Tensor maximum absolute value",
+      path: "RAI Workbench:/patchable/tensor_max_abs",
+    },
+    {
+      key: "sae_active_count",
+      label: "SAE active count",
+      path: "RAI Workbench:/patchable/sae_active_count",
+    },
+    {
+      key: "sae_top_activation",
+      label: "SAE top activation",
+      path: "RAI Workbench:/patchable/sae_top_activation",
+    },
+  ]
   readonly property bool runBusy: runState === "loading" || runState === "running"
 
   signal snapshotCaptured(int count)
 
   function startRun() {
     clearHistory();
+    // Activate any ordinary score processes patched to the observation tree.
+    Score.play();
     startValue = !startValue;
   }
 
@@ -81,6 +105,19 @@ Rectangle {
 
   function probeControlAt(index) {
     return probeControlRepeater.itemAt(index);
+  }
+
+  function patchableScalarAt(index) {
+    return patchableScalarRepeater.itemAt(index);
+  }
+
+  function capturePatchableScalars() {
+    var scalars = [];
+    for (var index = 0; index < patchableScalarKeys.length; index += 1) {
+      var scalar = patchableScalarAt(index);
+      scalars.push(scalar === null ? {} : scalar.snapshot());
+    }
+    return scalars;
   }
 
   function historyAt(index) {
@@ -225,6 +262,7 @@ Rectangle {
       features: features,
       blocks: blocks,
       probes: probes,
+      patchableScalars: root.capturePatchableScalars(),
     };
 
     var history = tokenHistory.slice();
@@ -465,6 +503,275 @@ Rectangle {
               text: root.connectionState
               color: "#e6ebf3"
               font.pixelSize: 12
+            }
+          }
+        }
+      }
+
+      Frame {
+        Layout.fillWidth: true
+        Layout.preferredHeight: 720
+        padding: 14
+        background: Rectangle {
+          radius: 10
+          color: "#171c24"
+          border.color: "#2a3341"
+        }
+        ColumnLayout {
+          anchors.fill: parent
+          spacing: 8
+          RowLayout {
+            Layout.fillWidth: true
+            ColumnLayout {
+              Layout.fillWidth: true
+              spacing: 1
+              Label {
+                text: "PATCHABLE SCALAR OBSERVATIONS"
+                color: "#f2f5fa"
+                font.pixelSize: 17
+                font.bold: true
+              }
+              Label {
+                text: "Four deliberately selected scalar summaries for ordinary score processes. Their raw values are unchanged; every row retains exact source provenance."
+                color: "#8e9aab"
+                font.pixelSize: 10
+              }
+            }
+            Label {
+              text: "LOCAL SCORE TREE ONLY"
+              color: "#63d7d1"
+              font.pixelSize: 9
+              font.bold: true
+            }
+          }
+
+          Rectangle {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 48
+            radius: 6
+            color: "#12171e"
+            border.color: "#365467"
+            RowLayout {
+              anchors.fill: parent
+              anchors.leftMargin: 10
+              anchors.rightMargin: 10
+              spacing: 8
+              Label {
+                text: "REMOVABLE EXAMPLE"
+                color: "#f4d58d"
+                font.pixelSize: 10
+                font.bold: true
+              }
+              Label {
+                Layout.fillWidth: true
+                text: "Tensor RMS is patched unchanged into the built-in Float process named EXAMPLE_patchable_tensor_rms_delete_safe. Delete that process safely; these observations and this interface remain intact."
+                color: "#c9d2df"
+                font.pixelSize: 10
+                wrapMode: Text.Wrap
+              }
+            }
+          }
+
+          ScrollView {
+            objectName: "patchableScalarList"
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            clip: true
+            Column {
+              width: parent.width
+              spacing: 6
+              Repeater {
+                id: patchableScalarRepeater
+                model: root.patchableScalarKeys.length
+                delegate: Rectangle {
+                  id: patchableScalarRow
+                  required property int index
+                  width: patchableScalarRepeater.parent.width
+                  height: 142
+                  radius: 6
+                  color: index % 2 === 0 ? "#12171e" : "#151b23"
+                  opacity: shown.valid ? 1.0 : 0.5
+                  readonly property var definition: root.patchableScalarKeys[index]
+                  property bool scalarValid: false
+                  property real scalarValue: 0.0
+                  property string scalarMetric: ""
+                  property string scalarProbeId: ""
+                  property int scalarSourceSlot: -1
+                  property string scalarModel: ""
+                  property int scalarTokenIndex: -1
+                  property int scalarTokenId: -1
+                  property string scalarTokenText: ""
+                  property string scalarSite: ""
+                  property int scalarLayer: -1
+                  property string scalarModulePath: ""
+                  property string scalarShape: ""
+                  property string scalarDtype: ""
+                  property string scalarRepresentation: ""
+                  property int scalarFeatureIndex: -1
+                  readonly property var historicalScalar: root.inspectedSnapshot !== null
+                    && root.inspectedSnapshot.patchableScalars
+                    && index < root.inspectedSnapshot.patchableScalars.length
+                    ? root.inspectedSnapshot.patchableScalars[index]
+                    : null
+                  readonly property var shown: historicalScalar !== null
+                    ? historicalScalar
+                    : snapshot()
+
+                  function snapshot() {
+                    return {
+                      key: definition.key,
+                      valid: scalarValid,
+                      value: scalarValue,
+                      metric: scalarMetric,
+                      probeId: scalarProbeId,
+                      sourceSlot: scalarSourceSlot,
+                      model: scalarModel,
+                      tokenIndex: scalarTokenIndex,
+                      tokenId: scalarTokenId,
+                      tokenText: scalarTokenText,
+                      site: scalarSite,
+                      layer: scalarLayer,
+                      modulePath: scalarModulePath,
+                      shape: scalarShape,
+                      dtype: scalarDtype,
+                      representation: scalarRepresentation,
+                      featureIndex: scalarFeatureIndex,
+                    };
+                  }
+
+                  UI.AddressSource on scalarValid {
+                    address: patchableScalarRow.definition.path + "/valid"
+                    sendUpdates: false
+                  }
+                  UI.AddressSource on scalarValue {
+                    address: patchableScalarRow.definition.path + "/value"
+                    sendUpdates: false
+                  }
+                  UI.AddressSource on scalarMetric {
+                    address: patchableScalarRow.definition.path + "/metric"
+                    sendUpdates: false
+                  }
+                  UI.AddressSource on scalarProbeId {
+                    address: patchableScalarRow.definition.path + "/probe_id"
+                    sendUpdates: false
+                  }
+                  UI.AddressSource on scalarSourceSlot {
+                    address: patchableScalarRow.definition.path + "/source_slot"
+                    sendUpdates: false
+                  }
+                  UI.AddressSource on scalarModel {
+                    address: patchableScalarRow.definition.path + "/model"
+                    sendUpdates: false
+                  }
+                  UI.AddressSource on scalarTokenIndex {
+                    address: patchableScalarRow.definition.path + "/token_index"
+                    sendUpdates: false
+                  }
+                  UI.AddressSource on scalarTokenId {
+                    address: patchableScalarRow.definition.path + "/token_id"
+                    sendUpdates: false
+                  }
+                  UI.AddressSource on scalarTokenText {
+                    address: patchableScalarRow.definition.path + "/token_text"
+                    sendUpdates: false
+                  }
+                  UI.AddressSource on scalarSite {
+                    address: patchableScalarRow.definition.path + "/site"
+                    sendUpdates: false
+                  }
+                  UI.AddressSource on scalarLayer {
+                    address: patchableScalarRow.definition.path + "/layer"
+                    sendUpdates: false
+                  }
+                  UI.AddressSource on scalarModulePath {
+                    address: patchableScalarRow.definition.path + "/module_path"
+                    sendUpdates: false
+                  }
+                  UI.AddressSource on scalarShape {
+                    address: patchableScalarRow.definition.path + "/shape"
+                    sendUpdates: false
+                  }
+                  UI.AddressSource on scalarDtype {
+                    address: patchableScalarRow.definition.path + "/dtype"
+                    sendUpdates: false
+                  }
+                  UI.AddressSource on scalarRepresentation {
+                    address: patchableScalarRow.definition.path + "/representation"
+                    sendUpdates: false
+                  }
+                  UI.AddressSource on scalarFeatureIndex {
+                    address: patchableScalarRow.definition.path + "/feature_index"
+                    sendUpdates: false
+                  }
+
+                  ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 9
+                    spacing: 3
+                    RowLayout {
+                      Layout.fillWidth: true
+                      Label {
+                        text: patchableScalarRow.definition.label
+                        color: "#f2f5fa"
+                        font.pixelSize: 12
+                        font.bold: true
+                      }
+                      Label {
+                        text: patchableScalarRow.shown.valid
+                          ? "raw value " + String(patchableScalarRow.shown.value)
+                          : "source unavailable"
+                        color: patchableScalarRow.shown.valid ? "#8fe0c2" : "#697586"
+                        font.pixelSize: 12
+                        font.bold: true
+                      }
+                      Item { Layout.fillWidth: true }
+                      Label {
+                        text: patchableScalarRow.shown.metric
+                          + " · probe slot " + patchableScalarRow.shown.sourceSlot
+                          + " · " + patchableScalarRow.shown.probeId
+                        color: "#8e9aab"
+                        font.pixelSize: 10
+                      }
+                    }
+                    Label {
+                      Layout.fillWidth: true
+                      text: "model " + patchableScalarRow.shown.model
+                        + " · token " + JSON.stringify(patchableScalarRow.shown.tokenText)
+                        + " · ID " + patchableScalarRow.shown.tokenId
+                        + " · sequence " + patchableScalarRow.shown.tokenIndex
+                      color: "#c9d2df"
+                      font.pixelSize: 10
+                      elide: Text.ElideMiddle
+                    }
+                    Label {
+                      Layout.fillWidth: true
+                      text: patchableScalarRow.shown.representation
+                        + " · " + patchableScalarRow.shown.site
+                        + " · layer " + patchableScalarRow.shown.layer
+                        + " · shape " + patchableScalarRow.shown.shape
+                        + " · " + patchableScalarRow.shown.dtype
+                      color: "#aab5c5"
+                      font.pixelSize: 10
+                      elide: Text.ElideMiddle
+                    }
+                    Label {
+                      Layout.fillWidth: true
+                      text: "module path: " + patchableScalarRow.shown.modulePath
+                      color: "#697586"
+                      font.pixelSize: 10
+                      elide: Text.ElideMiddle
+                    }
+                    Label {
+                      Layout.fillWidth: true
+                      visible: patchableScalarRow.definition.key === "sae_top_activation"
+                      text: "SAE feature index is an identifier, not semantic geometry; literal index "
+                        + patchableScalarRow.shown.featureIndex + "."
+                      color: "#8e9aab"
+                      font.pixelSize: 9
+                    }
+                  }
+                }
+              }
             }
           }
         }

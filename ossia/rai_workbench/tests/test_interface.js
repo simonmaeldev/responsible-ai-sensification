@@ -25,6 +25,22 @@ function findDevice(value, name) {
   return null;
 }
 
+function findByScriptingName(value, name) {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  if (value.Metadata && value.Metadata.ScriptingName === name) {
+    return value;
+  }
+  for (const child of Object.values(value)) {
+    const found = findByScriptingName(child, name);
+    if (found) {
+      return found;
+    }
+  }
+  return null;
+}
+
 test("the Phase 3 UI preserves the Phase 2 run and evidence surface", () => {
   const qml = readWorkbenchFile("interface.qml");
 
@@ -63,6 +79,7 @@ test("the Phase 3 UI preserves the Phase 2 run and evidence surface", () => {
   }
 
   assert.match(qml, /function startRun\s*\(/);
+  assert.match(qml, /function startRun\s*\(\)\s*\{[\s\S]*?Score\.play\(\)/);
   assert.match(qml, /startValue\s*=\s*!startValue/);
   assert.match(qml, /function stopRun\s*\(/);
   assert.match(qml, /stopValue\s*=\s*!stopValue/);
@@ -141,6 +158,45 @@ test("the interface renders twelve exact SAE and Neuronpedia evidence rows", () 
   assert.match(qml, /function featureAt\s*\(/);
 });
 
+test("the interface keeps four patchable raw scalars synchronized with history", () => {
+  const qml = readWorkbenchFile("interface.qml");
+
+  assert.match(qml, /objectName: "patchableScalarList"/);
+  assert.match(qml, /property var patchableScalarKeys/);
+  assert.match(qml, /function patchableScalarAt\s*\(/);
+  assert.match(qml, /patchableScalars:\s*root\.capturePatchableScalars\(\)/);
+  for (const key of [
+    "tensor_rms",
+    "tensor_max_abs",
+    "sae_active_count",
+    "sae_top_activation",
+  ]) {
+    assert.match(qml, new RegExp(`RAI Workbench:/patchable/${key}`));
+  }
+  for (const field of [
+    "valid",
+    "value",
+    "metric",
+    "probe_id",
+    "source_slot",
+    "model",
+    "token_index",
+    "token_id",
+    "token_text",
+    "site",
+    "layer",
+    "module_path",
+    "shape",
+    "dtype",
+    "representation",
+    "feature_index",
+  ]) {
+    assert.match(qml, new RegExp(`/${field.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}"`));
+  }
+  assert.match(qml, /raw values are unchanged/i);
+  assert.match(qml, /index is an identifier, not semantic geometry/i);
+});
+
 test("the score-generated document embeds the exact Phase 1 device", () => {
   const scoreDocument = JSON.parse(readWorkbenchFile("rai-workbench.score"));
   const device = findDevice(scoreDocument, "RAI Workbench");
@@ -151,9 +207,36 @@ test("the score-generated document embeds the exact Phase 1 device", () => {
   assert.equal(device.Text.trim(), readWorkbenchFile("websocket-device.qml").trim());
 });
 
+test("the score document contains one clearly removable built-in example mapping", () => {
+  const scoreDocument = JSON.parse(readWorkbenchFile("rai-workbench.score"));
+  const example = findByScriptingName(
+    scoreDocument,
+    "EXAMPLE_patchable_tensor_rms_delete_safe",
+  );
+  const documentText = JSON.stringify(scoreDocument);
+
+  assert.ok(example, "the removable Slice 4 example process must be present");
+  assert.equal(example.uuid, "ee3a50c0-a202-4f51-a26d-be57a939997d");
+  assert.equal(example.ObjectName, "avnd_float");
+  assert.equal(example.Inlets[0].Address, "RAI Workbench:/patchable/tensor_rms/value");
+  assert.equal(example.Outlets.length, 1);
+  assert.equal(example.Outlets[0].Address, undefined);
+  assert.match(
+    documentText,
+    /RAI Workbench:\/patchable\/tensor_rms\/value/,
+  );
+  assert.equal(
+    documentText.match(/EXAMPLE_patchable_tensor_rms_delete_safe/g).length,
+    1,
+  );
+});
+
 test("the runbook documents debug and normal custom UI launches", () => {
   const readme = readWorkbenchFile("README.md");
 
   assert.match(readme, /--ui-debug\s+ossia\/rai_workbench\/interface\.qml\s+ossia\/rai_workbench\/rai-workbench\.score/);
   assert.match(readme, /--ui\s+ossia\/rai_workbench\/interface\.qml\s+ossia\/rai_workbench\/rai-workbench\.score/);
+  assert.match(readme, /four patchable scalar\s+observations/i);
+  assert.match(readme, /EXAMPLE_patchable_tensor_rms_delete_safe/);
+  assert.match(readme, /delete.*example.*observation.*remain/is);
 });

@@ -15,6 +15,8 @@ import time
 PROTOCOL_UUID = "59e81303-af24-4559-b33d-1c6f59f0f017"
 WEBSOCKET_URL = "ws://127.0.0.1:8080/ws/stream"
 RESULT_MARKER = "RAI_SCORE_DOCUMENT_CREATED"
+EXAMPLE_PROCESS_NAME = "EXAMPLE_patchable_tensor_rms_delete_safe"
+EXAMPLE_SOURCE_ADDRESS = "RAI Workbench:/patchable/tensor_rms/value"
 
 
 def generator_qml(device_qml: Path, output: Path) -> str:
@@ -53,6 +55,26 @@ Rectangle {{
         }}
       );
       console.log("RAI_SCORE_DOCUMENT_DEVICE_CREATED");
+      var interval = Score.find("rai-workbench");
+      if (interval === null || interval === undefined) {{
+        console.error("RAI_SCORE_DOCUMENT_ERROR base interval not found");
+        return;
+      }}
+      var previousExample = Score.find("{EXAMPLE_PROCESS_NAME}");
+      if (previousExample !== null && previousExample !== undefined) {{
+        Score.remove(previousExample);
+      }}
+      var example = Score.createProcess(interval, "Float", null);
+      if (example === null || example === undefined) {{
+        console.error("RAI_SCORE_DOCUMENT_ERROR example process not created");
+        return;
+      }}
+      Score.setName(example, "{EXAMPLE_PROCESS_NAME}");
+      Score.setAddress(
+        Score.inlet(example, 0),
+        "{EXAMPLE_SOURCE_ADDRESS}"
+      );
+      console.log("RAI_SCORE_DOCUMENT_EXAMPLE_CREATED");
       saveDocument.start();
     }}
   }}
@@ -86,6 +108,7 @@ def build(score_binary: str, device_qml: Path, output: Path) -> None:
 
         environment = os.environ.copy()
         environment["QT_QPA_PLATFORM"] = "offscreen"
+        environment["SCORE_AUDIO_BACKEND"] = "dummy"
         command = [
             score_binary,
             "--no-restore",

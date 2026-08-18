@@ -10,11 +10,13 @@
 
 ## Status And Decision
 
-Slices 1 through 3 are complete and verified on the Ubuntu GPU PC with installed
+Slices 1 through 4 are complete and verified on the Ubuntu GPU PC with installed
 ossia score 3.8.2. The fixed WebSocket device and compact custom interface can
 control and observe a real Gemma/SAE/Neuronpedia run, preserve synchronized
 token history and exact provenance, and apply dense-layer and probe changes to
-subsequent tokens. Slice 4, patchable scalar observations, is next.
+subsequent tokens. Four raw scalar summaries are now patchable by ordinary score
+processes. Slice 5 remains a separate native-inference decision gate and is not
+authorized by completion of this slice.
 
 The first prototype will put the visible research interface and patching
 surface inside ossia score while keeping the existing Python inference backend.
@@ -89,6 +91,10 @@ RAI Workbench:/model/name
 RAI Workbench:/observation/layer
 RAI Workbench:/observation/sae_layer
 RAI Workbench:/probes/1..8/...
+RAI Workbench:/patchable/tensor_rms/...
+RAI Workbench:/patchable/tensor_max_abs/...
+RAI Workbench:/patchable/sae_active_count/...
+RAI Workbench:/patchable/sae_top_activation/...
 RAI Workbench:/features/1..12/index
 RAI Workbench:/features/1..12/activation
 RAI Workbench:/features/1..12/description
@@ -211,9 +217,63 @@ Observed verification:
 
 ### Slice 4: Patchable observations
 
-- Make selected scalar observations usable by normal score processes.
-- Add one small, clearly labelled example mapping without changing the raw
-  observations or external connector contracts.
+Status: complete
+
+The fixed selection is intentionally limited to existing numeric fields from
+the first non-SAE probe and first SAE probe in backend token-event order:
+
+| Stable score subtree | Exact backend source |
+| --- | --- |
+| `/patchable/tensor_rms` | tensor `summary.rms` |
+| `/patchable/tensor_max_abs` | tensor `summary.max_abs` |
+| `/patchable/sae_active_count` | SAE `summary.active_count` |
+| `/patchable/sae_top_activation` | SAE `summary.top_activation` |
+
+Each subtree contains `valid`, the unchanged numeric `value`, metric, probe ID,
+source slot, and exact model, token index/ID/text, site, layer, module path,
+shape, dtype, and representation provenance. The top-activation subtree also
+retains the literal SAE `feature_index`. That index identifies a sparse feature;
+it is not interpreted as geometry or distance. The scalar transaction is
+delivered before `/token/revision`, preserving synchronized history. Missing
+tensor or SAE sources invalidate their corresponding rows rather than reusing
+stale provenance.
+
+The committed score document includes one built-in `Float` process named
+`EXAMPLE_patchable_tensor_rms_delete_safe`. Only its inlet is addressed, at
+`RAI Workbench:/patchable/tensor_rms/value`. It does not write back to the
+observation, normalize the value, assign artistic meaning, or supply data to
+the interface. `interface.qml` starts the normal score transport when a run is
+started, so arbitrary user processes patched to the scalar tree are active.
+The labelled example can be deleted or disabled without affecting observation
+delivery or any run/history behavior.
+
+Raw dense vectors and complete sparse SAE records stay in the local WebSocket
+payload. Slice 4 does not change inference, `/rai/v1`, the bounded OSCQuery
+tree, or the Windows receiver.
+
+Observed verification:
+
+- eleven adapter/device tests and nine interface/document tests pass, including
+  exact raw-value/provenance delivery, fixed selection, missing-source
+  invalidation, no vector/sparse expansion, and exactly one removable example;
+- deterministic installed-score runs pass in normal `--ui` and development
+  `--ui-debug` modes. Two synchronized tokens preserve values `0.5` and `10.5`,
+  move the dense and residual-probe layer from L22 to L7 for token two, restore
+  token one's scalar history, and deliver the latest unchanged `10.5` to the
+  ordinary `Float` process inlet;
+- a separate installed-score run removes the example from a staged document:
+  its inlet remains unbound while the complete two-token observations,
+  provenance, history, and live changes remain unchanged;
+- the full 111-test server suite, unchanged 165-reference browser behavior
+  harness, JavaScript syntax, generated-device synchronization, QML/document
+  contracts, and earlier installed-score smoke checks pass;
+- a real RTX 4060 Ti Gemma/SAE run exposed token-one tensor RMS
+  `794.3080444335938`, peak `25728`, SAE active count `61`, and top activation
+  `3320.06103515625` with literal feature 14994. Token two moved the tensor
+  probe to `model.layers.7` and reported RMS `87.42140197753906`; the normal
+  `Float` inlet received that exact value. Every scalar equalled its source
+  field in the browser WebSocket event, token-one history restored the original
+  value/provenance, and the fixed layer-22 SAE remained unchanged.
 
 ### Slice 5: Native inference decision gate
 

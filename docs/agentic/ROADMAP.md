@@ -393,13 +393,13 @@ The focused contract and exact namespace are in
 
 ## Phase 11: Ossia Score-Native Interface
 
-Status: Slices 1 through 3 complete; Slice 4 is next
+Status: Slices 1 through 4 complete; Slice 5 remains a decision gate
 
 Goal: make ossia score the visible research interface and patching environment
 while initially preserving the verified FastAPI/PyTorch Gemma, Gemma Scope SAE,
 and Neuronpedia backend.
 
-Implemented Slices 1 through 3:
+Implemented Slices 1 through 4:
 
 - Added a self-contained score 3.8.2 WebSocket device with local prompt and
   maximum-token controls plus toggle-based Start and Stop actions.
@@ -430,12 +430,24 @@ Implemented Slices 1 through 3:
   from L22 to L7 while the 65,536-wide SAE remained attached to L22; historical
   token selection restored the first observation. The temporary capture was
   removed.
+- Added four fixed patchable scalar subtrees for unchanged tensor RMS/peak and
+  SAE active-count/top-activation values. Each preserves exact model, token,
+  site, layer, module, shape, dtype, and representation provenance, plus the
+  literal top SAE identifier, before the synchronized token revision.
+- Added one clearly labelled, delete-safe built-in `Float` example whose input
+  receives tensor RMS. A separate installed-score removal run proves that the
+  observation tree, history, and live controls do not depend on the example.
+- Verified eleven adapter/device tests, nine interface/document tests, all 111
+  server tests, the unchanged 165-reference browser harness, normal/debug
+  installed-score runs, and a real two-token RTX 4060 Ti run against the browser
+  WebSocket event fields. The real process inlet received the exact token-two
+  RMS `87.42140197753906` after the live L22-to-L7 move; raw vectors, complete
+  sparse SAE data, inference, and all external connector contracts remain
+  unchanged.
 
-Remaining slices:
+Remaining decision gate:
 
-4. Make selected scalar observations patchable by ordinary score processes and
-   prove the path with one removable example.
-5. Only after the interface is verified, decide whether native ONNX/Avendish
+5. Decide in a new focused investigation whether native ONNX/Avendish
    inference is justified. Do not port inference without a new approved spec.
 
 The focused contract is in `specs/ossia-score-interface.md`. The sequential
