@@ -25,7 +25,7 @@ function findDevice(value, name) {
   return null;
 }
 
-test("the Phase 2 UI exposes only the required run and evidence surface", () => {
+test("the Phase 3 UI preserves the Phase 2 run and evidence surface", () => {
   const qml = readWorkbenchFile("interface.qml");
 
   assert.match(qml, /import QtQuick\.Controls/);
@@ -66,9 +66,65 @@ test("the Phase 2 UI exposes only the required run and evidence surface", () => 
   assert.match(qml, /startValue\s*=\s*!startValue/);
   assert.match(qml, /function stopRun\s*\(/);
   assert.match(qml, /stopValue\s*=\s*!stopValue/);
-  assert.match(qml, /JSON\.stringify\(root\.tokenText\)/);
+  assert.match(qml, /JSON\.stringify\(root\.snapshotValue\("tokenText", root\.tokenText\)\)/);
   assert.doesNotMatch(qml, /font\.family:\s*"monospace"/);
-  assert.doesNotMatch(qml, /model\.layer_profile|residual vector|probe rack/i);
+  assert.doesNotMatch(qml, /\/vector\/\d+|values\s*:\s*\[/i);
+});
+
+test("the research view exposes synchronized token history and truthful provenance", () => {
+  const qml = readWorkbenchFile("interface.qml");
+
+  for (const objectName of [
+    "tokenTimeline",
+    "historyPosition",
+    "modelProvenance",
+    "denseProvenance",
+    "saeProvenance",
+    "selectedBlockDetails",
+    "probeSummaryList",
+  ]) {
+    assert.match(qml, new RegExp(`objectName: "${objectName}"`));
+  }
+  assert.match(qml, /property var tokenHistory/);
+  assert.match(qml, /function captureCurrentSnapshot\s*\(/);
+  assert.match(qml, /function selectHistory\s*\(/);
+  assert.match(qml, /function followLatest\s*\(/);
+  assert.match(qml, /tokenRevision/);
+  assert.match(qml, /JSON\.stringify/);
+  assert.match(qml, /module path/i);
+  assert.match(qml, /representation/i);
+  assert.match(qml, /shape/i);
+});
+
+test("the research view maps real blocks and keeps dense and SAE layers distinct", () => {
+  const qml = readWorkbenchFile("interface.qml");
+
+  assert.match(qml, /id: blockRepeater/);
+  assert.match(qml, /model: root\.modelLayerCount/);
+  assert.match(qml, /RAI Workbench:\/blocks\//);
+  assert.match(qml, /attention_type/);
+  assert.match(qml, /delta_rms/);
+  assert.match(qml, /cosine_to_previous/);
+  assert.match(qml, /RAI Workbench:\/observation\/requested_layer/);
+  assert.match(qml, /function setObservationLayer\s*\(/);
+  assert.match(qml, /fixed SAE|SAE fixed/i);
+  assert.match(qml, /not semantic|no semantic proximity/i);
+});
+
+test("the interface renders eight bounded provenance-bearing probe summaries and controls", () => {
+  const qml = readWorkbenchFile("interface.qml");
+
+  assert.match(qml, /id: probeSummaryRepeater/);
+  assert.match(qml, /id: probeControlRepeater/);
+  assert.match(qml, /model: 8/);
+  assert.match(qml, /RAI Workbench:\/probes\//);
+  assert.match(qml, /RAI Workbench:\/probe_controls\//);
+  assert.match(qml, /function setProbeLayer\s*\(/);
+  assert.match(qml, /module_path/);
+  assert.match(qml, /token_index/);
+  assert.match(qml, /dtype/);
+  assert.match(qml, /representation/);
+  assert.doesNotMatch(qml, /RAI Workbench:\/probes\/[^"\n]*vector/);
 });
 
 test("the interface renders twelve exact SAE and Neuronpedia evidence rows", () => {

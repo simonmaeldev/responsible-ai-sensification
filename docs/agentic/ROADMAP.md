@@ -393,13 +393,13 @@ The focused contract and exact namespace are in
 
 ## Phase 11: Ossia Score-Native Interface
 
-Status: Slices 1 and 2 complete; Slice 3 is next
+Status: Slices 1 through 3 complete; Slice 4 is next
 
 Goal: make ossia score the visible research interface and patching environment
 while initially preserving the verified FastAPI/PyTorch Gemma, Gemma Scope SAE,
 and Neuronpedia backend.
 
-Implemented Slices 1 and 2:
+Implemented Slices 1 through 3:
 
 - Added a self-contained score 3.8.2 WebSocket device with local prompt and
   maximum-token controls plus toggle-based Start and Stop actions.
@@ -416,11 +416,23 @@ Implemented Slices 1 and 2:
 - Verified static interface/document contracts, normal `--ui` and development
   `--ui-debug` fixture runs, an inspected 1120×760 offscreen capture, and one
   real token through the custom interface without QML/binding diagnostics.
+- Added synchronized selectable token history, all 26 real Gemma blocks and
+  attention types, measured layer profiles, an independently selectable dense
+  observation layer, a visibly fixed layer-22 SAE, and eight bounded
+  provenance-bearing probe controls and summaries.
+- Preserved exact model/token/site/layer/module/shape/dtype/representation
+  fields while keeping raw vectors out of the fixed score tree and explicitly
+  rejecting semantic distance claims for coordinates and feature indices.
+- Verified nine adapter tests, seven interface tests, all 106 server tests, the
+  unchanged 165-element browser harness, deterministic normal/debug score runs,
+  a temporary inspected 1440×900 acceptance render, and a real two-token RTX
+  4060 Ti run. The real second token moved dense and residual-probe observation
+  from L22 to L7 while the 65,536-wide SAE remained attached to L22; historical
+  token selection restored the first observation. The temporary capture was
+  removed.
 
 Remaining slices:
 
-3. Add the real Gemma block map, independent dense observation layer, fixed SAE
-   layer, token history, and bounded probe summaries.
 4. Make selected scalar observations patchable by ordinary score processes and
    prove the path with one removable example.
 5. Only after the interface is verified, decide whether native ONNX/Avendish

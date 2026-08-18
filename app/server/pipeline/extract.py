@@ -49,6 +49,14 @@ class TokenAnalysis(BaseModel):
     active_features: list[ActiveFeature]
     probe_values: dict[str, object] = Field(default_factory=dict)
     probe_layer: int | None = None
+    probe_module_path: str = ""
+    probe_shape: list[int] = Field(default_factory=list)
+    probe_dtype: str = "float32"
+    probe_representation: str = "dense_residual"
+    sae_module_path: str = ""
+    sae_shape: list[int] = Field(default_factory=list)
+    sae_dtype: str = "sparse_float32"
+    sae_representation: str = "sparse_sae"
     probes: list[dict[str, object]] = Field(default_factory=list)
 
 
@@ -191,21 +199,26 @@ def load_sae(
 # ---------------------------------------------------------------------------
 
 
-def _get_decoder_layers(model):
-    """Return the nn.ModuleList of decoder layers for a CausalLM model.
+def _get_decoder_layers_and_prefix(model):
+    """Return decoder layers and their exact module-path prefix.
 
     Gemma-3 1b uses Gemma2ForCausalLM → model.model.layers
     Gemma-3 4b uses Gemma3ForCausalLM → model.model.language_model.layers
     """
     inner = model.model  # unwrap the CausalLM shell
     if hasattr(inner, "layers"):
-        return inner.layers
+        return inner.layers, "model.layers"
     if hasattr(inner, "language_model") and hasattr(inner.language_model, "layers"):
-        return inner.language_model.layers
+        return inner.language_model.layers, "model.language_model.layers"
     raise AttributeError(
         f"Cannot locate decoder layers in {type(inner).__name__}. "
         "Expected .layers or .language_model.layers."
     )
+
+
+def _get_decoder_layers(model):
+    """Return the nn.ModuleList of decoder layers for a CausalLM model."""
+    return _get_decoder_layers_and_prefix(model)[0]
 
 
 def _safe_layer_index(value: object, layer_count: int, fallback: int) -> int:
@@ -409,7 +422,7 @@ def inspect_live(
         if step == 0:
             print("[inspect_live] Running first forward pass...", file=sys.stderr, flush=True)
         t0 = time.perf_counter()
-        decoder_layers = _get_decoder_layers(model)
+        decoder_layers, decoder_module_prefix = _get_decoder_layers_and_prefix(model)
         requested_layer = observation_layer() if callable(observation_layer) else observation_layer
         probe_layer = _safe_layer_index(
             layer if requested_layer is None else requested_layer,
@@ -502,6 +515,7 @@ def inspect_live(
                 active_feature_payloads,
                 sae_layer=layer,
                 sae_width=str(getattr(neuronpedia, "width", "unknown")),
+                sae_size=int(sae_acts.numel()),
                 model_id=str(getattr(model, "name_or_path", "") or getattr(getattr(model, "config", None), "_name_or_path", "") or "unknown"),
                 token_index=step + 1,
             )
@@ -515,6 +529,17 @@ def inspect_live(
             active_features=active_features,
             probe_values=probe_values,
             probe_layer=probe_layer,
+            probe_module_path=f"{decoder_module_prefix}.{probe_layer}",
+            probe_shape=[int(probe_residual_last.numel())],
+            probe_dtype="float32",
+            probe_representation="dense_residual",
+            sae_module_path=(
+                "gemma_scope.resid_post."
+                f"layer_{layer}.width_{getattr(neuronpedia, 'width', 'unknown')}"
+            ),
+            sae_shape=[int(sae_acts.numel())],
+            sae_dtype="sparse_float32",
+            sae_representation="sparse_sae",
             probes=probe_observations,
         )
 

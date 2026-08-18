@@ -10,10 +10,11 @@
 
 ## Status And Decision
 
-Slices 1 and 2 are complete and verified on the Ubuntu GPU PC with installed
-ossia score 3.8.2. The fixed WebSocket device and minimal custom interface can
-control and observe a real Gemma/SAE/Neuronpedia run. Slice 3, the research
-observation views, is next.
+Slices 1 through 3 are complete and verified on the Ubuntu GPU PC with installed
+ossia score 3.8.2. The fixed WebSocket device and compact custom interface can
+control and observe a real Gemma/SAE/Neuronpedia run, preserve synchronized
+token history and exact provenance, and apply dense-layer and probe changes to
+subsequent tokens. Slice 4, patchable scalar observations, is next.
 
 The first prototype will put the visible research interface and patching
 surface inside ossia score while keeping the existing Python inference backend.
@@ -181,10 +182,32 @@ the verified debug mode and the committed score-generated document as its seed.
 
 ### Slice 3: Research observation views
 
+Status: complete
+
 - Add the real Gemma block map, independent dense observation layer, fixed SAE
   attachment, token history, and bounded probe summaries.
 - Preserve model, token, layer, module path, shape, and representation
   provenance. Do not infer semantic proximity from coordinate or feature index.
+
+Observed verification:
+
+- nine adapter/device tests and seven interface/document tests pass;
+- deterministic installed-score runs pass in normal `--ui` and development
+  `--ui-debug` modes, including exact two-token history restoration, all 26
+  Gemma blocks, live dense/probe movement from L22 to L7, fixed SAE L22, and
+  eight bounded summary slots;
+- the full 106-test server suite and unchanged 165-element browser behavior
+  harness pass;
+- a temporary 1440×900 offscreen acceptance render showed both history entries,
+  all 26 blocks without horizontal overflow, distinct L7 dense selection and
+  fixed L22 SAE markers, and readable exact historical evidence; it was removed;
+- a real RTX 4060 Ti run exposed tokens `"-"` and `"free"`; token two used
+  dense and residual-probe path `model.layers.7` after the live edit while the
+  SAE remained at `gemma_scope.resid_post.layer_22.width_65k` with exact shape
+  `[65536]`; both tokens retained active SAE and Neuronpedia evidence;
+- the model-to-interface handoff now waits until the current timed token has
+  been forwarded before starting the next model step, making the existing live
+  update contract effective for score as well as the browser.
 
 ### Slice 4: Patchable observations
 

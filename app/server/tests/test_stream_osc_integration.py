@@ -2,16 +2,17 @@
 
 import asyncio
 import json
+import threading
 from unittest.mock import patch
 
 from app.server.pipeline.osc_output import OscResult
 from app.server.pipeline.ossia_probe_output import OssiaResult
 from app.server.routers.stream import (
     _forward_token_event,
+    _put_token_event,
     _sync_live_osc_controls,
     _sync_live_ossia,
     _stop_session,
-    _token_event_queue,
 )
 from app.server.session import PipelineParams
 
@@ -64,10 +65,38 @@ class StopSession:
         self.cancelled = True
 
 
-def test_generation_queue_keeps_only_one_token_ahead_for_live_probe_edits():
-    queue = _token_event_queue()
+def test_generation_waits_until_forwarding_finishes_before_next_model_step():
+    class ImmediateLoop:
+        @staticmethod
+        def call_soon_threadsafe(callback, *args):
+            callback(*args)
 
-    assert queue.maxsize == 1
+    class RecordingQueue:
+        def __init__(self):
+            self.queued = threading.Event()
+            self.value = None
+
+        def put_nowait(self, value):
+            self.value = value
+            self.queued.set()
+
+    queue = RecordingQueue()
+    event = {"type": "token", "token": "first"}
+    observer_event = {"type": "activation_token", "sequence": 1}
+    producer = threading.Thread(
+        target=_put_token_event,
+        args=(queue, event, ImmediateLoop(), observer_event),
+    )
+    producer.start()
+
+    assert queue.queued.wait(timeout=1)
+    queued_event, activation_event, delivered = queue.value
+    assert queued_event is event
+    assert activation_event is observer_event
+    assert producer.is_alive()
+    delivered.set()
+    producer.join(timeout=1)
+    assert producer.is_alive() is False
 
 
 def test_stop_action_only_sends_fallback_status_when_no_pipeline_will_send_it():

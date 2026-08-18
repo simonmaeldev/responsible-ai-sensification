@@ -117,8 +117,47 @@ async def _receive_command(ws: WebSocket) -> dict:
 
 
 def _token_event_queue() -> asyncio.Queue:
-    """Keep one-token backpressure so live probe edits reach model hooks."""
+    """Keep a bounded handoff between model generation and event forwarding."""
     return asyncio.Queue(maxsize=1)
+
+
+def _put_token_event(
+    queue: asyncio.Queue,
+    event: dict,
+    event_loop: asyncio.AbstractEventLoop,
+    activation_event: dict | None = None,
+) -> None:
+    """Block the model thread until the current token has been presented.
+
+    Queue capacity alone lets generation begin the next forward as soon as the
+    consumer calls ``get``. The delivery event keeps the live parameter window
+    aligned with the token the browser or score interface just saw.
+    """
+    delivered = threading.Event()
+    event_loop.call_soon_threadsafe(
+        queue.put_nowait,
+        (event, activation_event, delivered),
+    )
+    delivered.wait()
+
+
+def _observation_payload(token_analysis, params: PipelineParams) -> dict:
+    """Describe the actual dense site and fixed SAE representation for a token."""
+    return {
+        "model": params.model,
+        "site": "residual_post",
+        "layer": token_analysis.probe_layer,
+        "module_path": token_analysis.probe_module_path,
+        "shape": token_analysis.probe_shape,
+        "dtype": token_analysis.probe_dtype,
+        "representation": token_analysis.probe_representation,
+        "sae_layer": params.layer,
+        "sae_width": params.width,
+        "sae_module_path": token_analysis.sae_module_path,
+        "sae_shape": token_analysis.sae_shape,
+        "sae_dtype": token_analysis.sae_dtype,
+        "sae_representation": token_analysis.sae_representation,
+    }
 
 
 async def _stop_session(ws: WebSocket, session: PipelineSession) -> None:
@@ -672,12 +711,10 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
                                 {**probe, "model": params.model}
                                 for probe in token_analysis.probes
                             ],
-                            "observation": {
-                                "model": params.model,
-                                "layer": token_analysis.probe_layer,
-                                "sae_layer": params.layer,
-                                "sae_width": params.width,
-                            },
+                            "observation": _observation_payload(
+                                token_analysis,
+                                params,
+                            ),
                             "emitter": emitter_mapping_runtime.build_payload(
                                 active_features=active_features,
                                 notes=notes,
@@ -705,9 +742,12 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
                             sequence=token_count,
                         )
                         logger.debug("Token %d generated in %dms: %r", token_count, elapsed_ms, token_analysis.token)
-                        asyncio.run_coroutine_threadsafe(
-                            queue.put((event, activation_event)), event_loop
-                        ).result()
+                        _put_token_event(
+                            queue,
+                            event,
+                            event_loop,
+                            activation_event,
+                        )
 
                 await asyncio.to_thread(_generate)
                 print(f"[pipeline] Generation complete: {token_count} tokens.", file=sys.stderr, flush=True)
@@ -716,8 +756,7 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
                 logger.exception("Generation error (producer)")
                 print(f"[pipeline] Generation error: {exc}", file=sys.stderr, flush=True)
                 asyncio.run_coroutine_threadsafe(
-                    queue.put(({"type": "error", "message": str(exc)}, None)),
-                    event_loop,
+                    queue.put({"type": "error", "message": str(exc)}), event_loop
                 ).result()
             finally:
                 await queue.put(None)  # always signal done, even on error
@@ -726,32 +765,41 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
             # Initial playback: drain the queue
             first_token_ready = False
             while True:
-                item = await queue.get()
-                if item is None:
+                queued = await queue.get()
+                if queued is None:
+                    queue.task_done()
                     break
-                event, activation_event = item
-                collected.append((event, activation_event))
-                if event.get("type") == "token":
-                    if not first_token_ready:
-                        first_token_ready = True
-                        await _send_loading(
-                            ws,
-                            "generation",
-                            "complete",
-                            "First token ready · streaming live",
-                        )
-                    await _forward_token_event(
-                        ws,
-                        event,
-                        params,
-                        osc_output,
-                        ossia_output,
-                        activation_event=activation_event,
-                    )
+                if isinstance(queued, tuple) and len(queued) == 3:
+                    event, activation_event, delivered = queued
                 else:
-                    await _send(ws, event)
-                if params.mode == "timed":
-                    await asyncio.sleep(60.0 / params.bpm)
+                    event, activation_event, delivered = queued, None, None
+                try:
+                    collected.append((event, activation_event))
+                    if event.get("type") == "token":
+                        if not first_token_ready:
+                            first_token_ready = True
+                            await _send_loading(
+                                ws,
+                                "generation",
+                                "complete",
+                                "First token ready · streaming live",
+                            )
+                        await _forward_token_event(
+                            ws,
+                            event,
+                            params,
+                            osc_output,
+                            ossia_output,
+                            activation_event=activation_event,
+                        )
+                    else:
+                        await _send(ws, event)
+                    if params.mode == "timed":
+                        await asyncio.sleep(60.0 / params.bpm)
+                finally:
+                    if delivered is not None:
+                        delivered.set()
+                    queue.task_done()
 
             if not first_token_ready:
                 await _send_loading(

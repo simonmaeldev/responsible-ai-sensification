@@ -36,16 +36,22 @@ Ossia.WebSockets {
     return [
       { name: "enabled", type: Ossia.Type.Bool, value: false },
       { name: "id", type: Ossia.Type.String, value: "" },
+      { name: "model", type: Ossia.Type.String, value: "" },
+      { name: "token_index", type: Ossia.Type.Int, value: -1 },
       { name: "site", type: Ossia.Type.String, value: "" },
       { name: "layer", type: Ossia.Type.Int, value: -1 },
       { name: "module_path", type: Ossia.Type.String, value: "" },
       { name: "capture", type: Ossia.Type.String, value: "" },
       { name: "publish", type: Ossia.Type.String, value: "" },
       { name: "shape", type: Ossia.Type.String, value: "" },
+      { name: "dtype", type: Ossia.Type.String, value: "" },
+      { name: "representation", type: Ossia.Type.String, value: "" },
       { name: "rms", type: Ossia.Type.Float, value: 0.0 },
       { name: "max_abs", type: Ossia.Type.Float, value: 0.0 },
       { name: "mean", type: Ossia.Type.Float, value: 0.0 },
       { name: "active_count", type: Ossia.Type.Int, value: 0 },
+      { name: "max_activation", type: Ossia.Type.Float, value: 0.0 },
+      { name: "total_activation", type: Ossia.Type.Float, value: 0.0 },
       { name: "top_index", type: Ossia.Type.Int, value: -1 },
       { name: "top_activation", type: Ossia.Type.Float, value: 0.0 },
     ];
@@ -55,6 +61,73 @@ Ossia.WebSockets {
     var nodes = [];
     for (var slot = 1; slot <= 8; slot += 1) {
       nodes.push({ name: String(slot), children: root.probeChildren() });
+    }
+    return nodes;
+  }
+
+  function probeRackFromDevice() {
+    var probes = [];
+    for (var slot = 1; slot <= 8; slot += 1) {
+      var prefix = "/probe_controls/" + slot;
+      var identifier = String(Device.read(prefix + "/id") || "");
+      var site = String(Device.read(prefix + "/site") || "");
+      if (!identifier || !site) {
+        continue;
+      }
+      probes.push({
+        id: identifier,
+        site: site,
+        layer: Number(Device.read(prefix + "/layer")),
+        capture: String(Device.read(prefix + "/capture") || "summary"),
+        enabled: Boolean(Device.read(prefix + "/enabled")),
+        publish: Boolean(Device.read(prefix + "/publish")),
+      });
+    }
+    return probes;
+  }
+
+  function probeControlRequest() {
+    return root.probeRackMessage(root.probeRackFromDevice());
+  }
+
+  function probeControlChildren(slot) {
+    var residual = slot === 1;
+    var sparse = slot === 2;
+    return [
+      { name: "enabled", type: Ossia.Type.Bool, value: residual || sparse },
+      { name: "id", type: Ossia.Type.String, value: residual ? "residual" : (sparse ? "sae" : "") },
+      { name: "site", type: Ossia.Type.String, value: residual ? "residual_post" : (sparse ? "sae" : "") },
+      { name: "layer", type: Ossia.Type.Int, value: 22 },
+      { name: "capture", type: Ossia.Type.String, value: "summary" },
+      { name: "publish", type: Ossia.Type.Bool, value: residual || sparse },
+    ];
+  }
+
+  function probeControlNodes() {
+    var nodes = [];
+    for (var slot = 1; slot <= 8; slot += 1) {
+      nodes.push({ name: String(slot), children: root.probeControlChildren(slot) });
+    }
+    return nodes;
+  }
+
+  function blockChildren() {
+    return [
+      { name: "enabled", type: Ossia.Type.Bool, value: false },
+      { name: "attention_type", type: Ossia.Type.String, value: "" },
+      { name: "profile_valid", type: Ossia.Type.Bool, value: false },
+      { name: "rms", type: Ossia.Type.Float, value: 0.0 },
+      { name: "max_abs", type: Ossia.Type.Float, value: 0.0 },
+      { name: "has_previous", type: Ossia.Type.Bool, value: false },
+      { name: "delta_rms", type: Ossia.Type.Float, value: 0.0 },
+      { name: "cosine_to_previous", type: Ossia.Type.Float, value: 0.0 },
+    ];
+  }
+
+  function blockNodes() {
+    var nodes = [];
+    for (var slot = 1; slot <= 34; slot += 1) {
+      nodes.push({ name: String(slot), children: root.blockChildren() });
     }
     return nodes;
   }
@@ -106,7 +179,9 @@ Ossia.WebSockets {
               root.currentTokenIndex = -1;
               return root.startMessage(
                 Device.read("/run/prompt"),
-                Device.read("/run/max_tokens")
+                Device.read("/run/max_tokens"),
+                Device.read("/observation/requested_layer"),
+                root.probeRackFromDevice()
               );
             },
           },
@@ -135,20 +210,61 @@ Ossia.WebSockets {
           { name: "id", type: Ossia.Type.Int, value: -1 },
           { name: "text", type: Ossia.Type.String, value: "" },
           { name: "elapsed_ms", type: Ossia.Type.Float, value: 0.0 },
+          { name: "revision", type: Ossia.Type.Int, value: -1 },
         ],
       },
       {
         name: "model",
         children: [
           { name: "name", type: Ossia.Type.String, value: "" },
+          { name: "type", type: Ossia.Type.String, value: "" },
+          { name: "layer_count", type: Ossia.Type.Int, value: 0 },
+          { name: "hidden_size", type: Ossia.Type.Int, value: 0 },
+          { name: "intermediate_size", type: Ossia.Type.Int, value: 0 },
+          { name: "attention_heads", type: Ossia.Type.Int, value: 0 },
+          { name: "key_value_heads", type: Ossia.Type.Int, value: 0 },
+          { name: "head_dim", type: Ossia.Type.Int, value: 0 },
+          { name: "sliding_window", type: Ossia.Type.Int, value: 0 },
+          { name: "max_position_embeddings", type: Ossia.Type.Int, value: 0 },
         ],
       },
       {
         name: "observation",
         children: [
+          {
+            name: "requested_layer",
+            type: Ossia.Type.Int,
+            value: 22,
+            request: function() {
+              return root.updateParamsMessage({
+                observation_layer: Device.read("/observation/requested_layer"),
+              });
+            },
+          },
+          { name: "site", type: Ossia.Type.String, value: "" },
           { name: "layer", type: Ossia.Type.Int, value: -1 },
+          { name: "module_path", type: Ossia.Type.String, value: "" },
+          { name: "shape", type: Ossia.Type.String, value: "" },
+          { name: "dtype", type: Ossia.Type.String, value: "" },
+          { name: "representation", type: Ossia.Type.String, value: "" },
           { name: "sae_layer", type: Ossia.Type.Int, value: -1 },
+          { name: "sae_module_path", type: Ossia.Type.String, value: "" },
+          { name: "sae_shape", type: Ossia.Type.String, value: "" },
+          { name: "sae_dtype", type: Ossia.Type.String, value: "" },
+          { name: "sae_representation", type: Ossia.Type.String, value: "" },
         ],
+      },
+      { name: "blocks", children: root.blockNodes() },
+      {
+        name: "probe_controls",
+        children: [
+          {
+            name: "apply",
+            type: Ossia.Type.Bool,
+            value: false,
+            request: root.probeControlRequest,
+          },
+        ].concat(root.probeControlNodes()),
       },
       { name: "probes", children: root.probeNodes() },
       { name: "features", children: root.featureNodes() },

@@ -155,6 +155,27 @@ OSC/OSCQuery moves live performance data.
 
 ## Recent Setup
 
+- Completed ossia score interface Phase 3 on the Ubuntu GPU PC. The compact
+  custom interface now shows selectable synchronized token history, all 26 real
+  Gemma blocks and attention types, per-token layer profiles, a live dense
+  observation layer, the visibly fixed layer-22 SAE, eight bounded probe
+  controls/summaries, and twelve strongest SAE/Neuronpedia evidence rows.
+- Exact model, token, site, layer, runtime module path, shape, dtype, and
+  representation provenance is preserved. Dense coordinates and SAE feature
+  indices are explicitly not presented as semantic geometry, and raw vectors
+  remain local rather than becoming score or OSCQuery scalar trees.
+- Corrected token backpressure so the model thread waits until the current
+  timed token has been forwarded before beginning the next forward. A real
+  RTX 4060 Ti run showed token `"-"` at dense/probe L22, applied live score
+  edits, then showed token `"free"` at `model.layers.7`; the SAE stayed at
+  `gemma_scope.resid_post.layer_22.width_65k` with shape `[65536]`. Selecting
+  history restored token one. Test-owned score/server processes stopped.
+- Phase 3 verification passed nine adapter tests, seven interface/document
+  tests, deterministic normal/debug installed-score transactions, the complete
+  106-test server suite, JavaScript syntax, and the unchanged 165-element
+  browser behavior harness. A temporary 1440×900 render showed both history
+  entries, all 26 blocks without horizontal overflow, distinct dense/SAE
+  markers, and readable exact evidence; it was inspected and removed.
 - Completed ossia score interface Phase 2 on the Ubuntu GPU PC. The repository
   now contains a minimal custom `interface.qml` and score-generated
   `rai-workbench.score` document. The UI provides prompt/max-token Run and Stop
@@ -470,17 +491,18 @@ background only; do not import from it directly unless asked.
 
 ## Current App Direction
 
-The ossia score-native workbench is active on the Ubuntu GPU PC. Phases 1 and 2
+The ossia score-native workbench is active on the Ubuntu GPU PC. Phases 1–3
 keep the existing FastAPI, PyTorch Gemma, Gemma Scope SAE, and Neuronpedia
 runtime and connect score 3.8.2 through a verified WebSocket device plus a
-minimal custom interface. The interface controls and displays real token and
-SAE/Neuronpedia evidence. score's older Qwen-specific Language Model process is
-not the research inference path.
+compact custom interface. The interface controls and displays real token
+history, block/profile data, dense and fixed-SAE provenance, bounded probe
+summaries, and SAE/Neuronpedia evidence. score's older Qwen-specific Language
+Model process is not the research inference path.
 
-The next target is Phase 3: add the real Gemma block map, independent dense
-observation layer, fixed SAE attachment, token history, and bounded probe
-summaries to the custom interface. The browser remains the reference and
-fallback while interface parity is built. The phased contract is in
+The next target is Phase 4: expose a deliberately selected set of scalar
+observations to ordinary score processes and prove the path with one removable
+example mapping. The browser remains the reference and fallback while interface
+parity is built. The phased contract is in
 `specs/ossia-score-interface.md`; restart prompts and advance gates are in
 `docs/agentic/PROMPTS.md`.
 

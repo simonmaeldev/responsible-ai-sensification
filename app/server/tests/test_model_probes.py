@@ -146,6 +146,7 @@ def test_sae_probe_reports_sparse_measurements_at_only_the_trained_layer():
         ],
         sae_layer=22,
         sae_width="65k",
+        sae_size=65536,
         model_id="google/gemma-3-1b-pt",
         token_index=3,
     )
@@ -160,7 +161,7 @@ def test_sae_probe_reports_sparse_measurements_at_only_the_trained_layer():
             "publish": True,
             "model": "google/gemma-3-1b-pt",
             "token_index": 3,
-            "shape": [65000],
+            "shape": [65536],
             "dtype": "sparse_float32",
             "summary": {
                 "active_count": 2,

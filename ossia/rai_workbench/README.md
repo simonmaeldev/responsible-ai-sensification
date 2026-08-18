@@ -1,11 +1,14 @@
 # RAI Workbench for ossia score
 
-Phase 2 provides a minimal score-native interface for the existing Gemma,
-Gemma Scope SAE, and Neuronpedia backend. The custom QML UI controls the saved
-`RAI Workbench` WebSocket device and shows exact token and feature evidence.
+Phase 3 provides a compact score-native research interface for the existing
+Gemma, Gemma Scope SAE, and Neuronpedia backend. The custom QML UI controls the
+saved `RAI Workbench` WebSocket device and keeps exact token history, the real
+Gemma block map, dense and fixed-SAE provenance, bounded probe summaries, and
+SAE/Neuronpedia evidence synchronized.
 
-The model block map, token history, probe editor, raw vectors, native inference,
-and external connector changes belong to later phases and are not included.
+Raw vectors stay in the local WebSocket payload and are not expanded into the
+score address tree. Native inference and external connector changes belong to
+later phases and are not included.
 
 ## Requirements
 
@@ -34,9 +37,12 @@ ossia-score --ui ossia/rai_workbench/interface.qml ossia/rai_workbench/rai-workb
 ```
 
 Enter a prompt, choose a maximum token count, and press **Run prompt**. The UI
-shows connection/loading/error state, the exact JSON-quoted token and token ID,
-and twelve strongest active SAE rows. Each row shows the literal feature index,
-raw activation to six decimal places, and the available Neuronpedia description.
+shows connection/loading/error state, selectable exact-token history, all real
+Gemma blocks, a selectable dense observation layer, the visibly fixed SAE
+attachment, eight bounded probe-control/summary slots, and twelve strongest
+active SAE rows. Provenance includes the exact model, token, site, layer, module
+path, shape, dtype, and representation. Block position, dense coordinate, and
+SAE feature index are not presented as semantic distance.
 
 The backend owns one shared session. Use score or the browser as the run
 controller, not both simultaneously.
@@ -75,13 +81,23 @@ UV_CACHE_DIR=/tmp/rai-uv-cache uv run python \
   ossia/rai_workbench/tests/run_interface_smoke.py --debug
 ```
 
-The real smoke test starts and stops its own FastAPI process, requests one
-Gemma token through the custom interface, and requires loading, running, done,
-exact token/ID, raw SAE activation, and Neuronpedia evidence:
+The Slice 3 checks exercise two synchronized tokens, select historical evidence,
+and require live dense-layer and probe changes on token two:
 
 ```bash
 UV_CACHE_DIR=/tmp/rai-uv-cache uv run python \
-  ossia/rai_workbench/tests/run_interface_real_smoke.py
+  ossia/rai_workbench/tests/run_research_interface_smoke.py
+UV_CACHE_DIR=/tmp/rai-uv-cache uv run python \
+  ossia/rai_workbench/tests/run_research_interface_smoke.py --debug
+```
+
+The real Slice 3 smoke test starts and stops its own FastAPI process, requests
+two Gemma tokens through the custom interface, and compares score's exact
+provenance and SAE/Neuronpedia evidence with the browser WebSocket contract:
+
+```bash
+UV_CACHE_DIR=/tmp/rai-uv-cache uv run python \
+  ossia/rai_workbench/tests/run_research_interface_real_smoke.py
 ```
 
 Files under `tests/` are automated score harnesses, not product interfaces.

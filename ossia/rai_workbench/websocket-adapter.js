@@ -1,3 +1,10 @@
+function _modelState() {
+  if (!_modelState.value) {
+    _modelState.value = { layerCount: 0, layerTypes: [] };
+  }
+  return _modelState.value;
+}
+
 function _newResult(tokenIndex) {
   return {
     updates: [],
@@ -26,6 +33,20 @@ function _object(value) {
   return value && typeof value === "object" ? value : {};
 }
 
+function _boolean(value, fallback) {
+  if (value === undefined || value === null) {
+    return fallback === undefined ? false : fallback;
+  }
+  if (typeof value === "string") {
+    return value === "true" || value === "1" || value === "yes" || value === "on";
+  }
+  return Boolean(value);
+}
+
+function _shape(value) {
+  return Array.isArray(value) ? JSON.stringify(value) : "";
+}
+
 function connectedUpdates() {
   return [
     { address: "/connection/state", value: "connected" },
@@ -41,20 +62,59 @@ function disconnectedUpdates() {
   ];
 }
 
-function startMessage(prompt, maxTokens) {
+function _boundedProbeRack(probeRack) {
+  var source = Array.isArray(probeRack) ? probeRack : [];
+  var probes = [];
+  for (var index = 0; index < source.length && probes.length < 8; index += 1) {
+    var probe = _object(source[index]);
+    var identifier = _text(probe.id).trim();
+    var site = _text(probe.site).trim();
+    if (!identifier || !site) {
+      continue;
+    }
+    probes.push({
+      id: identifier,
+      site: site,
+      layer: Math.max(0, Math.floor(_number(probe.layer, 0))),
+      capture: _text(probe.capture, "summary") || "summary",
+      enabled: _boolean(probe.enabled, true),
+      publish: _boolean(probe.publish, true),
+    });
+  }
+  return probes;
+}
+
+function startMessage(prompt, maxTokens, observationLayer, probeRack) {
   var boundedMaxTokens = Math.max(1, Math.floor(_number(maxTokens, 200)));
+  var params = {
+    prompt: _text(prompt),
+    max_tokens: boundedMaxTokens,
+    emitter_signal_keys: [
+      "model.layer_profile",
+      "model.residual.vector",
+      "sae.active_features",
+    ],
+  };
+  var requestedLayer = _number(observationLayer, NaN);
+  if (isFinite(requestedLayer) && requestedLayer >= 0) {
+    params.observation_layer = Math.floor(requestedLayer);
+  }
+  var probes = _boundedProbeRack(probeRack);
+  if (probes.length > 0) {
+    params.probe_rack = probes;
+  }
   return JSON.stringify({
     action: "start",
-    params: {
-      prompt: _text(prompt),
-      max_tokens: boundedMaxTokens,
-      emitter_signal_keys: [
-        "model.layer_profile",
-        "model.residual.vector",
-        "sae.active_features",
-      ],
-    },
+    params: params,
   });
+}
+
+function updateParamsMessage(params) {
+  return JSON.stringify({ action: "update_params", params: _object(params) });
+}
+
+function probeRackMessage(probeRack) {
+  return updateParamsMessage({ probe_rack: _boundedProbeRack(probeRack) });
 }
 
 function stopMessage() {
@@ -71,6 +131,7 @@ function _readyEvent(result, event) {
   _update(result, "/run/error", "");
   _update(result, "/run/prompt", result.prompt);
   _update(result, "/run/max_tokens", _number(params.max_tokens, 200));
+  _update(result, "/token/revision", -1);
   _update(result, "/model/name", _text(params.model));
   _update(
     result,
@@ -88,6 +149,53 @@ function _loadingEvent(result, event) {
   _update(result, "/loading/progress", _number(event.progress, 0));
 }
 
+function _modelStructureEvent(result, event) {
+  var architecture = _object(event.architecture);
+  var layerTypes = Array.isArray(architecture.layer_types)
+    ? architecture.layer_types
+    : [];
+  var layerCount = Math.max(0, Math.min(34, Math.floor(_number(architecture.layer_count, 0))));
+  var fields = [
+    ["type", "model_type", ""],
+    ["layer_count", "layer_count", 0],
+    ["hidden_size", "hidden_size", 0],
+    ["intermediate_size", "intermediate_size", 0],
+    ["attention_heads", "attention_heads", 0],
+    ["key_value_heads", "key_value_heads", 0],
+    ["head_dim", "head_dim", 0],
+    ["sliding_window", "sliding_window", 0],
+    ["max_position_embeddings", "max_position_embeddings", 0],
+  ];
+
+  var modelState = _modelState();
+  modelState.layerCount = layerCount;
+  modelState.layerTypes = layerTypes.slice(0, 34);
+
+  _update(result, "/model/name", _text(event.model));
+  for (var fieldIndex = 0; fieldIndex < fields.length; fieldIndex += 1) {
+    var target = fields[fieldIndex][0];
+    var source = fields[fieldIndex][1];
+    var fallback = fields[fieldIndex][2];
+    _update(
+      result,
+      "/model/" + target,
+      typeof fallback === "number"
+        ? _number(architecture[source], fallback)
+        : _text(architecture[source], fallback),
+    );
+  }
+
+  for (var slot = 0; slot < 34; slot += 1) {
+    var prefix = "/blocks/" + (slot + 1);
+    _update(result, prefix + "/enabled", slot < layerCount);
+    _update(
+      result,
+      prefix + "/attention_type",
+      slot < layerTypes.length ? _text(layerTypes[slot]) : "",
+    );
+  }
+}
+
 function _tokenIndex(event, previousTokenIndex) {
   var probes = Array.isArray(event.probes) ? event.probes : [];
   for (var index = 0; index < probes.length; index += 1) {
@@ -103,16 +211,22 @@ function _probeUpdates(result, probes) {
   var fields = [
     ["enabled", false],
     ["id", ""],
+    ["model", ""],
+    ["token_index", -1],
     ["site", ""],
     ["layer", -1],
     ["module_path", ""],
     ["capture", ""],
     ["publish", ""],
     ["shape", ""],
+    ["dtype", ""],
+    ["representation", ""],
     ["rms", 0],
     ["max_abs", 0],
     ["mean", 0],
     ["active_count", 0],
+    ["max_activation", 0],
+    ["total_activation", 0],
     ["top_index", -1],
     ["top_activation", 0],
   ];
@@ -120,19 +234,31 @@ function _probeUpdates(result, probes) {
   for (var slot = 0; slot < 8; slot += 1) {
     var probe = slot < probes.length ? _object(probes[slot]) : null;
     var summary = probe ? _object(probe.summary) : {};
+    var site = probe ? _text(probe.site) : "";
+    var capture = probe ? _text(probe.capture) : "";
     var values = {
       enabled: probe !== null,
       id: probe ? _text(probe.id) : "",
-      site: probe ? _text(probe.site) : "",
+      model: probe ? _text(probe.model) : "",
+      token_index: probe ? _number(probe.token_index, -1) : -1,
+      site: site,
       layer: probe ? _number(probe.layer, -1) : -1,
       module_path: probe ? _text(probe.module_path) : "",
-      capture: probe ? _text(probe.capture) : "",
+      capture: capture,
       publish: probe ? _text(probe.publish) : "",
-      shape: probe && probe.shape !== undefined ? JSON.stringify(probe.shape) : "",
+      shape: probe ? _shape(probe.shape) : "",
+      dtype: probe ? _text(probe.dtype) : "",
+      representation: probe
+        ? (site === "sae"
+          ? "sparse_sae_summary"
+          : (capture === "vector" ? "dense_final_token_vector" : "dense_tensor_summary"))
+        : "",
       rms: _number(summary.rms, 0),
       max_abs: _number(summary.max_abs, 0),
       mean: _number(summary.mean, 0),
       active_count: _number(summary.active_count, 0),
+      max_activation: _number(summary.max_activation, 0),
+      total_activation: _number(summary.total_activation, 0),
       top_index: _number(summary.top_index, -1),
       top_activation: _number(summary.top_activation, 0),
     };
@@ -145,6 +271,49 @@ function _probeUpdates(result, probes) {
         values[field],
       );
     }
+  }
+}
+
+function _layerProfile(event) {
+  var emitter = _object(event.emitter);
+  var streams = _object(emitter.streams);
+  var stream = _object(streams["model.layer_profile"]);
+  var value = _object(stream.value);
+  return Array.isArray(value.layers) ? value.layers : [];
+}
+
+function _profileUpdates(result, profile) {
+  var rows = Array.isArray(profile) ? profile : [];
+  var byLayer = {};
+  var modelState = _modelState();
+  for (var index = 0; index < rows.length; index += 1) {
+    var row = _object(rows[index]);
+    var layer = Math.floor(_number(row.layer, -1));
+    if (layer >= 0 && layer < 34) {
+      byLayer[layer] = row;
+    }
+  }
+
+  for (var slot = 0; slot < 34; slot += 1) {
+    var item = byLayer[slot] || null;
+    var prefix = "/blocks/" + (slot + 1);
+    var hasPrevious = item !== null && item.delta_rms !== null && item.delta_rms !== undefined;
+    _update(result, prefix + "/enabled", slot < modelState.layerCount);
+    _update(
+      result,
+      prefix + "/attention_type",
+      slot < modelState.layerTypes.length ? _text(modelState.layerTypes[slot]) : "",
+    );
+    _update(result, prefix + "/profile_valid", item !== null);
+    _update(result, prefix + "/rms", item ? _number(item.rms, 0) : 0);
+    _update(result, prefix + "/max_abs", item ? _number(item.max_abs, 0) : 0);
+    _update(result, prefix + "/has_previous", hasPrevious);
+    _update(result, prefix + "/delta_rms", hasPrevious ? _number(item.delta_rms, 0) : 0);
+    _update(
+      result,
+      prefix + "/cosine_to_previous",
+      hasPrevious ? _number(item.cosine_to_previous, 0) : 0,
+    );
   }
 }
 
@@ -202,16 +371,40 @@ function _tokenEvent(result, event) {
 
   if (event.observation && typeof event.observation === "object") {
     _update(result, "/model/name", _text(observation.model));
+    _update(result, "/observation/site", _text(observation.site));
     _update(result, "/observation/layer", _number(observation.layer, -1));
+    _update(result, "/observation/module_path", _text(observation.module_path));
+    _update(result, "/observation/shape", _shape(observation.shape));
+    _update(result, "/observation/dtype", _text(observation.dtype));
+    _update(
+      result,
+      "/observation/representation",
+      _text(observation.representation),
+    );
     _update(
       result,
       "/observation/sae_layer",
       _number(observation.sae_layer, -1),
     );
+    _update(
+      result,
+      "/observation/sae_module_path",
+      _text(observation.sae_module_path),
+    );
+    _update(result, "/observation/sae_shape", _shape(observation.sae_shape));
+    _update(result, "/observation/sae_dtype", _text(observation.sae_dtype));
+    _update(
+      result,
+      "/observation/sae_representation",
+      _text(observation.sae_representation),
+    );
   }
 
+  _profileUpdates(result, _layerProfile(event));
   _probeUpdates(result, probes);
   _featureUpdates(result, _activeFeatures(event));
+  // This transaction marker must remain last so the UI snapshots synchronized data.
+  _update(result, "/token/revision", result.tokenIndex);
 }
 
 function decodeEvent(message, previousTokenIndex) {
@@ -240,6 +433,8 @@ function decodeEvent(message, previousTokenIndex) {
 
   if (event.type === "ready") {
     _readyEvent(result, event);
+  } else if (event.type === "model_structure") {
+    _modelStructureEvent(result, event);
   } else if (event.type === "loading") {
     _loadingEvent(result, event);
   } else if (event.type === "token") {

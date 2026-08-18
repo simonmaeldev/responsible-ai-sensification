@@ -59,14 +59,20 @@ priority takes precedence over the older numeric ordering.
   score-generated document provide prompt/run controls, connection and loading
   feedback, exact token/ID, and twelve raw SAE/Neuronpedia evidence rows.
   Deterministic `--ui`/`--ui-debug`, visual, and real one-token GPU checks pass.
+- Ossia score interface Phase 3: the compact QML research view provides
+  synchronized selectable token history, the real 26-block Gemma map, an
+  independently selectable dense layer, fixed layer-22 SAE provenance, eight
+  bounded probe controls/summaries, and exact model/token/site/module/shape/
+  representation evidence. Deterministic normal/debug and real two-token GPU
+  runs prove L22-to-L7 live changes while the SAE stays fixed; all 106 server
+  tests and the unchanged browser harness pass.
 
 ## Current priority: researcher-facing observation workflows
 
-- Continue with ossia score interface Slice 3: add the real Gemma block map,
-  independent dense observation layer, fixed SAE attachment, token history,
-  and bounded probe summaries to the verified custom UI. Keep the existing
-  Python inference backend and do not begin native ONNX inference before the
-  Phase 5 decision gate.
+- Continue with ossia score interface Slice 4: expose a deliberately selected
+  set of scalar observations to normal score processes and prove the path with
+  one removable example mapping. Keep raw values unchanged, preserve
+  provenance, and do not expand external connector contracts.
 - Use Model to compare dense residual state across transformer blocks while
   keeping the layer-22 SAE provenance visible.
 - Use Map to compare raw residual/logit/SAE data with derived signals and

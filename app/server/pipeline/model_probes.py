@@ -234,21 +234,13 @@ class GemmaProbeManager:
         return observations
 
 
-def _sparse_width(width: str) -> int:
-    text = str(width).strip().lower()
-    multiplier = 1_000 if text.endswith("k") else 1
-    try:
-        return int(float(text.rstrip("k")) * multiplier)
-    except ValueError:
-        return 0
-
-
 def build_sae_probe_observations(
     rack: Any,
     active_features: Sequence[dict[str, Any]],
     *,
     sae_layer: int,
     sae_width: str,
+    sae_size: int,
     model_id: str,
     token_index: int,
 ) -> list[dict[str, Any]]:
@@ -281,7 +273,7 @@ def build_sae_probe_observations(
                 "publish": probe["publish"],
                 "model": model_id,
                 "token_index": int(token_index),
-                "shape": [_sparse_width(sae_width)],
+                "shape": [max(0, int(sae_size))],
                 "dtype": "sparse_float32",
                 "summary": {
                     "active_count": len(features),

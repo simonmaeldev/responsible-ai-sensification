@@ -153,6 +153,9 @@ evidence.
 
 ### Phase 3 Prompt: Research Observation Views
 
+Status: complete on the Ubuntu GPU PC. Use this prompt only to reproduce or
+regression-test Phase 3; Phase 4 is the next implementation prompt.
+
 ```text
 Execution machine: Ubuntu GPU PC.
 

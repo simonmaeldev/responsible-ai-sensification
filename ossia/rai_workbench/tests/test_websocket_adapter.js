@@ -24,7 +24,19 @@ function valuesByAddress(result) {
 
 test("start and stop controls produce backend-compatible requests", () => {
   const adapter = loadAdapter();
-  const start = JSON.parse(adapter.startMessage("A glass bell in winter", 7));
+  const probeRack = [
+    {
+      id: "residual",
+      site: "residual_post",
+      layer: 7,
+      capture: "summary",
+      enabled: true,
+      publish: true,
+    },
+  ];
+  const start = JSON.parse(
+    adapter.startMessage("A glass bell in winter", 7, 7, probeRack),
+  );
 
   assert.equal(start.action, "start");
   assert.equal(start.params.prompt, "A glass bell in winter");
@@ -34,6 +46,12 @@ test("start and stop controls produce backend-compatible requests", () => {
     "model.residual.vector",
     "sae.active_features",
   ]);
+  assert.equal(start.params.observation_layer, 7);
+  assert.deepEqual(JSON.parse(JSON.stringify(start.params.probe_rack)), probeRack);
+  assert.deepEqual(
+    JSON.parse(adapter.updateParamsMessage({ observation_layer: 12 })),
+    { action: "update_params", params: { observation_layer: 12 } },
+  );
   assert.deepEqual(JSON.parse(adapter.stopMessage()), { action: "stop" });
 });
 
@@ -57,6 +75,16 @@ test("connection and ready events initialize the fixed workbench state", () => {
         observation_layer: 17,
         layer: 22,
         max_tokens: 200,
+        probe_rack: [
+          {
+            id: "residual",
+            site: "residual_post",
+            layer: 17,
+            capture: "summary",
+            enabled: true,
+            publish: false,
+          },
+        ],
       },
     }),
     99,
@@ -72,6 +100,53 @@ test("connection and ready events initialize the fixed workbench state", () => {
   assert.equal(values["/model/name"], "google/gemma-3-1b-it");
   assert.equal(values["/observation/layer"], 17);
   assert.equal(values["/observation/sae_layer"], 22);
+  assert.equal(values["/observation/requested_layer"], undefined);
+  assert.equal(values["/probe_controls/1/id"], undefined);
+});
+
+test("runtime model structure becomes a fixed truthful Gemma block map", () => {
+  const adapter = loadAdapter();
+  const layerTypes = Array.from(
+    { length: 26 },
+    (_value, index) => ((index + 1) % 6 === 0 ? "full_attention" : "sliding_attention"),
+  );
+  const values = valuesByAddress(
+    adapter.decodeEvent(
+      {
+        type: "model_structure",
+        model: "google/gemma-3-1b-pt",
+        architecture: {
+          model_type: "gemma3_text",
+          layer_count: 26,
+          hidden_size: 1152,
+          intermediate_size: 6912,
+          attention_heads: 4,
+          key_value_heads: 1,
+          head_dim: 256,
+          sliding_window: 512,
+          max_position_embeddings: 32768,
+          layer_types: layerTypes,
+        },
+      },
+      -1,
+    ),
+  );
+
+  assert.equal(values["/model/name"], "google/gemma-3-1b-pt");
+  assert.equal(values["/model/type"], "gemma3_text");
+  assert.equal(values["/model/layer_count"], 26);
+  assert.equal(values["/model/hidden_size"], 1152);
+  assert.equal(values["/model/intermediate_size"], 6912);
+  assert.equal(values["/model/attention_heads"], 4);
+  assert.equal(values["/model/key_value_heads"], 1);
+  assert.equal(values["/model/head_dim"], 256);
+  assert.equal(values["/model/sliding_window"], 512);
+  assert.equal(values["/model/max_position_embeddings"], 32768);
+  assert.equal(values["/blocks/1/enabled"], true);
+  assert.equal(values["/blocks/1/attention_type"], "sliding_attention");
+  assert.equal(values["/blocks/6/attention_type"], "full_attention");
+  assert.equal(values["/blocks/26/enabled"], true);
+  assert.equal(values["/blocks/27/enabled"], false);
 });
 
 test("structured loading events remain structured in score", () => {
@@ -103,8 +178,17 @@ test("token events expose bounded probes and strongest SAE features", () => {
       elapsed_ms: 12.5,
       observation: {
         model: "google/gemma-3-1b-it",
+        site: "residual_post",
         layer: 17,
+        module_path: "model.language_model.layers.17",
+        shape: [1152],
+        dtype: "float32",
+        representation: "dense_residual",
         sae_layer: 22,
+        sae_module_path: "gemma_scope.resid_post.layer_22.width_65k",
+        sae_shape: [65000],
+        sae_dtype: "sparse_float32",
+        sae_representation: "sparse_sae",
       },
       probes: [
         {
@@ -116,6 +200,8 @@ test("token events expose bounded probes and strongest SAE features", () => {
           publish: "summary",
           shape: [1, 1, 1152],
           token_index: 4,
+          model: "google/gemma-3-1b-it",
+          dtype: "float32",
           summary: {
             rms: 0.75,
             max_abs: 2.5,
@@ -134,6 +220,26 @@ test("token events expose bounded probes and strongest SAE features", () => {
               { index: 3, activation: 2.25, description: "bells" },
             ],
           },
+          "model.layer_profile": {
+            value: {
+              layers: [
+                {
+                  layer: 0,
+                  rms: 0.25,
+                  max_abs: 0.75,
+                  delta_rms: null,
+                  cosine_to_previous: null,
+                },
+                {
+                  layer: 1,
+                  rms: 0.5,
+                  max_abs: 1.25,
+                  delta_rms: 0.125,
+                  cosine_to_previous: 0.875,
+                },
+              ],
+            },
+          },
         },
       },
     },
@@ -150,9 +256,22 @@ test("token events expose bounded probes and strongest SAE features", () => {
   assert.equal(values["/model/name"], "google/gemma-3-1b-it");
   assert.equal(values["/observation/layer"], 17);
   assert.equal(values["/observation/sae_layer"], 22);
+  assert.equal(values["/observation/site"], "residual_post");
+  assert.equal(values["/observation/module_path"], "model.language_model.layers.17");
+  assert.equal(values["/observation/shape"], "[1152]");
+  assert.equal(values["/observation/dtype"], "float32");
+  assert.equal(values["/observation/representation"], "dense_residual");
+  assert.equal(values["/observation/sae_module_path"], "gemma_scope.resid_post.layer_22.width_65k");
+  assert.equal(values["/observation/sae_shape"], "[65000]");
+  assert.equal(values["/observation/sae_dtype"], "sparse_float32");
+  assert.equal(values["/observation/sae_representation"], "sparse_sae");
 
   assert.equal(values["/probes/1/enabled"], true);
   assert.equal(values["/probes/1/id"], "residual-17");
+  assert.equal(values["/probes/1/model"], "google/gemma-3-1b-it");
+  assert.equal(values["/probes/1/token_index"], 4);
+  assert.equal(values["/probes/1/dtype"], "float32");
+  assert.equal(values["/probes/1/representation"], "dense_tensor_summary");
   assert.equal(values["/probes/1/shape"], "[1,1,1152]");
   assert.equal(values["/probes/1/rms"], 0.75);
   assert.equal(values["/probes/1/top_index"], 91);
@@ -166,6 +285,14 @@ test("token events expose bounded probes and strongest SAE features", () => {
   assert.equal(values["/features/3/index"], -1);
   assert.equal(values["/features/3/activation"], 0);
   assert.equal(values["/features/3/description"], "");
+  assert.equal(values["/blocks/1/profile_valid"], true);
+  assert.equal(values["/blocks/1/rms"], 0.25);
+  assert.equal(values["/blocks/1/has_previous"], false);
+  assert.equal(values["/blocks/2/delta_rms"], 0.125);
+  assert.equal(values["/blocks/2/cosine_to_previous"], 0.875);
+  assert.equal(values["/blocks/3/profile_valid"], false);
+  assert.equal(values["/token/revision"], 4);
+  assert.equal(result.updates.at(-1).address, "/token/revision");
 });
 
 test("token index falls back to a local counter when no probe index exists", () => {
@@ -222,6 +349,11 @@ test("the score QML device exposes the fixed Phase 1 tree", () => {
   );
   assert.ok(embeddedAdapter, "QML must embed the adapter because score stores it as text");
   assert.equal(embeddedAdapter[1].trim(), adapter.trim());
+  assert.doesNotMatch(
+    embeddedAdapter[1],
+    /^var\s/m,
+    "adapter state must use declarations that are valid inside a QML object",
+  );
   for (const node of [
     "connection",
     "run",
@@ -229,6 +361,8 @@ test("the score QML device exposes the fixed Phase 1 tree", () => {
     "token",
     "model",
     "observation",
+    "blocks",
+    "probe_controls",
     "probes",
     "features",
   ]) {
@@ -249,6 +383,9 @@ test("prompt edits stay local and start reads the local score value", () => {
   assert.doesNotMatch(promptBlock[1], /request:/);
   assert.match(qml, /Device\.read\("\/run\/prompt"\)/);
   assert.match(qml, /Device\.read\("\/run\/max_tokens"\)/);
+  assert.match(qml, /Device\.read\("\/observation\/requested_layer"\)/);
+  assert.match(qml, /function probeRackFromDevice\s*\(/);
+  assert.match(qml, /updateParamsMessage/);
   assert.match(qml, /name: "max_tokens",\s*type: Ossia\.Type\.Int/);
   assert.match(
     qml,
