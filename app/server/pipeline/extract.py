@@ -14,6 +14,7 @@ import re
 import sys
 import time
 from collections.abc import Callable, Collection
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Generator
 
@@ -54,6 +55,12 @@ class TokenAnalysis(BaseModel):
     probe_dtype: str = "float32"
     probe_representation: str = "dense_residual"
     sae_module_path: str = ""
+    sae_layer: int | None = None
+    sae_width: str = ""
+    sae_l0: str = ""
+    sae_category: str = "resid_post"
+    sae_repo_id: str = ""
+    sae_revision: str = ""
     sae_shape: list[int] = Field(default_factory=list)
     sae_dtype: str = "sparse_float32"
     sae_representation: str = "sparse_sae"
@@ -74,6 +81,20 @@ class NeuronpediaScope(BaseModel):
     layer: int
     width: str  # e.g. "65k"
     explanations: dict[int, str]  # feature_index -> description string
+
+
+@dataclass(frozen=True)
+class SaeRuntime:
+    """One pretrained SAE bound to the exact activation site it was trained on."""
+
+    sae: object
+    neuronpedia: object
+    layer: int
+    width: str
+    l0: str
+    category: str
+    repo_id: str
+    revision: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -190,6 +211,18 @@ def load_sae(
         b_dec=tensors["b_dec"],
     )
     result = sae.to(device).eval()
+    source_parts = Path(local_path).parts
+    source_revision = ""
+    if "snapshots" in source_parts:
+        snapshot_index = source_parts.index("snapshots")
+        if snapshot_index + 1 < len(source_parts):
+            source_revision = source_parts[snapshot_index + 1]
+    result.source_repo_id = sae_repo_id
+    result.source_revision = source_revision
+    result.source_category = category
+    result.source_layer = int(layer)
+    result.source_width = str(width)
+    result.source_l0 = str(l0)
     print(f"[load_sae] SAE ready on {device}.", file=sys.stderr, flush=True)
     return result
 
@@ -405,13 +438,16 @@ def inspect_live(
     probe_keys: Collection[str] | Callable[[], Collection[str]] | None = None,
     observation_layer: int | Callable[[], int] | None = None,
     probe_rack: Collection[dict] | Callable[[], Collection[dict]] | None = None,
+    sae_runtime: Callable[[], SaeRuntime] | None = None,
 ) -> Generator[tuple[TokenAnalysis, int], None, None]:
     """Generate tokens and observe distinct dense and sparse model locations.
 
-    ``layer`` is the attachment site of the loaded SAE. ``observation_layer``
-    independently selects the residual stream used by model probes and may be a
-    callback so browser changes affect the next token. Yields
-    ``(TokenAnalysis, elapsed_ms)`` per token.
+    ``layer`` is the attachment site of the statically loaded SAE. When
+    ``sae_runtime`` is supplied it resolves a distinct pretrained SAE and its
+    evidence for each token, allowing a live layer edit without applying one
+    layer's SAE to another layer. ``observation_layer`` independently selects
+    the residual stream used by model probes. Yields ``(TokenAnalysis,
+    elapsed_ms)`` per token.
     """
     inputs = tokenizer(prompt, return_tensors="pt", add_special_tokens=True)
     input_ids = inputs["input_ids"].to(device)
@@ -423,6 +459,24 @@ def inspect_live(
             print("[inspect_live] Running first forward pass...", file=sys.stderr, flush=True)
         t0 = time.perf_counter()
         decoder_layers, decoder_module_prefix = _get_decoder_layers_and_prefix(model)
+        current_sae = (
+            sae_runtime()
+            if callable(sae_runtime)
+            else SaeRuntime(
+                sae=sae,
+                neuronpedia=neuronpedia,
+                layer=layer,
+                width=str(getattr(neuronpedia, "width", "unknown")),
+                l0="",
+                category="resid_post",
+                repo_id="",
+            )
+        )
+        current_sae_layer = _safe_layer_index(
+            current_sae.layer,
+            len(decoder_layers),
+            layer,
+        )
         requested_layer = observation_layer() if callable(observation_layer) else observation_layer
         probe_layer = _safe_layer_index(
             layer if requested_layer is None else requested_layer,
@@ -436,7 +490,7 @@ def inspect_live(
         capture_layers = (
             range(len(decoder_layers))
             if "model.layer_profile" in requested_probe_keys
-            else {layer, probe_layer}
+            else {current_sae_layer, probe_layer}
         )
         captured_residuals: dict[int, torch.Tensor] = {}
 
@@ -458,7 +512,7 @@ def inspect_live(
         probe_manager = GemmaProbeManager(
             model,
             requested_probe_rack,
-            sae_layer=layer,
+            sae_layer=current_sae_layer,
         )
         try:
             with probe_manager.capture():
@@ -469,7 +523,7 @@ def inspect_live(
         if step == 0:
             print("[inspect_live] First forward pass complete.", file=sys.stderr, flush=True)
 
-        sae_residual_last = captured_residuals[layer]
+        sae_residual_last = captured_residuals[current_sae_layer]
         probe_residual_last = captured_residuals[probe_layer]
 
         next_token_id = int(outputs.logits[0, -1].argmax().item())
@@ -489,7 +543,9 @@ def inspect_live(
                 "dtype": "layer_profile",
             }
 
-        sae_acts = sae.encode(sae_residual_last.float().unsqueeze(0)).squeeze(0)
+        sae_acts = current_sae.sae.encode(
+            sae_residual_last.float().unsqueeze(0)
+        ).squeeze(0)
 
         active_indices = (sae_acts > 0).nonzero(as_tuple=True)[0].tolist()
         l0 = len(active_indices)
@@ -497,7 +553,7 @@ def inspect_live(
             ActiveFeature(
                 index=i,
                 activation=sae_acts[i].item(),
-                description=neuronpedia.explanations.get(i),
+                description=current_sae.neuronpedia.explanations.get(i),
             )
             for i in active_indices
         ]
@@ -513,8 +569,12 @@ def inspect_live(
             build_sae_probe_observations(
                 requested_probe_rack,
                 active_feature_payloads,
-                sae_layer=layer,
-                sae_width=str(getattr(neuronpedia, "width", "unknown")),
+                sae_layer=current_sae_layer,
+                sae_width=current_sae.width,
+                sae_category=current_sae.category,
+                sae_l0=current_sae.l0,
+                sae_repo_id=current_sae.repo_id,
+                sae_revision=current_sae.revision,
                 sae_size=int(sae_acts.numel()),
                 model_id=str(getattr(model, "name_or_path", "") or getattr(getattr(model, "config", None), "_name_or_path", "") or "unknown"),
                 token_index=step + 1,
@@ -534,9 +594,15 @@ def inspect_live(
             probe_dtype="float32",
             probe_representation="dense_residual",
             sae_module_path=(
-                "gemma_scope.resid_post."
-                f"layer_{layer}.width_{getattr(neuronpedia, 'width', 'unknown')}"
+                f"gemma_scope.{current_sae.category}."
+                f"layer_{current_sae_layer}.width_{current_sae.width}"
             ),
+            sae_layer=current_sae_layer,
+            sae_width=current_sae.width,
+            sae_l0=current_sae.l0,
+            sae_category=current_sae.category,
+            sae_repo_id=current_sae.repo_id,
+            sae_revision=current_sae.revision,
             sae_shape=[int(sae_acts.numel())],
             sae_dtype="sparse_float32",
             sae_representation="sparse_sae",

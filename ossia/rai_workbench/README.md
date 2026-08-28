@@ -3,10 +3,16 @@
 Phase 4 provides a compact score-native research and patching interface for the
 existing Gemma, Gemma Scope SAE, and Neuronpedia backend. The custom QML UI
 controls the saved `RAI Workbench` WebSocket device and keeps exact token
-history, the real Gemma block map, dense and fixed-SAE provenance, bounded probe
+history, the real Gemma block map, dense and exact-SAE provenance, bounded probe
 summaries, and SAE/Neuronpedia evidence synchronized. Four patchable scalar
 observations are available to ordinary score processes without changing their
 backend values.
+
+The model chooser also contains a complete official small-model example:
+Gemma 3 270M with a separately trained Gemma Scope 2 `resid_post_all` 16k,
+L0-small SAE at every layer 0–17. With **Move matching SAE** enabled, selecting
+a block moves the dense observation and its matching pretrained SAE for the
+next token. The existing 1B choice keeps its fixed trained SAE behavior.
 
 Raw vectors stay in the local WebSocket payload and are not expanded into the
 score address tree. The completed Phase 5 investigation found no current reason
@@ -41,13 +47,15 @@ For the normal custom-interface view:
 ossia-score --ui ossia/rai_workbench/interface.qml ossia/rai_workbench/rai-workbench.score
 ```
 
-Enter a prompt, choose a maximum token count, and press **Run prompt**. The UI
+Choose a model, enter a prompt and maximum token count, and press **Run prompt**. The UI
 shows connection/loading/error state, selectable exact-token history, all real
-Gemma blocks, a selectable dense observation layer, the visibly fixed SAE
-attachment, eight bounded probe-control/summary slots, and twelve strongest
+Gemma blocks, a selectable dense observation layer, the exact fixed or matching
+SAE attachment, eight bounded probe-control/summary slots, and twelve strongest
 active SAE rows. Provenance includes the exact model, token, site, layer, module
 path, shape, dtype, and representation. Block position, dense coordinate, and
-SAE feature index are not presented as semantic distance.
+SAE feature index are not presented as semantic distance. In the 270M example,
+feature indices remain specific to the exact layer/family/width/L0/revision;
+the interface does not claim that an index follows one concept across layers.
 
 ## Patchable Scalar Contract
 
@@ -149,6 +157,16 @@ normal process inlet to equal the latest tensor RMS:
 ```bash
 UV_CACHE_DIR=/tmp/rai-uv-cache uv run python \
   ossia/rai_workbench/tests/run_research_interface_real_smoke.py
+```
+
+The real all-layer acceptance uses the official cached 270M model and three
+matching SAEs on consecutive tokens (layers 0, 8, and 17), checking exact
+browser-WebSocket provenance, synchronized history, unchanged patchable values,
+and the ordinary Float process:
+
+```bash
+UV_CACHE_DIR=/tmp/rai-uv-cache uv run python \
+  ossia/rai_workbench/tests/run_all_layer_real_smoke.py
 ```
 
 Files under `tests/` are automated score harnesses, not product interfaces.

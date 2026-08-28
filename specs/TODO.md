@@ -80,11 +80,19 @@ priority takes precedence over the older numeric ordering.
   WebSocket device. No code, build, dependency, model, or connector change was
   made; future native work requires a new approved spec after explicit parity
   gates are met.
+- Gemma Scope 2 all-layer example: official Gemma 3 270M now pairs every block
+  0–17 with its separately trained `resid_post_all` 16k/L0-small SAE. Browser
+  and score can move the matching dense/SAE observation live, preserve exact
+  provenance and unchanged patchable scalars, and keep unavailable semantic
+  descriptions empty. A real three-token RTX 4060 Ti run passed at L0/L8/L17;
+  raw vectors/full sparse data remain local and external connectors are
+  unchanged.
 
 ## Current priority: researcher-facing observation workflows
 
-- Use Model to compare dense residual state across transformer blocks while
-  keeping the layer-22 SAE provenance visible.
+- Use Model to compare dense residual state across transformer blocks. Choose
+  the 270M example when matching per-layer SAE observation is required; the
+  existing 1B/4B choices retain their fixed trained SAE attachment.
 - Use Map to compare raw residual/logit/SAE data with derived signals and
   Neuronpedia descriptions. Raw residual and sparse streams are enabled locally
   by the workbench but remain outside OSC v1.

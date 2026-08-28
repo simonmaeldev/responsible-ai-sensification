@@ -86,3 +86,34 @@ def test_observation_payload_preserves_dense_and_fixed_sae_provenance():
         "sae_dtype": "sparse_float32",
         "sae_representation": "sparse_sae",
     }
+
+
+def test_observation_payload_uses_token_bound_sae_provenance_after_live_move():
+    token = SimpleNamespace(
+        probe_layer=8,
+        probe_module_path="model.layers.8",
+        probe_shape=[640],
+        probe_dtype="float32",
+        probe_representation="dense_residual",
+        sae_layer=17,
+        sae_width="16k",
+        sae_l0="small",
+        sae_category="resid_post_all",
+        sae_repo_id="google/gemma-scope-2-270m-pt",
+        sae_revision="scope-revision",
+        sae_module_path="gemma_scope.resid_post_all.layer_17.width_16k",
+        sae_shape=[16384],
+        sae_dtype="sparse_float32",
+        sae_representation="sparse_sae",
+    )
+    params = SimpleNamespace(model="google/gemma-3-270m", layer=0, width="16k")
+
+    payload = _observation_payload(token, params)
+
+    assert payload["sae_layer"] == 17
+    assert payload["sae_width"] == "16k"
+    assert payload["sae_l0"] == "small"
+    assert payload["sae_category"] == "resid_post_all"
+    assert payload["sae_repo_id"] == "google/gemma-scope-2-270m-pt"
+    assert payload["sae_revision"] == "scope-revision"
+    assert payload["sae_module_path"] == "gemma_scope.resid_post_all.layer_17.width_16k"

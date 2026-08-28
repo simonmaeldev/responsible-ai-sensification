@@ -344,6 +344,8 @@ const loadingDetail   = document.getElementById("loading-detail");
 const modelSel        = document.getElementById("model");
 const layerSel        = document.getElementById("layer");
 const widthSel        = document.getElementById("width");
+const l0Sel           = document.getElementById("l0");
+const saeLayerNote    = document.getElementById("sae-layer-note");
 const strategySel     = document.getElementById("strategy");
 const strategyHelp    = document.getElementById("strategy-help");
 const clustersGroup   = document.getElementById("clusters-group");
@@ -431,6 +433,8 @@ const btnClearSignals = document.getElementById("btn-clear-signals");
 const visualProofPanel = document.getElementById("visual-proof-panel");
 const observationLayerIn = document.getElementById("observation-layer");
 const observationLayerValue = document.getElementById("observation-layer-value");
+const saeFollowControl = document.getElementById("sae-follow-control");
+const saeFollowObservation = document.getElementById("sae-follow-observation");
 const contextToken = document.getElementById("context-token");
 const contextLocation = document.getElementById("context-location");
 const workspaceKicker = document.getElementById("workspace-kicker");
@@ -578,9 +582,16 @@ function currentModelInfo() {
   return catalogue[modelSel.value] || {
     layers: [],
     widths: [],
+    l0s: [],
+    live_sae_layers: false,
     observation_layers: [],
     architecture: {},
   };
+}
+
+function selectedSaeLayer(fallback = 22) {
+  const selected = Number(layerSel.value);
+  return Number.isFinite(selected) ? selected : Number(fallback);
 }
 
 function populateObservationLayer(modelId, preferredValue = observationLayerIn.value) {
@@ -617,7 +628,29 @@ function updateObservationLayer(sendLive = true) {
 
 function selectObservationLayer(layer, sendLive = true) {
   observationLayerIn.value = String(layer);
+  const info = currentModelInfo();
+  if (info.live_sae_layers && saeFollowObservation?.checked) {
+    selectSaeLayer(layer, sendLive);
+  }
   updateObservationLayer(sendLive);
+}
+
+function selectSaeLayer(layer, sendLive = true) {
+  const info = currentModelInfo();
+  const available = info.layers || [];
+  if (!available.length) return null;
+  const selected = safeObservationLayer(layer, available, available[0]);
+  layerSel.value = String(selected);
+  probeRack = probeRack.map(probe => probe.site === "sae"
+    ? normalizedProbe(probe, selected)
+    : probe);
+  renderProbeRack();
+  updateObservationLayer(false);
+  if (sendLive) {
+    sendParamUpdate({ layer: selected });
+    saveParams();
+  }
+  return selected;
 }
 
 function humanAttentionType(value) {
@@ -627,7 +660,10 @@ function humanAttentionType(value) {
   return type === "unknown" ? "Attention type unavailable" : type.replaceAll("_", " ");
 }
 
-function renderGemmaBlock(observedLayer = Number(observationLayerIn.value)) {
+function renderGemmaBlock(
+  observedLayer = Number(observationLayerIn.value),
+  shownSaeLayer = selectedSaeLayer(),
+) {
   const info = currentModelInfo();
   const architecture = info.architecture || {};
   const layers = info.observation_layers || [];
@@ -642,7 +678,9 @@ function renderGemmaBlock(observedLayer = Number(observationLayerIn.value)) {
   const headDimension = Number(architecture.head_dim) || "—";
 
   layerBrowserPosition.textContent = `L${selected} / ${lastLayer}`;
-  modelLayerReadout.textContent = `Residual after block ${selected} · SAE fixed at block ${layerSel.value || "—"}`;
+  modelLayerReadout.textContent = info.live_sae_layers
+    ? `Residual after block ${selected} · matching SAE at block ${shownSaeLayer}`
+    : `Residual after block ${selected} · SAE fixed at block ${shownSaeLayer}`;
   btnLayerPrev.disabled = selected <= Math.min(...layers.map(Number));
   btnLayerNext.disabled = selected >= lastLayer;
   gemmaBlockNumber.textContent = `Transformer block ${selected}`;
@@ -693,11 +731,14 @@ function renderModelActivityPlot(profile = currentLayerProfile) {
   `;
 }
 
-function renderModelAnatomy(observedLayer = Number(observationLayerIn.value)) {
+function renderModelAnatomy(
+  observedLayer = Number(observationLayerIn.value),
+  shownSaeLayer = selectedSaeLayer(),
+) {
   if (!modelAnatomy) return;
   const info = currentModelInfo();
   const layers = info.observation_layers || [];
-  const saeLayer = Number(layerSel.value);
+  const saeLayer = Number(shownSaeLayer);
   const selected = safeObservationLayer(observedLayer, layers, saeLayer);
   modelAnatomy.innerHTML = "";
   for (const layer of layers) {
@@ -745,7 +786,7 @@ function renderModelAnatomy(observedLayer = Number(observationLayerIn.value)) {
   anatomyLayerCount.textContent = `${architecture.layer_count || layers.length || "—"} blocks`;
   atlasModel.textContent = architecture.label || modelSel.value || "model —";
   renderModelActivityPlot();
-  renderGemmaBlock(selected);
+  renderGemmaBlock(selected, saeLayer);
 }
 
 function residualVectorStats(values) {
@@ -991,7 +1032,17 @@ function renderNeuralAtlas(msg) {
   anatomyLocation.textContent = `Block ${observedLayer} residual → dense probes · Block ${saeLayer} residual → ${observation.sae_width || widthSel.value} SAE`;
   renderLiveToken(msg);
   renderLiveFeatureDirections();
-  renderModelAnatomy(observedLayer);
+  const saeIdentity = [
+    `Gemma Scope 2 · layer ${saeLayer}`,
+    observation.sae_category,
+    observation.sae_width,
+    observation.sae_l0 ? `L0 ${observation.sae_l0}` : "",
+  ].filter(Boolean).join(" · ");
+  const saeSource = observation.sae_repo_id
+    ? ` · ${observation.sae_repo_id}${observation.sae_revision ? ` @ ${observation.sae_revision}` : ""}`
+    : "";
+  liveFeatureLayer.textContent = saeIdentity + saeSource;
+  renderModelAnatomy(observedLayer, Number(saeLayer));
   renderDenseState();
   renderSparseState();
 }
@@ -1102,7 +1153,7 @@ async function loadOptions() {
 }
 
 function populateLayerWidth(modelId) {
-  const info = catalogue[modelId] ?? { layers: [], widths: [] };
+  const info = catalogue[modelId] ?? { layers: [], widths: [], l0s: [] };
 
   layerSel.innerHTML = "";
   info.layers.forEach(l => {
@@ -1120,7 +1171,22 @@ function populateLayerWidth(modelId) {
     widthSel.appendChild(opt);
   });
 
-  populateObservationLayer(modelId);
+  l0Sel.innerHTML = "";
+  (info.l0s || ["medium"]).forEach(value => {
+    const opt = document.createElement("option");
+    opt.value = value;
+    opt.textContent = value;
+    l0Sel.appendChild(opt);
+  });
+
+  const liveSaeLayers = Boolean(info.live_sae_layers);
+  saeFollowControl.hidden = !liveSaeLayers;
+  saeFollowObservation.checked = liveSaeLayers;
+  saeLayerNote.textContent = liveSaeLayers
+    ? "Each selection uses the distinct pretrained SAE for that exact layer."
+    : "This model currently exposes one pretrained SAE attachment.";
+
+  populateObservationLayer(modelId, layerSel.value);
 }
 
 function intervalsToText(intervals) {
@@ -1353,7 +1419,7 @@ function updateModeHelp() {
   modeHelp.dataset.tooltip = modeDescs[modeSel.value] ?? "";
 }
 
-function normalizedProbe(raw = {}, saeLayer = Number(layerSel.value) || 22) {
+function normalizedProbe(raw = {}, saeLayer = selectedSaeLayer()) {
   const site = Object.hasOwn(PROBE_SITE_LABELS, raw.site) ? raw.site : "residual_post";
   const fallbackId = site === "sae" ? "sae" : site.replace("_output", "").replace("_post", "");
   const id = String(raw.id || fallbackId)
@@ -1376,7 +1442,7 @@ function normalizedProbe(raw = {}, saeLayer = Number(layerSel.value) || 22) {
   };
 }
 
-function normalizedProbeRack(rawRack, saeLayer = Number(layerSel.value) || 22) {
+function normalizedProbeRack(rawRack, saeLayer = selectedSaeLayer()) {
   if (!Array.isArray(rawRack)) return [];
   const identifiers = new Set();
   const result = [];
@@ -1480,7 +1546,7 @@ function renderProbeRack() {
     });
     site.value = probe.site;
     site.addEventListener("change", () => {
-      probeRack[index] = normalizedProbe({ ...probeRack[index], site: site.value }, Number(layerSel.value) || 22);
+      probeRack[index] = normalizedProbe({ ...probeRack[index], site: site.value }, selectedSaeLayer());
       sendProbeRackUpdate();
     });
     const layer = document.createElement("input");
@@ -1548,7 +1614,7 @@ function renderProbeRackLiveValues() {
 }
 
 function sendProbeRackUpdate() {
-  probeRack = normalizedProbeRack(probeRack, Number(layerSel.value) || 22);
+  probeRack = normalizedProbeRack(probeRack, selectedSaeLayer());
   renderProbeRack();
   saveParams();
   sendParamUpdate({ probe_rack: structuredClone(probeRack) });
@@ -1563,6 +1629,7 @@ function applyParams(p) {
   if (p.layer      !== undefined) layerSel.value     = p.layer;
   if (p.observation_layer !== undefined) observationLayerIn.value = p.observation_layer;
   if (p.width      !== undefined) widthSel.value     = p.width;
+  if (p.l0         !== undefined) l0Sel.value        = p.l0;
   if (p.strategy   !== undefined) { strategySel.value = p.strategy; updateStrategyHelp(); }
   if (p.clusters   !== undefined) clustersIn.value   = p.clusters;
   if (p.max_tokens !== undefined) maxTokensIn.value  = p.max_tokens;
@@ -1594,7 +1661,7 @@ function applyParams(p) {
     renderSignalExplorer();
   }
   if (Array.isArray(p.probe_rack)) {
-    probeRack = normalizedProbeRack(p.probe_rack, Number(layerSel.value) || 22);
+    probeRack = normalizedProbeRack(p.probe_rack, selectedSaeLayer());
     renderProbeRack();
   }
 
@@ -1617,6 +1684,7 @@ function collectParams() {
     layer:      parseInt(layerSel.value),
     observation_layer: parseInt(observationLayerIn.value),
     width:      widthSel.value,
+    l0:         l0Sel.value,
     strategy:   strategySel.value,
     clusters:   parseInt(clustersIn.value),
     max_tokens: parseInt(maxTokensIn.value),
@@ -3226,12 +3294,7 @@ modelSel.addEventListener("change", () => {
 });
 
 layerSel.addEventListener("change", () => {
-  updateObservationLayer(false);
-  probeRack = probeRack.map(probe => probe.site === "sae"
-    ? normalizedProbe(probe, Number(layerSel.value) || 22)
-    : probe);
-  renderProbeRack();
-  saveParams();
+  selectSaeLayer(layerSel.value, Boolean(currentModelInfo().live_sae_layers));
 });
 observationLayerIn.addEventListener("input", () => updateObservationLayer(true));
 btnLayerPrev.addEventListener("click", () => {
@@ -3250,6 +3313,7 @@ widthSel.addEventListener("change", () => {
   updateObservationLayer(false);
   saveParams();
 });
+l0Sel.addEventListener("change", saveParams);
 
 strategySel.addEventListener("change", () => {
   updateStrategyHelp();

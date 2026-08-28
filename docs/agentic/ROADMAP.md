@@ -393,7 +393,8 @@ The focused contract and exact namespace are in
 
 ## Phase 11: Ossia Score-Native Interface
 
-Status: Slices 1 through 5 complete; native inference is a documented no-go now
+Status: Slices 1 through 5 complete; all-layer example complete; native
+inference is a documented no-go now
 
 Goal: make ossia score the visible research interface and patching environment
 while initially preserving the verified FastAPI/PyTorch Gemma, Gemma Scope SAE,
@@ -456,6 +457,22 @@ Completed decision gate:
    libraries. Keep the verified backend and WebSocket device. Do not add an
    Avendish bridge or native port without a new approved spec after the recorded
    reopen gates are met.
+
+Completed all-layer pretrained-SAE example:
+
+- Added official `google/gemma-3-270m` with all 18 matching
+  `google/gemma-scope-2-270m-pt` `resid_post_all` 16k/L0-small SAEs.
+- Browser and score can move dense observation and the matching layer-specific
+  SAE during generation. The next token reports exact layer/family/width/L0/
+  repository/revision/module/shape/dtype/representation provenance.
+- Kept the existing 1B/4B fixed-layer paths compatible, left unavailable
+  Neuronpedia descriptions empty, and did not expand any external connector or
+  native-inference contract.
+- Verified 119 server tests, browser/adapter/QML/document checks, installed
+  score normal/debug/removal runs, and real RTX 4060 Ti runs. The 270M run moved
+  across L0, L8, and L17 on three consecutive tokens with exact unchanged
+  scalar delivery and one synchronized SAE snapshot; the prior 1B L22/L7
+  regression also passed.
 
 The focused contract is in `specs/ossia-score-interface.md`; the Phase 5 evidence
 and decision are in `specs/ossia-native-inference-decision.md`. The sequential

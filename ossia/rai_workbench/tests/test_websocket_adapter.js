@@ -35,7 +35,16 @@ test("start and stop controls produce backend-compatible requests", () => {
     },
   ];
   const start = JSON.parse(
-    adapter.startMessage("A glass bell in winter", 7, 7, probeRack),
+    adapter.startMessage(
+      "A glass bell in winter",
+      7,
+      7,
+      probeRack,
+      "google/gemma-3-270m",
+      8,
+      "16k",
+      "small",
+    ),
   );
 
   assert.equal(start.action, "start");
@@ -47,12 +56,20 @@ test("start and stop controls produce backend-compatible requests", () => {
     "sae.active_features",
   ]);
   assert.equal(start.params.observation_layer, 7);
+  assert.equal(start.params.model, "google/gemma-3-270m");
+  assert.equal(start.params.layer, 8);
+  assert.equal(start.params.width, "16k");
+  assert.equal(start.params.l0, "small");
   assert.deepEqual(JSON.parse(JSON.stringify(start.params.probe_rack)), probeRack);
   assert.deepEqual(
     JSON.parse(adapter.updateParamsMessage({ observation_layer: 12 })),
     { action: "update_params", params: { observation_layer: 12 } },
   );
   assert.deepEqual(JSON.parse(adapter.stopMessage()), { action: "stop" });
+  assert.deepEqual(JSON.parse(adapter.saeLayerMessage(17)), {
+    action: "update_params",
+    params: { layer: 17 },
+  });
 });
 
 test("connection and ready events initialize the fixed workbench state", () => {
@@ -73,7 +90,9 @@ test("connection and ready events initialize the fixed workbench state", () => {
         prompt: "Ready prompt",
         model: "google/gemma-3-1b-it",
         observation_layer: 17,
-        layer: 22,
+        layer: 8,
+        width: "16k",
+        l0: "small",
         max_tokens: 200,
         probe_rack: [
           {
@@ -97,9 +116,13 @@ test("connection and ready events initialize the fixed workbench state", () => {
   assert.equal(values["/run/state"], "idle");
   assert.equal(values["/run/prompt"], "Ready prompt");
   assert.equal(values["/run/max_tokens"], 200);
+  assert.equal(values["/run/model"], "google/gemma-3-1b-it");
+  assert.equal(values["/run/sae_width"], "16k");
+  assert.equal(values["/run/sae_l0"], "small");
   assert.equal(values["/model/name"], "google/gemma-3-1b-it");
   assert.equal(values["/observation/layer"], 17);
-  assert.equal(values["/observation/sae_layer"], 22);
+  assert.equal(values["/observation/sae_layer"], 8);
+  assert.equal(values["/observation/requested_sae_layer"], 8);
   assert.equal(values["/observation/requested_layer"], undefined);
   assert.equal(values["/probe_controls/1/id"], undefined);
 });
@@ -189,6 +212,11 @@ test("token events expose bounded probes and strongest SAE features", () => {
         sae_shape: [65000],
         sae_dtype: "sparse_float32",
         sae_representation: "sparse_sae",
+        sae_width: "16k",
+        sae_l0: "small",
+        sae_category: "resid_post_all",
+        sae_repo_id: "google/gemma-scope-2-270m-pt",
+        sae_revision: "2109a1868ae2a3b699123d290e8944cfd43d8ed1",
       },
       probes: [
         {
@@ -265,6 +293,14 @@ test("token events expose bounded probes and strongest SAE features", () => {
   assert.equal(values["/observation/sae_shape"], "[65000]");
   assert.equal(values["/observation/sae_dtype"], "sparse_float32");
   assert.equal(values["/observation/sae_representation"], "sparse_sae");
+  assert.equal(values["/observation/sae_width"], "16k");
+  assert.equal(values["/observation/sae_l0"], "small");
+  assert.equal(values["/observation/sae_category"], "resid_post_all");
+  assert.equal(values["/observation/sae_repo_id"], "google/gemma-scope-2-270m-pt");
+  assert.equal(
+    values["/observation/sae_revision"],
+    "2109a1868ae2a3b699123d290e8944cfd43d8ed1",
+  );
 
   assert.equal(values["/probes/1/enabled"], true);
   assert.equal(values["/probes/1/id"], "residual-17");
@@ -569,10 +605,18 @@ test("prompt edits stay local and start reads the local score value", () => {
   assert.doesNotMatch(promptBlock[1], /request:/);
   assert.match(qml, /Device\.read\("\/run\/prompt"\)/);
   assert.match(qml, /Device\.read\("\/run\/max_tokens"\)/);
+  assert.match(qml, /Device\.read\("\/run\/model"\)/);
+  assert.match(qml, /Device\.read\("\/run\/sae_width"\)/);
+  assert.match(qml, /Device\.read\("\/run\/sae_l0"\)/);
   assert.match(qml, /Device\.read\("\/observation\/requested_layer"\)/);
+  assert.match(qml, /Device\.read\("\/observation\/requested_sae_layer"\)/);
   assert.match(qml, /function probeRackFromDevice\s*\(/);
   assert.match(qml, /updateParamsMessage/);
   assert.match(qml, /name: "max_tokens",\s*type: Ossia\.Type\.Int/);
+  assert.match(qml, /name: "model",\s*type: Ossia\.Type\.String/);
+  assert.match(qml, /name: "sae_width",\s*type: Ossia\.Type\.String/);
+  assert.match(qml, /name: "sae_l0",\s*type: Ossia\.Type\.String/);
+  assert.match(qml, /name: "requested_sae_layer",\s*type: Ossia\.Type\.Int/);
   assert.match(
     qml,
     /name: "start",\s*type: Ossia\.Type\.Bool/,

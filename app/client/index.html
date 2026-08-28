@@ -87,8 +87,9 @@
         <div class="control-page">
           <section class="control-group"><label>Gemma model</label><select id="model"></select></section>
           <div class="source-grid">
-            <section class="control-group"><label>Gemma Scope 2 SAE layer</label><select id="layer"></select><small class="field-note">The trained sparse autoencoder is fixed here.</small></section>
+            <section class="control-group"><label>Gemma Scope 2 SAE layer</label><select id="layer"></select><small id="sae-layer-note" class="field-note">Uses the pretrained SAE for this exact layer.</small></section>
             <section class="control-group"><label>SAE width</label><select id="width"></select></section>
+            <section class="control-group"><label>SAE target L0</label><select id="l0"></select></section>
           </div>
           <section class="control-group observation-layer-control">
             <label class="control-label-row">Inspect residual after block <span id="observation-layer-value" class="inline-status">22 / 25</span></label>
@@ -202,7 +203,10 @@
             <section id="gemma-model-map" class="gemma-model-map compact-model-map" aria-label="Clickable Gemma transformer blocks">
               <header class="model-map-heading">
                 <div><span>Where in Gemma?</span><strong id="model-layer-readout">Select a transformer block</strong></div>
-                <div class="layer-browser-controls"><button id="btn-layer-prev" type="button" aria-label="Previous transformer block">←</button><strong id="layer-browser-position">L—</strong><button id="btn-layer-next" type="button" aria-label="Next transformer block">→</button></div>
+                <div class="model-map-actions">
+                  <label id="sae-follow-control" class="sae-follow-control" hidden><input id="sae-follow-observation" type="checkbox" checked /> Move matching SAE</label>
+                  <div class="layer-browser-controls"><button id="btn-layer-prev" type="button" aria-label="Previous transformer block">←</button><strong id="layer-browser-position">L—</strong><button id="btn-layer-next" type="button" aria-label="Next transformer block">→</button></div>
+                </div>
               </header>
               <div id="model-depth-grid" class="model-depth-grid">
                 <div class="model-terminal input-terminal"><strong>Input</strong><span>token embedding</span></div>

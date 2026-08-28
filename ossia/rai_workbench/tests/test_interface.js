@@ -113,7 +113,7 @@ test("the research view exposes synchronized token history and truthful provenan
   assert.match(qml, /shape/i);
 });
 
-test("the research view maps real blocks and keeps dense and SAE layers distinct", () => {
+test("the research view maps real blocks and can move a matching all-layer SAE", () => {
   const qml = readWorkbenchFile("interface.qml");
 
   assert.match(qml, /id: blockRepeater/);
@@ -123,9 +123,30 @@ test("the research view maps real blocks and keeps dense and SAE layers distinct
   assert.match(qml, /delta_rms/);
   assert.match(qml, /cosine_to_previous/);
   assert.match(qml, /RAI Workbench:\/observation\/requested_layer/);
+  assert.match(qml, /RAI Workbench:\/observation\/requested_sae_layer/);
   assert.match(qml, /function setObservationLayer\s*\(/);
-  assert.match(qml, /fixed SAE|SAE fixed/i);
+  assert.match(qml, /function setSaeLayer\s*\(/);
+  assert.match(qml, /followSaeLayer/);
+  assert.match(qml, /matching SAE/i);
   assert.match(qml, /not semantic|no semantic proximity/i);
+});
+
+test("the score run controls expose the complete official 270M all-layer example", () => {
+  const qml = readWorkbenchFile("interface.qml");
+
+  for (const address of [
+    "RAI Workbench:/run/model",
+    "RAI Workbench:/run/sae_width",
+    "RAI Workbench:/run/sae_l0",
+    "RAI Workbench:/observation/sae_category",
+    "RAI Workbench:/observation/sae_repo_id",
+    "RAI Workbench:/observation/sae_revision",
+  ]) {
+    assert.match(qml, new RegExp(address.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
+  assert.match(qml, /google\/gemma-3-270m/);
+  assert.match(qml, /resid_post_all/);
+  assert.match(qml, /Feature indices.*specific.*layer|specific.*layer.*feature indices/is);
 });
 
 test("the interface renders eight bounded provenance-bearing probe summaries and controls", () => {

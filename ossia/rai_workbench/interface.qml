@@ -37,7 +37,12 @@ Rectangle {
   property int modelSlidingWindow: 0
   property int modelMaxPositions: 0
 
+  property string runModel: "google/gemma-3-1b-pt"
+  property string runSaeWidth: "65k"
+  property string runSaeL0: "medium"
   property int requestedObservationLayer: 22
+  property int requestedSaeLayer: 22
+  property bool followSaeLayer: true
   property string observationSite: ""
   property int observationLayer: -1
   property string observationModulePath: ""
@@ -49,6 +54,11 @@ Rectangle {
   property string saeShape: ""
   property string saeDtype: ""
   property string saeRepresentation: ""
+  property string saeWidth: ""
+  property string saeL0: ""
+  property string saeCategory: ""
+  property string saeRepoId: ""
+  property string saeRevision: ""
 
   property var tokenHistory: []
   property var inspectedSnapshot: null
@@ -77,6 +87,7 @@ Rectangle {
     },
   ]
   readonly property bool runBusy: runState === "loading" || runState === "running"
+  readonly property bool allLayerSaeExample: runModel === "google/gemma-3-270m"
 
   signal snapshotCaptured(int count)
 
@@ -171,8 +182,40 @@ Rectangle {
   }
 
   function setObservationLayer(layer) {
-    var maximum = Math.max(0, modelLayerCount - 1);
+    var maximum = allLayerSaeExample ? 17 : Math.max(0, modelLayerCount - 1);
     requestedObservationLayer = Math.max(0, Math.min(maximum, Math.floor(Number(layer))));
+    if (allLayerSaeExample && followSaeLayer) {
+      setSaeLayer(requestedObservationLayer);
+    }
+  }
+
+  function setSaeLayer(layer) {
+    if (!allLayerSaeExample) {
+      return false;
+    }
+    requestedSaeLayer = Math.max(0, Math.min(17, Math.floor(Number(layer))));
+    for (var controlIndex = 0; controlIndex < 8; controlIndex += 1) {
+      var control = probeControlAt(controlIndex);
+      if (control !== null && control.controlSite === "sae") {
+        control.controlLayer = requestedSaeLayer;
+      }
+    }
+    return true;
+  }
+
+  function selectRunModel(index) {
+    var useAllLayers = Number(index) === 1;
+    runModel = useAllLayers ? "google/gemma-3-270m" : "google/gemma-3-1b-pt";
+    runSaeWidth = useAllLayers ? "16k" : "65k";
+    runSaeL0 = useAllLayers ? "small" : "medium";
+    requestedObservationLayer = useAllLayers ? 0 : 22;
+    requestedSaeLayer = useAllLayers ? 0 : 22;
+    for (var controlIndex = 0; controlIndex < 2; controlIndex += 1) {
+      var control = probeControlAt(controlIndex);
+      if (control !== null) {
+        control.controlLayer = useAllLayers ? 0 : 22;
+      }
+    }
   }
 
   function applyProbeControls() {
@@ -259,6 +302,11 @@ Rectangle {
       saeShape: saeShape,
       saeDtype: saeDtype,
       saeRepresentation: saeRepresentation,
+      saeWidth: saeWidth,
+      saeL0: saeL0,
+      saeCategory: saeCategory,
+      saeRepoId: saeRepoId,
+      saeRevision: saeRevision,
       features: features,
       blocks: blocks,
       probes: probes,
@@ -404,6 +452,18 @@ Rectangle {
   UI.AddressSource on requestedObservationLayer {
     address: "RAI Workbench:/observation/requested_layer"
   }
+  UI.AddressSource on runModel {
+    address: "RAI Workbench:/run/model"
+  }
+  UI.AddressSource on runSaeWidth {
+    address: "RAI Workbench:/run/sae_width"
+  }
+  UI.AddressSource on runSaeL0 {
+    address: "RAI Workbench:/run/sae_l0"
+  }
+  UI.AddressSource on requestedSaeLayer {
+    address: "RAI Workbench:/observation/requested_sae_layer"
+  }
   UI.AddressSource on observationSite {
     address: "RAI Workbench:/observation/site"
     sendUpdates: false
@@ -446,6 +506,26 @@ Rectangle {
   }
   UI.AddressSource on saeRepresentation {
     address: "RAI Workbench:/observation/sae_representation"
+    sendUpdates: false
+  }
+  UI.AddressSource on saeWidth {
+    address: "RAI Workbench:/observation/sae_width"
+    sendUpdates: false
+  }
+  UI.AddressSource on saeL0 {
+    address: "RAI Workbench:/observation/sae_l0"
+    sendUpdates: false
+  }
+  UI.AddressSource on saeCategory {
+    address: "RAI Workbench:/observation/sae_category"
+    sendUpdates: false
+  }
+  UI.AddressSource on saeRepoId {
+    address: "RAI Workbench:/observation/sae_repo_id"
+    sendUpdates: false
+  }
+  UI.AddressSource on saeRevision {
+    address: "RAI Workbench:/observation/sae_revision"
     sendUpdates: false
   }
 
@@ -811,6 +891,24 @@ Rectangle {
           RowLayout {
             Layout.fillWidth: true
             Label {
+              text: "Model"
+              color: "#9ca9bd"
+              font.pixelSize: 12
+            }
+            ComboBox {
+              id: runModelInput
+              objectName: "runModelInput"
+              model: ["Gemma 3 1B", "Gemma 3 270M · all-layer SAE"]
+              currentIndex: root.allLayerSaeExample ? 1 : 0
+              enabled: !root.runBusy
+              onActivated: root.selectRunModel(currentIndex)
+            }
+            Label {
+              text: root.runSaeWidth + " · L0 " + root.runSaeL0
+              color: "#8e9aab"
+              font.pixelSize: 10
+            }
+            Label {
               text: "Maximum tokens"
               color: "#9ca9bd"
               font.pixelSize: 12
@@ -841,6 +939,14 @@ Rectangle {
               enabled: !root.runBusy && root.connectionState !== "disconnected"
               onClicked: root.startRun()
             }
+          }
+          Label {
+            Layout.fillWidth: true
+            visible: root.allLayerSaeExample
+            text: "Official resid_post_all example: each layer uses its own pretrained 16k SAE; no feature identity is implied across layers."
+            color: "#8e9aab"
+            font.pixelSize: 10
+            wrapMode: Text.Wrap
           }
         }
       }
@@ -1010,6 +1116,24 @@ Rectangle {
               editable: true
               onValueModified: root.setObservationLayer(value)
             }
+            CheckBox {
+              id: followSaeLayerControl
+              objectName: "followSaeLayerControl"
+              text: "Move matching SAE"
+              visible: root.allLayerSaeExample
+              checked: root.followSaeLayer
+              onToggled: root.followSaeLayer = checked
+            }
+            SpinBox {
+              id: saeLayerControl
+              objectName: "saeLayerControl"
+              visible: root.allLayerSaeExample
+              from: 0
+              to: 17
+              value: root.requestedSaeLayer
+              editable: true
+              onValueModified: root.setSaeLayer(value)
+            }
           }
 
           GridLayout {
@@ -1127,7 +1251,11 @@ Rectangle {
                     anchors.horizontalCenter: parent.horizontalCenter
                     text: blockRow.shownObservation && blockRow.shownSae
                       ? "DENSE · SAE"
-                      : (blockRow.shownObservation ? "DENSE" : (blockRow.shownSae ? "FIXED SAE" : ""))
+                      : (blockRow.shownObservation
+                        ? "DENSE"
+                        : (blockRow.shownSae
+                          ? (root.allLayerSaeExample ? "MATCHED SAE" : "FIXED SAE")
+                          : ""))
                     color: blockRow.shownSae ? "#b8a5ff" : "#63d7d1"
                     font.pixelSize: 8
                     font.bold: true
@@ -1241,7 +1369,7 @@ Rectangle {
             }
             Rectangle { Layout.fillWidth: true; height: 1; color: "#2a3341" }
             Label {
-              text: "FIXED SAE ATTACHMENT"
+              text: root.allLayerSaeExample ? "MATCHING LAYER-SPECIFIC SAE" : "FIXED SAE ATTACHMENT"
               color: "#b8a5ff"
               font.pixelSize: 10
               font.bold: true
@@ -1251,10 +1379,15 @@ Rectangle {
               objectName: "saeProvenance"
               Layout.fillWidth: true
               text: root.snapshotValue("saeRepresentation", root.saeRepresentation)
-                + " · fixed SAE layer " + root.snapshotValue("saeLayer", root.saeLayer)
+                + " · SAE layer " + root.snapshotValue("saeLayer", root.saeLayer)
+                + " · " + root.snapshotValue("saeCategory", root.saeCategory)
+                + " · " + root.snapshotValue("saeWidth", root.saeWidth)
+                + " · L0 " + root.snapshotValue("saeL0", root.saeL0)
                 + " · shape " + root.snapshotValue("saeShape", root.saeShape)
                 + " · " + root.snapshotValue("saeDtype", root.saeDtype)
                 + "\nmodule path: " + root.snapshotValue("saeModulePath", root.saeModulePath)
+                + "\nrepository: " + root.snapshotValue("saeRepoId", root.saeRepoId)
+                + " @ " + root.snapshotValue("saeRevision", root.saeRevision)
               color: "#c9d2df"
               font.pixelSize: 11
               wrapMode: Text.WrapAnywhere
@@ -1262,7 +1395,7 @@ Rectangle {
             Item { Layout.fillHeight: true }
             Label {
               Layout.fillWidth: true
-              text: "Quoted token text preserves whitespace. Dense coordinates and sparse feature indices are literal representations, not semantic layouts."
+              text: "Quoted token text preserves whitespace. Feature indices are specific to their model, layer, SAE family, width, L0, and revision; they are literal identifiers, not semantic layouts."
               color: "#758196"
               font.pixelSize: 10
               wrapMode: Text.Wrap

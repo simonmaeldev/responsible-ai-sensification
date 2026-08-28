@@ -10,7 +10,8 @@
 
 ## Status And Decision
 
-Slices 1 through 5 are complete and verified on the Ubuntu GPU PC with installed
+Slices 1 through 5 and the all-layer pretrained-SAE example are complete and
+verified on the Ubuntu GPU PC with installed
 ossia score 3.8.2. The fixed WebSocket device and compact custom interface can
 control and observe a real Gemma/SAE/Neuronpedia run, preserve synchronized
 token history and exact provenance, and apply dense-layer and probe changes to
@@ -36,7 +37,7 @@ Create a score-native instrument that can:
 - enter a prompt and start or stop a run;
 - show connection, loading, run, and error state;
 - show the exact current token and token ID;
-- show the selected Gemma layer and fixed SAE layer distinctly;
+- show the selected Gemma layer and exact trained SAE layer distinctly;
 - show bounded probe summaries;
 - show the strongest active SAE features with activation and Neuronpedia text;
 - make selected scalar observations available to normal score processes.
@@ -79,6 +80,9 @@ RAI Workbench:/run/state
 RAI Workbench:/run/error
 RAI Workbench:/run/prompt
 RAI Workbench:/run/max_tokens
+RAI Workbench:/run/model
+RAI Workbench:/run/sae_width
+RAI Workbench:/run/sae_l0
 RAI Workbench:/run/start
 RAI Workbench:/run/stop
 RAI Workbench:/loading/label
@@ -90,7 +94,13 @@ RAI Workbench:/token/text
 RAI Workbench:/token/elapsed_ms
 RAI Workbench:/model/name
 RAI Workbench:/observation/layer
+RAI Workbench:/observation/requested_sae_layer
 RAI Workbench:/observation/sae_layer
+RAI Workbench:/observation/sae_width
+RAI Workbench:/observation/sae_l0
+RAI Workbench:/observation/sae_category
+RAI Workbench:/observation/sae_repo_id
+RAI Workbench:/observation/sae_revision
 RAI Workbench:/probes/1..8/...
 RAI Workbench:/patchable/tensor_rms/...
 RAI Workbench:/patchable/tensor_max_abs/...
@@ -294,6 +304,50 @@ WebSocket device. An Avendish bridge would duplicate that working adapter
 without moving inference or supplying a measured benefit. No implementation
 was performed, and native work requires a new approved spec after the gates in
 `specs/ossia-native-inference-decision.md` are met.
+
+### All-layer pretrained-SAE example extension
+
+Status: complete
+
+This extension is not Slice 6 and does not reopen the native-inference decision.
+It adds a complete small-model example to the existing backend/browser/score
+path:
+
+- model `google/gemma-3-270m`, with its real 18-block architecture;
+- repository `google/gemma-scope-2-270m-pt`;
+- `resid_post_all`, width `16k`, target L0 `small`, layers 0–17;
+- one exact pretrained SAE runtime per model/repository/family/layer/width/L0
+  cache key;
+- independent dense and SAE requests, with an optional “Move matching SAE”
+  control that applies both selections to the next token;
+- token-bound SAE layer, family, width, L0, repository, revision, module path,
+  shape, dtype, and representation evidence in browser and score history.
+
+The all-layer series is not the separate four-layer residual series currently
+carrying Neuronpedia descriptions. Description and cluster fields therefore
+remain empty rather than borrowing semantic evidence. Feature indices are
+specific to their exact layer-specific SAE and cannot be followed across depth
+as if they represented one concept.
+
+Observed verification on the Ubuntu GPU PC:
+
+- 119 server tests, browser JavaScript/DOM checks, eleven adapter/device tests,
+  and ten interface/document tests passed;
+- installed score passed normal, debug, synchronized scalar/history, and
+  staged example-removal runs;
+- official model snapshot `9b0cfec892e2bc2afd938c98eabe4e4a7b1e0ca1`
+  and all 18 official SAE files from snapshot
+  `b218cd5d69dc2fa71cff448b68d625e6c9702d49` were cached outside Git;
+- a real installed-score RTX 4060 Ti run generated three consecutive tokens at
+  L0, L8, and L17. Each event reported its matching 16,384-wide SAE, exact
+  snapshot provenance, empty description, synchronized token history, and
+  unchanged tensor/SAE scalar values. The ordinary Float example received the
+  exact latest tensor RMS;
+- the existing real Gemma 3 1B regression retained a movable L22→L7 dense
+  observation and fixed layer-22 SAE with exact scalar equality.
+
+The narrower source and acceptance contract is
+`specs/gemma-scope-all-layer-example.md`.
 
 ## Test-First Verification
 

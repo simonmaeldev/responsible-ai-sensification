@@ -95,7 +95,16 @@ function _boundedProbeRack(probeRack) {
   return probes;
 }
 
-function startMessage(prompt, maxTokens, observationLayer, probeRack) {
+function startMessage(
+  prompt,
+  maxTokens,
+  observationLayer,
+  probeRack,
+  model,
+  saeLayer,
+  saeWidth,
+  saeL0
+) {
   var boundedMaxTokens = Math.max(1, Math.floor(_number(maxTokens, 200)));
   var params = {
     prompt: _text(prompt),
@@ -109,6 +118,22 @@ function startMessage(prompt, maxTokens, observationLayer, probeRack) {
   var requestedLayer = _number(observationLayer, NaN);
   if (isFinite(requestedLayer) && requestedLayer >= 0) {
     params.observation_layer = Math.floor(requestedLayer);
+  }
+  var requestedModel = _text(model).trim();
+  if (requestedModel) {
+    params.model = requestedModel;
+  }
+  var requestedSaeLayer = _number(saeLayer, NaN);
+  if (isFinite(requestedSaeLayer) && requestedSaeLayer >= 0) {
+    params.layer = Math.floor(requestedSaeLayer);
+  }
+  var requestedWidth = _text(saeWidth).trim();
+  if (requestedWidth) {
+    params.width = requestedWidth;
+  }
+  var requestedL0 = _text(saeL0).trim();
+  if (requestedL0) {
+    params.l0 = requestedL0;
   }
   var probes = _boundedProbeRack(probeRack);
   if (probes.length > 0) {
@@ -128,6 +153,12 @@ function probeRackMessage(probeRack) {
   return updateParamsMessage({ probe_rack: _boundedProbeRack(probeRack) });
 }
 
+function saeLayerMessage(layer) {
+  return updateParamsMessage({
+    layer: Math.max(0, Math.floor(_number(layer, 0))),
+  });
+}
+
 function stopMessage() {
   return JSON.stringify({ action: "stop" });
 }
@@ -142,6 +173,9 @@ function _readyEvent(result, event) {
   _update(result, "/run/error", "");
   _update(result, "/run/prompt", result.prompt);
   _update(result, "/run/max_tokens", _number(params.max_tokens, 200));
+  _update(result, "/run/model", _text(params.model));
+  _update(result, "/run/sae_width", _text(params.width));
+  _update(result, "/run/sae_l0", _text(params.l0));
   _update(result, "/token/revision", -1);
   _update(result, "/model/name", _text(params.model));
   _update(
@@ -150,6 +184,11 @@ function _readyEvent(result, event) {
     _number(params.observation_layer, -1),
   );
   _update(result, "/observation/sae_layer", _number(params.layer, -1));
+  _update(
+    result,
+    "/observation/requested_sae_layer",
+    _number(params.layer, -1),
+  );
 }
 
 function _loadingEvent(result, event) {
@@ -475,6 +514,11 @@ function _tokenEvent(result, event) {
       "/observation/sae_representation",
       _text(observation.sae_representation),
     );
+    _update(result, "/observation/sae_width", _text(observation.sae_width));
+    _update(result, "/observation/sae_l0", _text(observation.sae_l0));
+    _update(result, "/observation/sae_category", _text(observation.sae_category));
+    _update(result, "/observation/sae_repo_id", _text(observation.sae_repo_id));
+    _update(result, "/observation/sae_revision", _text(observation.sae_revision));
   }
 
   _profileUpdates(result, _layerProfile(event));

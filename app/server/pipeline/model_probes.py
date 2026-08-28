@@ -240,6 +240,10 @@ def build_sae_probe_observations(
     *,
     sae_layer: int,
     sae_width: str,
+    sae_category: str = "resid_post",
+    sae_l0: str = "",
+    sae_repo_id: str = "",
+    sae_revision: str = "",
     sae_size: int,
     model_id: str,
     token_index: int,
@@ -263,12 +267,13 @@ def build_sae_probe_observations(
     for probe in coerce_probe_rack(rack, sae_layer=sae_layer):
         if not probe["enabled"] or probe["site"] != "sae":
             continue
-        observations.append(
-            {
+        observation = {
                 "id": probe["id"],
                 "site": "sae",
                 "layer": int(sae_layer),
-                "module_path": f"gemma_scope.resid_post.layer_{sae_layer}.width_{sae_width}",
+                "module_path": (
+                    f"gemma_scope.{sae_category}.layer_{sae_layer}.width_{sae_width}"
+                ),
                 "capture": "summary",
                 "publish": probe["publish"],
                 "model": model_id,
@@ -283,5 +288,15 @@ def build_sae_probe_observations(
                     "top_activation": float(maximum["activation"]),
                 },
             }
-        )
+        if sae_l0 or sae_repo_id or sae_revision:
+            observation.update(
+                {
+                    "sae_category": str(sae_category),
+                    "sae_width": str(sae_width),
+                    "sae_l0": str(sae_l0),
+                    "sae_repo_id": str(sae_repo_id),
+                    "sae_revision": str(sae_revision),
+                }
+            )
+        observations.append(observation)
     return observations

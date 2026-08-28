@@ -1,6 +1,6 @@
 # Project State
 
-Last updated: 2026-08-18
+Last updated: 2026-08-28
 
 ## Branch
 
@@ -32,7 +32,8 @@ screen regions or primary tabs.
 The Emitter now includes a bounded **Gemma Probe Rack**. Up to eight named,
 live-editable probes can observe a real post-block residual, self-attention
 output, MLP output, or the Gemma Scope SAE. Tensor probes can capture a local
-summary or final-token vector; the SAE remains fixed to its trained layer.
+summary or final-token vector; an SAE observation is always bound to the exact
+layer for which that SAE was trained.
 Every observation carries its actual module path, layer, shape, summary, model,
 and token provenance. The compact live strip keeps these readings attached to
 the current token, while the complete rack stays in an on-demand drawer.
@@ -44,6 +45,15 @@ the residual from its actual trained layer. WebSocket token events identify both
 locations. The interface does not claim semantic geometry for neighbouring
 dense dimensions or SAE feature indices.
 
+An explicit small-model example now makes sparse observation movable as well.
+`google/gemma-3-270m` uses the official `resid_post_all`, width-16k, L0-small
+Gemma Scope 2 series: one distinct pretrained SAE for every model layer 0–17.
+Browser and score controls can move dense observation and the matching SAE on
+subsequent tokens. Events preserve exact SAE family, width, L0, repository,
+cached snapshot revision, module path, shape, dtype, and representation. The
+all-layer series has no Neuronpedia descriptions in this interface; it never
+borrows labels or clusters from the separate four-layer series.
+
 Model now supports real token traversal through the full Gemma decoder. An
 optional `model.layer_profile` captures a compact final-position residual
 summary at every block in one forward pass: magnitude, peak, adjacent-block
@@ -51,8 +61,8 @@ update magnitude, and cosine similarity. The browser renders measured activity
 across all 26 blocks, previous/next/direct navigation, the loaded model's real
 local-versus-global attention pattern, and the selected Gemma block's RMSNorm,
 self-attention, residual, gated-MLP, and residual path. Only the selected block's
-complete 1,152-value residual is sent; the SAE remains fixed at its trained
-layer and no semantic geometry is inferred.
+complete selected residual is sent; every SAE encodes only the residual from
+the exact layer for which it was trained and no semantic geometry is inferred.
 
 The semantic-tonality experiment remains available under Tonality. Verbal
 descriptions and active SAE feature descriptions share the MiniLM space, and
@@ -518,6 +528,14 @@ OSC/OSCQuery moves live performance data.
   errors or horizontal overflow at 1,440 px. Clicking token 1 changed the exact
   readout and restored token 1 for inspection. The inspected screenshot is
   `runs/emitter-live-inspector-live.png`; the browser and server were stopped.
+- Added the complete official Gemma 3 270M/Gemma Scope 2 all-layer example.
+  Browser and score can move from L0 to L8 to L17 during one run, resolving a
+  separately trained `resid_post_all` 16k/L0-small SAE at each token boundary.
+  All 18 SAE files and the model are cached outside Git. A real RTX 4060 Ti run
+  used model snapshot `9b0cfec892e2bc2afd938c98eabe4e4a7b1e0ca1` and SAE
+  snapshot `b218cd5d69dc2fa71cff448b68d625e6c9702d49`; score history,
+  raw scalar equality, and the removable Float mapping passed at all three
+  layers. The earlier real 1B fixed-SAE regression also passed.
 
 ## Local Reference Material
 
@@ -535,7 +553,7 @@ The ossia score-native workbench is active on the Ubuntu GPU PC. Phases 1–4
 keep the existing FastAPI, PyTorch Gemma, Gemma Scope SAE, and Neuronpedia
 runtime and connect score 3.8.2 through a verified WebSocket device plus a
 compact custom interface. The interface controls and displays real token
-history, block/profile data, dense and fixed-SAE provenance, bounded probe
+history, block/profile data, dense and exact-SAE provenance, bounded probe
 summaries, patchable scalar observations, and SAE/Neuronpedia evidence. The
 installed score Language Model process is not the research inference path;
 current upstream source has broader decoder names but not this project's
@@ -543,7 +561,10 @@ evidence or lifecycle contract.
 
 Phase 4 is complete: four selected raw scalar summaries can drive ordinary
 score processes through a provenance-bearing local tree, with one removable
-example. The browser remains the reference and fallback. Phase 5 is complete:
+example. The optional 270M all-layer example supplies a separately trained SAE
+for every block and can move the matching dense/SAE pair live; the established
+1B/4B choices retain their fixed trained SAE attachment. The browser remains
+the reference and fallback. Phase 5 is complete:
 native ONNX/Avendish inference is a documented no-go now, so no port or bridge
 is implemented or authorized. The phased contract is in
 `specs/ossia-score-interface.md`, the decision evidence is in

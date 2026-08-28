@@ -206,6 +206,21 @@ Ossia.WebSockets {
             value: 200,
           },
           {
+            name: "model",
+            type: Ossia.Type.String,
+            value: "google/gemma-3-1b-pt",
+          },
+          {
+            name: "sae_width",
+            type: Ossia.Type.String,
+            value: "65k",
+          },
+          {
+            name: "sae_l0",
+            type: Ossia.Type.String,
+            value: "medium",
+          },
+          {
             name: "start",
             type: Ossia.Type.Bool,
             value: false,
@@ -215,7 +230,11 @@ Ossia.WebSockets {
                 Device.read("/run/prompt"),
                 Device.read("/run/max_tokens"),
                 Device.read("/observation/requested_layer"),
-                root.probeRackFromDevice()
+                root.probeRackFromDevice(),
+                Device.read("/run/model"),
+                Device.read("/observation/requested_sae_layer"),
+                Device.read("/run/sae_width"),
+                Device.read("/run/sae_l0")
               );
             },
           },
@@ -275,6 +294,16 @@ Ossia.WebSockets {
               });
             },
           },
+          {
+            name: "requested_sae_layer",
+            type: Ossia.Type.Int,
+            value: 22,
+            request: function() {
+              return root.saeLayerMessage(
+                Device.read("/observation/requested_sae_layer")
+              );
+            },
+          },
           { name: "site", type: Ossia.Type.String, value: "" },
           { name: "layer", type: Ossia.Type.Int, value: -1 },
           { name: "module_path", type: Ossia.Type.String, value: "" },
@@ -286,6 +315,11 @@ Ossia.WebSockets {
           { name: "sae_shape", type: Ossia.Type.String, value: "" },
           { name: "sae_dtype", type: Ossia.Type.String, value: "" },
           { name: "sae_representation", type: Ossia.Type.String, value: "" },
+          { name: "sae_width", type: Ossia.Type.String, value: "" },
+          { name: "sae_l0", type: Ossia.Type.String, value: "" },
+          { name: "sae_category", type: Ossia.Type.String, value: "" },
+          { name: "sae_repo_id", type: Ossia.Type.String, value: "" },
+          { name: "sae_revision", type: Ossia.Type.String, value: "" },
         ],
       },
       { name: "blocks", children: root.blockNodes() },

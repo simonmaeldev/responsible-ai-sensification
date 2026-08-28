@@ -2963,6 +2963,25 @@ body {
   font-weight: 500;
 }
 
+.model-map-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sae-follow-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #b8a5ff;
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.sae-follow-control[hidden] {
+  display: none;
+}
+
 .layer-browser-controls {
   width: 146px;
   margin: 0;

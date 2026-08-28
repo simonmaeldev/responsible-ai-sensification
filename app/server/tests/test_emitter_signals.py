@@ -304,6 +304,116 @@ def test_dense_probe_can_move_layers_without_moving_the_sae():
     assert [item.tolist() for item in sae.inputs] == [[[2.0, 2.0]], [[2.0, 2.0]]]
 
 
+def test_matching_pretrained_sae_can_move_layers_on_subsequent_tokens():
+    from app.server.pipeline.extract import SaeRuntime
+
+    class FakeHookHandle:
+        def __init__(self, layer, hook):
+            self.layer = layer
+            self.hook = hook
+
+        def remove(self):
+            self.layer.hooks.remove(self.hook)
+
+    class FakeLayer:
+        def __init__(self, index):
+            self.index = index
+            self.hooks = []
+
+        def register_forward_hook(self, hook):
+            self.hooks.append(hook)
+            return FakeHookHandle(self, hook)
+
+    class FakeModel:
+        name_or_path = "google/gemma-3-270m"
+
+        def __init__(self):
+            self.layers = [FakeLayer(index) for index in range(3)]
+            self.model = SimpleNamespace(layers=self.layers)
+
+        def __call__(self, input_ids):
+            sequence_length = input_ids.shape[1]
+            for layer in self.layers:
+                hidden = torch.full((1, sequence_length, 2), float(layer.index + 1))
+                for hook in list(layer.hooks):
+                    hook(layer, (), (hidden,))
+            logits = torch.tensor([[[0.0, 2.0, 1.0]]] * sequence_length)
+            return SimpleNamespace(logits=logits)
+
+    class FakeTokenizer:
+        eos_token_id = 99
+
+        def __call__(self, _prompt, **_kwargs):
+            return {"input_ids": torch.tensor([[0]])}
+
+        def decode(self, token_ids):
+            return f"token-{token_ids[0]}"
+
+    class RecordingSae:
+        def __init__(self, active_index):
+            self.active_index = active_index
+            self.inputs = []
+
+        def encode(self, residual):
+            self.inputs.append(residual.clone())
+            result = torch.zeros((1, 4))
+            result[0, self.active_index] = float(self.active_index + 1)
+            return result
+
+    layer_zero_sae = RecordingSae(1)
+    layer_two_sae = RecordingSae(3)
+    runtimes = iter(
+        [
+            SaeRuntime(
+                sae=layer_zero_sae,
+                neuronpedia=SimpleNamespace(width="16k", explanations={1: "layer zero feature"}),
+                layer=0,
+                width="16k",
+                l0="small",
+                category="resid_post_all",
+                repo_id="google/gemma-scope-2-270m-pt",
+                revision="scope-revision",
+            ),
+            SaeRuntime(
+                sae=layer_two_sae,
+                neuronpedia=SimpleNamespace(width="16k", explanations={3: "layer two feature"}),
+                layer=2,
+                width="16k",
+                l0="small",
+                category="resid_post_all",
+                repo_id="google/gemma-scope-2-270m-pt",
+                revision="scope-revision",
+            ),
+        ]
+    )
+
+    generated = list(
+        inspect_live(
+            "test",
+            FakeModel(),
+            FakeTokenizer(),
+            layer_zero_sae,
+            0,
+            SimpleNamespace(width="16k", explanations={}),
+            max_new_tokens=2,
+            observation_layer=1,
+            sae_runtime=lambda: next(runtimes),
+        )
+    )
+
+    first, second = [analysis for analysis, _elapsed in generated]
+    assert [first.sae_layer, second.sae_layer] == [0, 2]
+    assert first.active_features[0].description == "layer zero feature"
+    assert second.active_features[0].description == "layer two feature"
+    assert first.sae_module_path == "gemma_scope.resid_post_all.layer_0.width_16k"
+    assert second.sae_module_path == "gemma_scope.resid_post_all.layer_2.width_16k"
+    assert first.sae_l0 == second.sae_l0 == "small"
+    assert first.sae_repo_id == second.sae_repo_id == "google/gemma-scope-2-270m-pt"
+    assert first.sae_revision == second.sae_revision == "scope-revision"
+    assert layer_zero_sae.inputs[0].tolist() == [[1.0, 1.0]]
+    assert layer_two_sae.inputs[0].tolist() == [[3.0, 3.0]]
+
+
 def test_invalid_observation_layer_is_clamped_without_stopping_generation():
     class FakeHookHandle:
         def remove(self):

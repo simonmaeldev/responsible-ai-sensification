@@ -77,6 +77,8 @@ assert.match(html, /<textarea[^>]+id="prompt"/);
 assert.match(html, /id="model-anatomy"/);
 assert.match(html, /id="gemma-model-map"/);
 assert.match(html, /id="model-depth-grid"/);
+assert.match(html, /id="sae-follow-observation"/);
+assert.match(html, /id="l0"/);
 assert.doesNotMatch(html, /class="model-path-stage"/);
 assert.match(html, /id="model-layer-readout"/);
 assert.match(html, /id="live-token-current"/);
@@ -166,6 +168,18 @@ global.fetch = async url => ({
         model_catalogue: {
           "test-model": {
             layers: [22], widths: ["65k"], observation_layers: [0, 1, 2],
+            l0s: ["medium"], sae_category: "resid_post", live_sae_layers: false,
+            architecture: {
+              layer_count: 3, hidden_size: 2, intermediate_size: 4,
+              attention_heads: 2, key_value_heads: 1, head_dim: 1,
+              sliding_window: 8, max_position_embeddings: 32,
+              layer_types: ["sliding_attention", "sliding_attention", "full_attention"],
+            },
+          },
+          "test-all-layer": {
+            layers: [0, 1, 2], widths: ["16k"], l0s: ["small"],
+            sae_category: "resid_post_all", live_sae_layers: true,
+            observation_layers: [0, 1, 2],
             architecture: {
               layer_count: 3, hidden_size: 2, intermediate_size: 4,
               attention_heads: 2, key_value_heads: 1, head_dim: 1,
@@ -238,7 +252,7 @@ global.fetch = async url => ({
   },
 });
 
-const instrumented = `${source}\n;globalThis.__emitterTest = { completeMapping, templateMappings, morphMapping, lerp, filterSignalCatalogue, signalRouteSummary, describeStreamValue, residualVectorStats, safeObservationLayer, normalizedLayerActivity, layerProfileEntry, layerProfilePoints, stepObservationLayer, scalePresetForIntervals, normalizedLens, visibleTokenLabel, featureDirectionRows, normalizedProbe, normalizedProbeRack, appendTokenToTimeline, handleMessage, handleLoadingMessage, startLoadingProgress, finishLoadingProgress, setWorkspace, setInterfaceDrawer, setSignalSelection(keys) { sessionActive = true; selectedEmitterSignalKeys = new Set(keys); sendSignalSelectionUpdate(); }, setProbeRackForTest(probes) { sessionActive = true; probeRack = normalizedProbeRack(probes); sendProbeRackUpdate(); } };`;
+const instrumented = `${source}\n;globalThis.__emitterTest = { completeMapping, templateMappings, morphMapping, lerp, filterSignalCatalogue, signalRouteSummary, describeStreamValue, residualVectorStats, safeObservationLayer, normalizedLayerActivity, layerProfileEntry, layerProfilePoints, stepObservationLayer, scalePresetForIntervals, normalizedLens, visibleTokenLabel, featureDirectionRows, normalizedProbe, normalizedProbeRack, appendTokenToTimeline, handleMessage, handleLoadingMessage, startLoadingProgress, finishLoadingProgress, setWorkspace, setInterfaceDrawer, selectObservationLayer, selectSaeLayer, configureModelForTest(modelId) { modelSel.value = modelId; populateLayerWidth(modelId); sessionActive = true; }, setSignalSelection(keys) { sessionActive = true; selectedEmitterSignalKeys = new Set(keys); sendSignalSelectionUpdate(); }, setProbeRackForTest(probes) { sessionActive = true; probeRack = normalizedProbeRack(probes); sendProbeRackUpdate(); } };`;
 vm.runInThisContext(instrumented, { filename: sourcePath });
 
 setTimeout(() => {
@@ -326,6 +340,10 @@ setTimeout(() => {
     api.normalizedProbe({ id: "scope", site: "sae", layer: 4, capture: "vector" }, 22),
     { id: "scope", site: "sae", layer: 22, capture: "summary", enabled: true, publish: true },
   );
+  assert.deepEqual(
+    api.normalizedProbe({ id: "scope-zero", site: "sae", layer: 4 }, 0),
+    { id: "scope-zero", site: "sae", layer: 0, capture: "summary", enabled: true, publish: true },
+  );
   assert.equal(api.normalizedProbeRack([
     { id: "same", site: "attention_output", layer: 0 },
     { id: "same", site: "mlp_output", layer: 1 },
@@ -368,7 +386,11 @@ setTimeout(() => {
     type: "token",
     token: " test",
     notes: [],
-    observation: { layer: 1, sae_layer: 22, sae_width: "65k" },
+    observation: {
+      layer: 1, sae_layer: 22, sae_width: "65k", sae_l0: "medium",
+      sae_category: "resid_post", sae_repo_id: "google/gemma-scope-2-test",
+      sae_revision: "scope-revision",
+    },
     probes: [
       {
         id: "attention-1", site: "attention_output", layer: 1,
@@ -400,6 +422,10 @@ setTimeout(() => {
   assert.equal(elements.get("live-token-current").textContent, '" test"');
   assert.equal(elements.get("live-feature-count").textContent, "2 active");
   assert.equal(elements.get("live-feature-directions").children.length, 2);
+  assert.equal(
+    elements.get("live-feature-layer").textContent,
+    "Gemma Scope 2 · layer 22 · resid_post · 65k · L0 medium · google/gemma-scope-2-test @ scope-revision",
+  );
   assert.equal(elements.get("live-probe-strip").children.length, 2);
   assert.equal(api.scalePresetForIntervals([0, 2, 4, 5, 7, 9, 11]), "major");
   assert.equal(api.scalePresetForIntervals([0, 1, 6]), "custom");
@@ -421,6 +447,19 @@ setTimeout(() => {
       ],
     },
   });
+  api.configureModelForTest("test-all-layer");
+  api.selectSaeLayer(2, true);
+  assert.equal(elements.get("layer").value, "2");
+  assert.deepEqual(global.WebSocket.instances[0].sent.at(-1), {
+    action: "update_params",
+    params: { layer: 2 },
+  });
+  elements.get("sae-follow-observation").checked = true;
+  api.selectObservationLayer(1, true);
+  assert.deepEqual(global.WebSocket.instances[0].sent.slice(-2), [
+    { action: "update_params", params: { layer: 1 } },
+    { action: "update_params", params: { observation_layer: 1 } },
+  ]);
   api.handleMessage({ type: "ossia_status", status: "active", message: "OSCQuery ws://127.0.0.1:5678" });
   assert.equal(elements.get("ossia-status").textContent, "OSCQuery ws://127.0.0.1:5678");
   api.startLoadingProgress();

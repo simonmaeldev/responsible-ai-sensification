@@ -15,14 +15,21 @@ from app.server.pipeline.ossia_probe_output import (
     OssiaProbeOutput,
     OssiaResult,
 )
+from app.server.routers.config import MODEL_CATALOGUE, SAE_REPO_MAP
 from app.server.routers.integrations import publish_activation
 from app.server.session import PipelineParams, PipelineSession
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# Module-level model cache: (model_id, layer, width) -> {"model": ..., "tokenizer": ..., "sae": ..., "neuronpedia": ...}
-_model_cache: dict[tuple, dict] = {}
+# Language-model/tokenizer cache. Layer-specific SAEs use the separate exact
+# provenance key below.
+_model_cache: dict[str, dict] = {}
+
+# Exact pretrained SAE runtime cache:
+# (model, repo, category, layer, width, l0) -> SaeRuntime
+_sae_runtime_cache: dict[tuple, object] = {}
+_sae_runtime_lock = threading.RLock()
 
 # Cluster map cache: (model_id, layer, width, clusters) -> cluster_map dict
 _cluster_cache: dict[tuple, dict] = {}
@@ -36,6 +43,87 @@ _tonality_runtime_lock = threading.RLock()
 
 # One shared session (single-user for now)
 _session = PipelineSession()
+
+
+def _resolve_sae_layer(requested: object, available_layers: list[int]) -> int:
+    """Choose only a layer for which the selected model advertises an SAE."""
+    if not available_layers:
+        raise ValueError("Selected model has no configured SAE layers")
+    ordered = sorted({int(layer) for layer in available_layers})
+    try:
+        selected = int(requested)
+    except (TypeError, ValueError):
+        return ordered[0]
+    if selected in ordered:
+        return selected
+    if selected <= ordered[0]:
+        return ordered[0]
+    if selected >= ordered[-1]:
+        return ordered[-1]
+    return min(ordered, key=lambda layer: (abs(layer - selected), layer))
+
+
+def _get_sae_runtime(params: PipelineParams, model_spec: dict, requested_layer: object):
+    """Load or reuse the exact pretrained SAE bound to one advertised layer."""
+    from app.server.pipeline.extract import (
+        NeuronpediaScope,
+        SaeRuntime,
+        download_neuronpedia_explanations,
+        load_sae,
+    )
+
+    layer = _resolve_sae_layer(requested_layer, list(model_spec.get("layers") or []))
+    widths = [str(width) for width in model_spec.get("widths") or []]
+    width = str(params.width) if str(params.width) in widths else widths[0]
+    l0s = [str(value) for value in model_spec.get("l0s") or []]
+    l0 = str(params.l0) if str(params.l0) in l0s else l0s[0]
+    category = str(model_spec.get("sae_category") or "resid_post")
+    repo_id = SAE_REPO_MAP[params.model]
+    key = (params.model, repo_id, category, layer, width, l0)
+
+    with _sae_runtime_lock:
+        cached = _sae_runtime_cache.get(key)
+        if cached is not None:
+            return cached
+
+        sae = load_sae(
+            layer=layer,
+            width=width,
+            l0=l0,
+            category=category,
+            sae_repo_id=repo_id,
+        )
+        neuronpedia_model = params.model.split("/")[-1].replace("-pt", "")
+        if model_spec.get("neuronpedia", True):
+            neuronpedia = download_neuronpedia_explanations(
+                neuronpedia_model,
+                layer,
+                width,
+            )
+        else:
+            neuronpedia = NeuronpediaScope(
+                model_id=neuronpedia_model,
+                layer=layer,
+                width=width,
+                explanations={},
+            )
+        runtime = SaeRuntime(
+            sae=sae,
+            neuronpedia=neuronpedia,
+            layer=layer,
+            width=width,
+            l0=l0,
+            category=category,
+            repo_id=repo_id,
+            revision=str(getattr(sae, "source_revision", "") or ""),
+        )
+        _sae_runtime_cache[key] = runtime
+        return runtime
+
+
+def _live_sae_runtime_resolver(params: PipelineParams, model_spec: dict):
+    """Resolve mutable session selection at the next token boundary."""
+    return lambda: _get_sae_runtime(params, model_spec, params.layer)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -142,8 +230,8 @@ def _put_token_event(
 
 
 def _observation_payload(token_analysis, params: PipelineParams) -> dict:
-    """Describe the actual dense site and fixed SAE representation for a token."""
-    return {
+    """Describe the actual dense and token-bound SAE representations."""
+    payload = {
         "model": params.model,
         "site": "residual_post",
         "layer": token_analysis.probe_layer,
@@ -151,13 +239,17 @@ def _observation_payload(token_analysis, params: PipelineParams) -> dict:
         "shape": token_analysis.probe_shape,
         "dtype": token_analysis.probe_dtype,
         "representation": token_analysis.probe_representation,
-        "sae_layer": params.layer,
-        "sae_width": params.width,
+        "sae_layer": getattr(token_analysis, "sae_layer", params.layer),
+        "sae_width": getattr(token_analysis, "sae_width", params.width),
         "sae_module_path": token_analysis.sae_module_path,
         "sae_shape": token_analysis.sae_shape,
         "sae_dtype": token_analysis.sae_dtype,
         "sae_representation": token_analysis.sae_representation,
     }
+    for field in ("sae_l0", "sae_category", "sae_repo_id", "sae_revision"):
+        if hasattr(token_analysis, field):
+            payload[field] = getattr(token_analysis, field)
+    return payload
 
 
 async def _stop_session(ws: WebSocket, session: PipelineSession) -> None:
@@ -374,30 +466,22 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
     _session.ossia_output = ossia_output
     try:
         await _sync_live_ossia(ws, params, ossia_output)
-        cache_key = (params.model, params.layer, params.width)
+        model_spec = MODEL_CATALOGUE.get(params.model)
+        if model_spec is None:
+            raise ValueError(f"Unsupported model: {params.model}")
+        params.layer = _resolve_sae_layer(params.layer, model_spec["layers"])
+        if str(params.width) not in model_spec["widths"]:
+            params.width = str(model_spec["widths"][0])
+        if str(params.l0) not in model_spec["l0s"]:
+            params.l0 = str(model_spec["l0s"][0])
 
-        if cache_key in _model_cache:
-            print("[pipeline] Using cached model/SAE/neuronpedia.", file=sys.stderr, flush=True)
-            cached = _model_cache[cache_key]
+        if params.model in _model_cache:
+            print("[pipeline] Using cached language model.", file=sys.stderr, flush=True)
+            cached = _model_cache[params.model]
             model = cached["model"]
             tokenizer = cached["tokenizer"]
-            sae = cached["sae"]
-            neuronpedia = cached["neuronpedia"]
             await _send_loading(ws, "model", "cached", f"{params.model} · runtime memory")
-            await _send_loading(
-                ws,
-                "sae",
-                "cached",
-                f"Layer {params.layer} · width {params.width} · runtime memory",
-            )
-            await _send_loading(
-                ws,
-                "neuronpedia",
-                "cached",
-                f"{len(neuronpedia.explanations):,} descriptions · runtime memory",
-            )
         else:
-            # Load model
             print(f"[pipeline] Loading language model: {params.model}", file=sys.stderr, flush=True)
             await _send_loading(ws, "model", "active", params.model)
 
@@ -410,69 +494,57 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
             model, tokenizer = await asyncio.to_thread(_load_model)
             print("[pipeline] Language model loaded.", file=sys.stderr, flush=True)
             await _send_loading(ws, "model", "complete", f"{params.model} ready")
+            _model_cache[params.model] = {
+                "model": model,
+                "tokenizer": tokenizer,
+            }
 
-            # Load SAE
-            print(f"[pipeline] Loading SAE (layer={params.layer}, width={params.width}, l0={params.l0})", file=sys.stderr, flush=True)
-            await _send_loading(
-                ws,
-                "sae",
-                "active",
-                f"Layer {params.layer} · width {params.width} · L0 {params.l0}",
-            )
-
-            def _load_sae():
-                from app.server.pipeline.extract import load_sae
-                from app.server.routers.config import SAE_REPO_MAP
-                sae_repo_id = SAE_REPO_MAP.get(params.model, "google/gemma-scope-2-1b-pt")
-                return load_sae(layer=params.layer, width=params.width, l0=params.l0,
-                                sae_repo_id=sae_repo_id)
-
-            sae = await asyncio.to_thread(_load_sae)
-            print("[pipeline] SAE loaded.", file=sys.stderr, flush=True)
+        runtime_key = (
+            params.model,
+            SAE_REPO_MAP[params.model],
+            model_spec["sae_category"],
+            params.layer,
+            params.width,
+            params.l0,
+        )
+        runtime_was_cached = runtime_key in _sae_runtime_cache
+        await _send_loading(
+            ws,
+            "sae",
+            "cached" if runtime_was_cached else "active",
+            f"Layer {params.layer} · {model_spec['sae_category']} · "
+            f"width {params.width} · L0 {params.l0}",
+        )
+        initial_sae_runtime = await asyncio.to_thread(
+            _get_sae_runtime,
+            params,
+            model_spec,
+            params.layer,
+        )
+        sae = initial_sae_runtime.sae
+        neuronpedia = initial_sae_runtime.neuronpedia
+        if not runtime_was_cached:
             await _send_loading(
                 ws,
                 "sae",
                 "complete",
                 f"Layer {params.layer} · width {params.width} ready",
             )
-
-            # Load Neuronpedia
-            print("[pipeline] Loading Neuronpedia explanations...", file=sys.stderr, flush=True)
-            from app.server.pipeline.extract import CACHE_DIR
-
-            np_model_id = params.model.split("/")[-1].replace("-pt", "")
-            neuronpedia_cache_file = (
-                CACHE_DIR / f"{np_model_id}_{params.layer}_{params.width}.jsonl"
-            )
-            neuronpedia_was_cached = neuronpedia_cache_file.exists()
-            neuronpedia_action = (
-                "Reading local explanation cache"
-                if neuronpedia_was_cached
-                else "Downloading explanation batches"
-            )
-            await _send_loading(ws, "neuronpedia", "active", neuronpedia_action)
-
-            def _load_neuronpedia():
-                from app.server.pipeline.extract import download_neuronpedia_explanations
-                # Neuronpedia uses "gemma-3-1b" style key, strip the HF org prefix
-                return download_neuronpedia_explanations(np_model_id, params.layer, params.width)
-
-            neuronpedia = await asyncio.to_thread(_load_neuronpedia)
-            print(f"[pipeline] Neuronpedia loaded: {len(neuronpedia.explanations)} features.", file=sys.stderr, flush=True)
+        if model_spec.get("neuronpedia", True):
             await _send_loading(
                 ws,
                 "neuronpedia",
-                "cached" if neuronpedia_was_cached else "complete",
-                f"{len(neuronpedia.explanations):,} descriptions "
-                f"{'from local cache' if neuronpedia_was_cached else 'downloaded and cached'}",
+                "cached" if runtime_was_cached else "complete",
+                f"{len(neuronpedia.explanations):,} exact-scope descriptions ready",
             )
-
-            _model_cache[cache_key] = {
-                "model": model,
-                "tokenizer": tokenizer,
-                "sae": sae,
-                "neuronpedia": neuronpedia,
-            }
+        else:
+            await _send_loading(
+                ws,
+                "neuronpedia",
+                "skipped",
+                "No descriptions are assigned to the all-layer SAE series",
+            )
+        resolve_live_sae = _live_sae_runtime_resolver(params, model_spec)
 
         from app.server.pipeline.extract import describe_model_architecture
 
@@ -485,87 +557,98 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
             },
         )
 
-        # Prepare feature organization for local visual and audio mappings.
-        enriched_key = (params.model, params.layer, params.width)
-        enriched_was_cached = enriched_key in _enriched_cluster_cache
+        # Do not borrow descriptions or cluster assignments from a different
+        # SAE family merely because its layer and width happen to match.
+        raw_all_layer_sae = not model_spec.get("neuronpedia", True)
         cluster_map: dict = {}
-        cluster_was_cached = params.strategy != "cluster"
-        await _send_loading(
-            ws,
-            "features",
-            "active",
-            "Reading feature organization from memory"
-            if enriched_was_cached
-            else "Naming feature clusters and preparing colours",
-        )
-        if not enriched_was_cached:
-
-            def _build_enriched():
-                from app.server.pipeline.cluster_naming import build_enriched_cluster_map
-                from sentence_transformers import SentenceTransformer
-                import torch
-                embed_device = "cuda" if torch.cuda.is_available() else "cpu"
-                _embed_model = SentenceTransformer("all-MiniLM-L6-v2", device=embed_device)
-                np_model_id = params.model.split("/")[-1].replace("-pt", "")
-                return build_enriched_cluster_map(
-                    np_model_id,
-                    params.layer,
-                    params.width,
-                    neuronpedia,
-                    _embed_model,
-                )
-
-            enriched_data = await asyncio.to_thread(_build_enriched)
-            _enriched_cluster_cache[enriched_key] = enriched_data
-            print(
-                f"[pipeline] Enriched cluster map ready: {len(enriched_data.get('cluster_map', {}))} entries.",
-                file=sys.stderr, flush=True,
+        if raw_all_layer_sae:
+            enriched_data = {"cluster_map": {}, "palette": []}
+            await _send_loading(
+                ws,
+                "features",
+                "skipped",
+                "Raw layer-specific features; no cross-SAE semantic assignments",
             )
         else:
-            enriched_data = _enriched_cluster_cache[enriched_key]
-            print("[pipeline] Enriched cluster map from cache.", file=sys.stderr, flush=True)
+            enriched_key = (params.model, params.layer, params.width)
+            enriched_was_cached = enriched_key in _enriched_cluster_cache
+            cluster_was_cached = params.strategy != "cluster"
+            await _send_loading(
+                ws,
+                "features",
+                "active",
+                "Reading feature organization from memory"
+                if enriched_was_cached
+                else "Naming feature clusters and preparing colours",
+            )
+            if not enriched_was_cached:
 
-        if params.strategy == "cluster":
-            from app.server.pipeline.transform import build_cluster_map
-
-            cluster_key = (params.model, params.layer, params.width, params.clusters)
-            cluster_was_cached = cluster_key in _cluster_cache
-            if cluster_was_cached:
-                cluster_map = _cluster_cache[cluster_key]
-                print(f"[pipeline] Cluster map from in-memory cache: {len(cluster_map)} entries.", file=sys.stderr, flush=True)
-                logger.info("Cluster map loaded from in-memory cache: %d entries", len(cluster_map))
-            else:
-                await _send_loading(
-                    ws,
-                    "features",
-                    "active",
-                    f"Building {params.clusters}-cluster performance map",
-                )
-                print(f"[pipeline] Building cluster map (clusters={params.clusters})...", file=sys.stderr, flush=True)
-
-                def _build_clusters():
+                def _build_enriched():
+                    from app.server.pipeline.cluster_naming import build_enriched_cluster_map
+                    from sentence_transformers import SentenceTransformer
+                    import torch
+                    embed_device = "cuda" if torch.cuda.is_available() else "cpu"
+                    _embed_model = SentenceTransformer("all-MiniLM-L6-v2", device=embed_device)
                     np_model_id = params.model.split("/")[-1].replace("-pt", "")
-                    return build_cluster_map(
+                    return build_enriched_cluster_map(
                         np_model_id,
                         params.layer,
                         params.width,
-                        params.clusters,
-                        "all-MiniLM-L6-v2",
+                        neuronpedia,
+                        _embed_model,
                     )
 
-                cluster_map = await asyncio.to_thread(_build_clusters)
-                _cluster_cache[cluster_key] = cluster_map
+                enriched_data = await asyncio.to_thread(_build_enriched)
+                _enriched_cluster_cache[enriched_key] = enriched_data
+                print(
+                    f"[pipeline] Enriched cluster map ready: {len(enriched_data.get('cluster_map', {}))} entries.",
+                    file=sys.stderr, flush=True,
+                )
+            else:
+                enriched_data = _enriched_cluster_cache[enriched_key]
+                print("[pipeline] Enriched cluster map from cache.", file=sys.stderr, flush=True)
 
-            print(f"[pipeline] Cluster map ready: {len(cluster_map)} entries.", file=sys.stderr, flush=True)
-            logger.info("Cluster map ready: %d entries", len(cluster_map))
+            if params.strategy == "cluster":
+                from app.server.pipeline.transform import build_cluster_map
 
-        features_cached = enriched_was_cached and cluster_was_cached
-        await _send_loading(
-            ws,
-            "features",
-            "cached" if features_cached else "complete",
-            f"{len(enriched_data.get('cluster_map', {})):,} feature assignments ready",
-        )
+                cluster_key = (params.model, params.layer, params.width, params.clusters)
+                cluster_was_cached = cluster_key in _cluster_cache
+                if cluster_was_cached:
+                    cluster_map = _cluster_cache[cluster_key]
+                    print(f"[pipeline] Cluster map from in-memory cache: {len(cluster_map)} entries.", file=sys.stderr, flush=True)
+                    logger.info("Cluster map loaded from in-memory cache: %d entries", len(cluster_map))
+                else:
+                    await _send_loading(
+                        ws,
+                        "features",
+                        "active",
+                        f"Building {params.clusters}-cluster performance map",
+                    )
+                    print(f"[pipeline] Building cluster map (clusters={params.clusters})...", file=sys.stderr, flush=True)
+
+                    def _build_clusters():
+                        np_model_id = params.model.split("/")[-1].replace("-pt", "")
+                        return build_cluster_map(
+                            np_model_id,
+                            params.layer,
+                            params.width,
+                            params.clusters,
+                            "all-MiniLM-L6-v2",
+                        )
+
+                    cluster_map = await asyncio.to_thread(_build_clusters)
+                    _cluster_cache[cluster_key] = cluster_map
+
+                print(f"[pipeline] Cluster map ready: {len(cluster_map)} entries.", file=sys.stderr, flush=True)
+                logger.info("Cluster map ready: %d entries", len(cluster_map))
+
+            features_cached = enriched_was_cached and cluster_was_cached
+            await _send_loading(
+                ws,
+                "features",
+                "cached" if features_cached else "complete",
+                f"{len(enriched_data.get('cluster_map', {})):,} feature assignments ready",
+            )
 
         enriched_map = enriched_data.get("cluster_map", {})
         palette = enriched_data.get("palette", [])
@@ -645,6 +728,7 @@ async def _run_pipeline(ws: WebSocket, params: PipelineParams) -> None:
                         probe_keys=_requested_probe_keys,
                         observation_layer=lambda: params.observation_layer,
                         probe_rack=lambda: params.probe_rack,
+                        sae_runtime=resolve_live_sae,
                     ):
                         token_count += 1
                         active_features = [f.model_dump() for f in token_analysis.active_features]

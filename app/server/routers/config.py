@@ -13,9 +13,37 @@ router = APIRouter(prefix="/api/config")
 _DEFAULTS = PipelineParams()
 
 MODEL_CATALOGUE = {
+    "google/gemma-3-270m": {
+        "layers": list(range(18)),
+        "widths": ["16k"],
+        "l0s": ["small"],
+        "sae_category": "resid_post_all",
+        "live_sae_layers": True,
+        "neuronpedia": False,
+        "observation_layers": list(range(18)),
+        "architecture": {
+            "label": "Gemma 3 270M · all-layer SAE example",
+            "layer_count": 18,
+            "hidden_size": 640,
+            "intermediate_size": 2048,
+            "attention_heads": 4,
+            "key_value_heads": 1,
+            "head_dim": 256,
+            "sliding_window": 512,
+            "max_position_embeddings": 32768,
+            "layer_types": [
+                "full_attention" if (index + 1) % 6 == 0 else "sliding_attention"
+                for index in range(18)
+            ],
+        },
+    },
     "google/gemma-3-1b-pt": {
         "layers": [22],
         "widths": ["65k"],
+        "l0s": ["medium"],
+        "sae_category": "resid_post",
+        "live_sae_layers": False,
+        "neuronpedia": True,
         "observation_layers": list(range(26)),
         "architecture": {
             "label": "Gemma 3 1B",
@@ -36,6 +64,10 @@ MODEL_CATALOGUE = {
     "google/gemma-3-4b-pt": {
         "layers": [22],
         "widths": ["65k"],
+        "l0s": ["medium"],
+        "sae_category": "resid_post",
+        "live_sae_layers": False,
+        "neuronpedia": True,
         "observation_layers": list(range(34)),
         "architecture": {
             "label": "Gemma 3 4B",
@@ -51,6 +83,7 @@ MODEL_CATALOGUE = {
 }
 
 SAE_REPO_MAP = {
+    "google/gemma-3-270m": "google/gemma-scope-2-270m-pt",
     "google/gemma-3-1b-pt": "google/gemma-scope-2-1b-pt",
     "google/gemma-3-4b-pt": "google/gemma-scope-2-4b-pt",
 }
