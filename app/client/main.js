@@ -1158,10 +1158,11 @@ function populateLayerWidth(modelId) {
   layerSel.innerHTML = "";
   info.layers.forEach(l => {
     const opt = document.createElement("option");
-    opt.value = l;
+    opt.value = String(l);
     opt.textContent = l;
     layerSel.appendChild(opt);
   });
+  layerSel.value = info.layers.length ? String(info.layers[0]) : "";
 
   widthSel.innerHTML = "";
   info.widths.forEach(w => {
@@ -1428,9 +1429,10 @@ function normalizedProbe(raw = {}, saeLayer = selectedSaeLayer()) {
     .replace(/^-+|-+$/g, "")
     .slice(0, 48) || fallbackId;
   const requestedLayer = Number.parseInt(raw.layer);
+  const maximumLayer = availableModelLayerCount() - 1;
   const layer = site === "sae"
     ? Math.max(0, Number.parseInt(saeLayer) || 0)
-    : Math.max(0, Math.min(255, Number.isFinite(requestedLayer) ? requestedLayer : 0));
+    : Math.max(0, Math.min(maximumLayer, Number.isFinite(requestedLayer) ? requestedLayer : 0));
   const capture = site === "sae" ? "summary" : (raw.capture === "vector" ? "vector" : "summary");
   return {
     id,
@@ -3289,6 +3291,7 @@ prompt.addEventListener("keydown", event => {
 
 modelSel.addEventListener("change", () => {
   populateLayerWidth(modelSel.value);
+  probeRack = normalizedProbeRack(probeRack, selectedSaeLayer());
   renderProbeRack();
   saveParams();
 });

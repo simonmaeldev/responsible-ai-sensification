@@ -261,3 +261,32 @@ test("the runbook documents debug and normal custom UI launches", () => {
   assert.match(readme, /EXAMPLE_patchable_tensor_rms_delete_safe/);
   assert.match(readme, /delete.*example.*observation.*remain/is);
 });
+
+test("the deterministic score capture preserves the live patching evidence", () => {
+  const qml = readWorkbenchFile("tests/capture-interface-ui.qml");
+  const runner = readWorkbenchFile("tests/capture_interface.py");
+
+  assert.match(qml, /grabToImage/);
+  assert.match(qml, /__RAI_CAPTURE_PATH__/);
+  assert.match(qml, /setObservationLayer\(7\)/);
+  assert.match(qml, /setProbeLayer\(0, 7\)/);
+  assert.match(qml, /EXAMPLE_patchable_tensor_rms_delete_safe/);
+  assert.match(qml, /exampleMappedValue/);
+  assert.match(qml, /snapshot\.patchableScalars\[0\]\.value/);
+  assert.match(runner, /run_research_fixture/);
+  assert.match(runner, /stage_score_document/);
+  assert.match(runner, /PNG/);
+});
+
+test("installed score can consume the separate bounded libossia device", () => {
+  const qml = readWorkbenchFile("tests/oscquery-client-smoke-ui.qml");
+  const runner = readWorkbenchFile("tests/run_oscquery_client_smoke.py");
+
+  assert.match(qml, /Score\.connectOSCQueryDevice/);
+  assert.match(qml, /__RAI_OSCQUERY_URL__/);
+  assert.match(qml, /RAI Emitter Smoke:\/rai\/probes\/1\/rms/);
+  assert.match(qml, /RAI Emitter Smoke:\/rai\/probes\/1\/module_path/);
+  assert.match(runner, /rai-ossia-probe-server/);
+  assert.match(runner, /encode_bridge_command/);
+  assert.match(runner, /10\.5/);
+});

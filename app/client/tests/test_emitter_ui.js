@@ -67,6 +67,7 @@ const root = path.resolve(__dirname, "..");
 const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
 const sourcePath = path.join(root, "main.js");
 const source = fs.readFileSync(sourcePath, "utf8");
+const style = fs.readFileSync(path.join(root, "style.css"), "utf8");
 const htmlIds = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map(match => match[1]));
 const referencedIds = [...source.matchAll(/getElementById\("([^"]+)"\)/g)].map(match => match[1]);
 assert.deepEqual(referencedIds.filter(id => !htmlIds.has(id)), []);
@@ -97,6 +98,11 @@ assert.match(html, /id="ossia-enabled"/);
 assert.match(html, /id="ossia-osc-port"/);
 assert.match(html, /id="ossia-query-port"/);
 assert.match(html, /id="ossia-status"/);
+assert.match(
+  style,
+  /#probe-drawer\.is-open\s*\{[^}]*transform:\s*translateX\(0\)/s,
+  "the probe drawer's ID-specific closed transform must be overridden when open",
+);
 assert.match(html, /id="btn-controls-toggle"[^>]+aria-expanded="false"/);
 assert.match(html, /id="btn-tonality-toggle"[^>]+aria-expanded="false"/);
 assert.match(html, /id="control-drawer"[^>]+aria-hidden="true"/);
@@ -252,7 +258,7 @@ global.fetch = async url => ({
   },
 });
 
-const instrumented = `${source}\n;globalThis.__emitterTest = { completeMapping, templateMappings, morphMapping, lerp, filterSignalCatalogue, signalRouteSummary, describeStreamValue, residualVectorStats, safeObservationLayer, normalizedLayerActivity, layerProfileEntry, layerProfilePoints, stepObservationLayer, scalePresetForIntervals, normalizedLens, visibleTokenLabel, featureDirectionRows, normalizedProbe, normalizedProbeRack, appendTokenToTimeline, handleMessage, handleLoadingMessage, startLoadingProgress, finishLoadingProgress, setWorkspace, setInterfaceDrawer, selectObservationLayer, selectSaeLayer, configureModelForTest(modelId) { modelSel.value = modelId; populateLayerWidth(modelId); sessionActive = true; }, setSignalSelection(keys) { sessionActive = true; selectedEmitterSignalKeys = new Set(keys); sendSignalSelectionUpdate(); }, setProbeRackForTest(probes) { sessionActive = true; probeRack = normalizedProbeRack(probes); sendProbeRackUpdate(); } };`;
+const instrumented = `${source}\n;globalThis.__emitterTest = { completeMapping, templateMappings, morphMapping, lerp, filterSignalCatalogue, signalRouteSummary, describeStreamValue, residualVectorStats, safeObservationLayer, normalizedLayerActivity, layerProfileEntry, layerProfilePoints, stepObservationLayer, scalePresetForIntervals, normalizedLens, visibleTokenLabel, featureDirectionRows, normalizedProbe, normalizedProbeRack, appendTokenToTimeline, handleMessage, handleLoadingMessage, startLoadingProgress, finishLoadingProgress, setWorkspace, setInterfaceDrawer, selectObservationLayer, selectSaeLayer, configureModelForTest(modelId) { modelSel.value = modelId; populateLayerWidth(modelId); sessionActive = true; }, probeRackForTest() { return structuredClone(probeRack); }, setSignalSelection(keys) { sessionActive = true; selectedEmitterSignalKeys = new Set(keys); sendSignalSelectionUpdate(); }, setProbeRackForTest(probes) { sessionActive = true; probeRack = normalizedProbeRack(probes); sendProbeRackUpdate(); } };`;
 vm.runInThisContext(instrumented, { filename: sourcePath });
 
 setTimeout(() => {
@@ -349,6 +355,17 @@ setTimeout(() => {
     { id: "same", site: "mlp_output", layer: 1 },
     { id: "bad", site: "invented", layer: 1 },
   ]).length, 1);
+  api.setProbeRackForTest([
+    { id: "residual", site: "residual_post", layer: 22 },
+    { id: "sae", site: "sae", layer: 22 },
+  ]);
+  elements.get("model").value = "test-all-layer";
+  elements.get("model").listeners.change();
+  assert.deepEqual(
+    api.probeRackForTest().map(probe => probe.layer),
+    [2, 0],
+    "switching to a smaller model must keep requested probe layers truthful",
+  );
   api.appendTokenToTimeline({ token: " plain" }, 0);
   assert.equal(elements.get("cv-text-content").children.length, 1);
   assert.equal(elements.get("cv-text-content").children[0].textContent, "␠plain");

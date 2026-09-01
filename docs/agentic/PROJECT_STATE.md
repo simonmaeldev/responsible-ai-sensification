@@ -1,6 +1,6 @@
 # Project State
 
-Last updated: 2026-08-28
+Last updated: 2026-08-31
 
 ## Branch
 
@@ -83,6 +83,19 @@ namespace. Only bounded probe summaries are published; dense vectors and full
 SAE feature sets stay in the local WebSocket. Startup, missing-library, broken
 pipe, and port-collision failures are reported without stopping generation.
 This does not change `/rai/v1` or the Windows receiver.
+
+The local score/libossia handoff is now complete. Installed ossia score 3.8.2
+connected to the actual C++ sidecar as an OSCQuery client and observed a live
+RMS change from `0.5` to `10.5` with exact model/token/site/layer/module/shape/
+sequence evidence. This is separate from the saved `RAI Workbench` WebSocket
+device, whose four patchable raw scalars and removable Float example were also
+captured through a reproducible offscreen harness. A real browser-controlled
+270M GPU run showed matching layer-17 dense/SAE observations and an active
+eight-slot OSCQuery tree. That visual pass found and fixed the Probes drawer's
+CSS precedence bug and normalized stale probe layers when switching to a
+smaller model. The integration topology and exact score Device Explorer steps
+are in `docs/OSSIA_SCORE_LIBOSSIA_INTEGRATION.md`; generated screenshots remain
+untracked under `runs/`.
 
 Phase 5B is in progress on the Windows laptop. The receiver source has now been
 saved through Live's **Edit in Max** workflow as the Max-generated
@@ -746,9 +759,9 @@ identify a concrete research or artistic workflow and preserve provenance.
 7. With the researchers, define one evidence-backed Interpreto adapter slice:
    model/split point, live inference versus dataset/checkpoint source, concept or
    attribution method, and provenance. Implement the adapter before its UI.
-8. In ossia score, add the discovered `RAI Emitter` OSCQuery device and evaluate
-   which existing bounded probe summaries are useful. Keep dense arrays local
-   or choose a separate bounded transport; do not force them into OSC messages.
+8. The discovered `RAI Emitter` OSCQuery device is verified in installed score.
+   Add another bounded metric only after a concrete score process needs it;
+   keep dense arrays and complete sparse records local.
 
 ### Ubuntu laptop conflict-resolution handoff (2026-08-11)
 

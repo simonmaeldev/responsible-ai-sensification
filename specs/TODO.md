@@ -87,6 +87,11 @@ priority takes precedence over the older numeric ordering.
   descriptions empty. A real three-token RTX 4060 Ti run passed at L0/L8/L17;
   raw vectors/full sparse data remain local and external connectors are
   unchanged.
+- Score/libossia visual handoff: installed score now consumes the real C++
+  sidecar through OSCQuery and observes live bounded values with provenance.
+  Reproducible score capture and real 270M browser/libossia images document the
+  two separate score-device paths. The Probes drawer and model-switch probe
+  normalization defects found during capture are fixed and covered.
 
 ## Current priority: researcher-facing observation workflows
 
@@ -98,9 +103,9 @@ priority takes precedence over the older numeric ordering.
   by the workbench but remain outside OSC v1.
 - With the researchers, specify one actual Interpreto adapter: supported model,
   split point, inference/dataset/checkpoint source, method, and provenance.
-- Evaluate the implemented bounded libossia/OSCQuery namespace in ossia score.
-  Add metrics only from a concrete workflow; do not force full dense arrays
-  into OSC.
+- Add another libossia/OSCQuery metric only from a concrete score workflow; the
+  existing bounded namespace is now verified in installed score. Do not force
+  full dense arrays into OSC.
 - Keep Tonality and other transformation experiments removable and evaluate
   them only when they answer a concrete research or artistic question.
 

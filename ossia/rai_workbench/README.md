@@ -170,3 +170,31 @@ UV_CACHE_DIR=/tmp/rai-uv-cache uv run python \
 ```
 
 Files under `tests/` are automated score harnesses, not product interfaces.
+
+## libossia / OSCQuery interoperability
+
+`RAI Workbench` is the exact local WebSocket research device. It remains
+separate from the optional discoverable `RAI Emitter` OSCQuery device, whose
+fixed `/rai/probes/1..8` tree carries only selected bounded summaries. Either,
+both, or neither can be present in a score document; inference and the browser
+do not depend on the OSCQuery sidecar.
+
+Verify that installed score can connect to the real C++ libossia server and
+observe a live scalar update:
+
+```bash
+UV_CACHE_DIR=/tmp/rai-uv-cache uv run python \
+  ossia/rai_workbench/tests/run_oscquery_client_smoke.py
+```
+
+Create the deterministic 1440×900 Slice 4 evidence image at
+`runs/ossia-score-slice4.png`:
+
+```bash
+UV_CACHE_DIR=/tmp/rai-uv-cache uv run python \
+  ossia/rai_workbench/tests/capture_interface.py
+```
+
+See [the integration guide](../../docs/OSSIA_SCORE_LIBOSSIA_INTEGRATION.md) for
+the complete topology, Device Explorer steps, screenshots, and contract
+boundaries.

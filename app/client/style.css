@@ -4622,6 +4622,12 @@ body {
   box-shadow: -20px 0 60px rgba(0, 0, 0, 0.42);
 }
 
+#probe-drawer.is-open {
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateX(0);
+}
+
 .probe-rack-guide {
   margin: 18px 0;
   padding: 11px 12px;

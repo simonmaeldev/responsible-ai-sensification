@@ -138,3 +138,17 @@ This namespace is additive and separate from the established outbound
 - Sending unbounded dense arrays through OSC or OSCQuery.
 - Replacing the custom Emitter UI with ossia score.
 - Changing the Windows Receiver or `/rai/v1` contract.
+
+## Integration verification follow-up
+
+On 2026-08-31, installed ossia score 3.8.2 connected to the real C++ sidecar
+through `Score.connectOSCQueryDevice` and read the fixed `/rai` namespace. A
+live update changed `/rai/probes/1/rms` from `0.5` to `10.5`; score simultaneously
+read the exact 270M model, token 2, residual-post site, layer 17,
+`model.layers.17`, shape `640`, and sequence 2. The test-owned score and sidecar
+were stopped afterward.
+
+A separate real browser/GPU run exposed the discoverable eight-slot namespace
+while moving the matching 270M dense/SAE observation through L0, L8, and L17.
+The visible probe rack and model-switch layer normalization were corrected with
+focused browser tests. No namespace field or publication boundary changed.

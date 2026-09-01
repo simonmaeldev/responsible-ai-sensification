@@ -350,7 +350,7 @@ the latest single-surface correction is in `specs/emitter-live-inspector.md`.
 
 ## Phase 10: Gemma Probe Rack And libossia OSCQuery
 
-Status: complete for the first bounded adapter and namespace
+Status: complete for the first bounded adapter, namespace, and score client
 
 Goal: let a researcher place truthful observation probes at real Gemma hook
 points, inspect them beside the current token, and optionally expose bounded
@@ -378,6 +378,11 @@ Implemented:
   shell syntax, C++ rebuild, real HTTP OSCQuery values, mDNS discovery, port
   collision handling, and a real six-token RTX 4060 Ti run. The live attention
   probe moved from L1 to L3 starting at token 3 without restart.
+- Verified installed score 3.8.2 as a real OSCQuery client of the C++ sidecar:
+  it observed RMS change from `0.5` to `10.5` and exact bounded provenance.
+  A real 270M browser/GPU run also exposed all eight stable slots. The visual
+  pass fixed the previously off-screen Probes drawer and stale probe-layer
+  controls after model switches without changing the namespace.
 
 Deliberate next adapter boundary:
 
@@ -385,8 +390,8 @@ Deliberate next adapter boundary:
   explicit tensor meaning and cost tests.
 - Define one researcher-backed Interpreto/training adapter before exposing
   gradients, checkpoints, datasets, or training steps.
-- Evaluate the existing namespace in ossia score before versioning additional
-  metrics. Do not put unbounded dense arrays into OSC/OSCQuery.
+- Version an additional metric only for a concrete evaluated score workflow.
+  Do not put unbounded dense arrays into OSC/OSCQuery.
 
 The focused contract and exact namespace are in
 `specs/gemma-probe-rack-ossia.md`.
@@ -438,6 +443,9 @@ Implemented Slices 1 through 5:
 - Added one clearly labelled, delete-safe built-in `Float` example whose input
   receives tensor RMS. A separate installed-score removal run proves that the
   observation tree, history, and live controls do not depend on the example.
+- Added a reproducible 1440×900 score capture that asserts the backend RMS and
+  normal Float inlet are both exactly `10.5`, plus a complete visual/libossia
+  integration guide. Generated browser and score images stay untracked.
 - Verified eleven adapter/device tests, nine interface/document tests, all 111
   server tests, the unchanged 165-reference browser harness, normal/debug
   installed-score runs, and a real two-token RTX 4060 Ti run against the browser

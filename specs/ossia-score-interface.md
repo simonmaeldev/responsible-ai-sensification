@@ -286,6 +286,28 @@ Observed verification:
   field in the browser WebSocket event, token-one history restored the original
   value/provenance, and the fixed layer-22 SAE remained unchanged.
 
+Post-completion visual and connector handoff (2026-08-31):
+
+- Added a deterministic installed-score capture harness. Its 1440×900 image
+  shows all four patchable rows with literal backend values and complete
+  provenance; the harness also asserts that the normal Float inlet receives
+  the same RMS `10.5` before saving the image.
+- Added a separate installed-score OSCQuery client smoke test using score's
+  official `Score.connectOSCQueryDevice` API and the repository-owned C++
+  libossia sidecar. score observed a live RMS change from `0.5` to `10.5` plus
+  exact model, token, site, layer 17, `model.layers.17`, shape, and sequence.
+- A real browser-controlled RTX 4060 Ti 270M run moved the dense observation
+  and separately trained SAE through L0, L8, and L17, displayed the bounded
+  probe rack, and exposed eight OSCQuery slots with no browser errors.
+- Screenshot inspection found and test-first corrected an ID-specific CSS
+  precedence error that kept the Probes drawer off-screen. Model changes now
+  also clamp requested non-SAE probe layers to the selected architecture and
+  rebind SAE rows to the newly selected trained layer before a run.
+- These checks add presentation and interoperability evidence only. They do
+  not merge the `RAI Workbench` WebSocket tree with `RAI Emitter` OSCQuery or
+  change inference, values, `/rai/v1`, the Windows receiver, or transport raw
+  vectors/full sparse records.
+
 ### Slice 5: Native inference decision gate
 
 Status: complete — no-go for a native port now
